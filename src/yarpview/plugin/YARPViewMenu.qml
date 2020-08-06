@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 import QtQuick 2.0
@@ -19,10 +27,12 @@ MenuBar {
     signal freeze(bool checked)
     signal setOriginalSize()
     signal setOriginalAspectRatio()
-    signal synchToDisplay(bool checked)
+    signal synchDisplayPeriod(bool checked)
+    signal synchDisplaySize(bool checked)
     signal changeRefreshInterval()
     signal saveSingleImage(bool checked)
     signal saveSetImages(bool checked)
+    signal pickColor(bool checked)
 
     function enableSynch(check){
         if(check === true){
@@ -32,6 +42,29 @@ MenuBar {
         }
     }
 
+    function enableAutosize(check){
+        if(check === true){
+            autosizeItem.checked = true
+        }else{
+            autosizeItem.checked = false
+        }
+    }
+
+    // NB: This is not the best solution but the fastest one.
+    /*!
+      \brief Changes the "saveSingle" menu checked state
+      \param checked Bollean: Whether or not the menu item has to be checked
+      */
+    function saveSingleChecked(checked){
+        saveSingle.checked = checked;
+    }
+    /*!
+      \brief Changes the "saveSet" menu checked state
+      \param checked Bollean: Whether or not the menu item has to be checked
+      */
+    function saveSetChecked(checked){
+        saveSet.checked = checked;
+    }
 
     Menu {
 
@@ -82,7 +115,21 @@ MenuBar {
                    text: "Synch display"
                    checkable: true
                    onTriggered: {
-                       synchToDisplay(synchItem.checked)
+                       synchDisplayPeriod(synchItem.checked)
+                   }}
+        MenuSeparator{}
+        MenuItem { id: autosizeItem
+                   text: "Auto resize"
+                   checkable: true
+                   onTriggered: {
+                       synchDisplaySize(autosizeItem.checked)
+                   }}
+        MenuSeparator{}
+        MenuItem { id: colorPickerItem
+                   text: "Display pixel value"
+                   checkable: true
+                   onTriggered: {
+                       pickColor(colorPickerItem.checked);
                    }}
         MenuSeparator{}
         MenuItem { text: "Change refresh interval"
@@ -100,4 +147,3 @@ MenuBar {
     }
 
 }
-

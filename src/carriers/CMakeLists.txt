@@ -1,14 +1,16 @@
-# Copyright (C) 2010 RobotCub Consortium
-# Authors: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
-
-option(CREATE_OPTIONAL_CARRIERS "Compile some optional carriers" FALSE)
-
-get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-include_directories(${YARP_OS_INCLUDE_DIRS})
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 include(YarpPlugin)
-yarp_begin_plugin_library(yarpcar)
+include(YarpPrintFeature)
+
+yarp_begin_plugin_library(yarpcar OPTION YARP_COMPILE_CARRIER_PLUGINS
+                                  DEFAULT ON)
+  add_subdirectory(shmem_carrier)
   add_subdirectory(human_carrier)
   add_subdirectory(mpi_carrier)
   add_subdirectory(xmlrpc_carrier)
@@ -17,27 +19,34 @@ yarp_begin_plugin_library(yarpcar)
   add_subdirectory(bayer_carrier)
   add_subdirectory(priority_carrier)
   add_subdirectory(portmonitor_carrier)
-  add_subdirectory(depth_image_portmonitor)
-  yarp_end_plugin_library(yarpcar)
+  add_subdirectory(depthimage_portmonitor)
+  add_subdirectory(depthimage2_portmonitor)
+  add_subdirectory(segmentationimage_portmonitor)
+  add_subdirectory(zfp_portmonitor)
+  add_subdirectory(h264_carrier)
+  add_subdirectory(unix)
+yarp_end_plugin_library(yarpcar QUIET)
+add_library(YARP::yarpcar ALIAS yarpcar)
+
 install(TARGETS yarpcar
-        EXPORT YARP
-        COMPONENT runtime
+        EXPORT YARP_yarpcar
+        COMPONENT yarpcar
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
-if(YARP_LINK_PLUGINS)
-  set_property(GLOBAL APPEND PROPERTY YARP_LIBS yarpcar ${yarpcar_LIBRARIES})
+include(YarpInstallBasicPackageFiles)
+if(NOT "${YARP_yarpcar_PUBLIC_DEPS}" STREQUAL "")
+  list(REMOVE_DUPLICATES YARP_yarpcar_PUBLIC_DEPS)
 endif()
+if(NOT "${YARP_yarpcar_PRIVATE_DEPS}" STREQUAL "")
+  list(REMOVE_DUPLICATES YARP_yarpcar_PRIVATE_DEPS)
+endif()
+yarp_install_basic_package_files(YARP_yarpcar
+                                 DEPENDENCIES ${YARP_yarpcar_PUBLIC_DEPS}
+                                 PRIVATE_DEPENDENCIES ${YARP_yarpcar_PRIVATE_DEPS})
+
+set_property(TARGET yarpcar PROPERTY FOLDER "Plugins/Carrier")
 
 include(YarpDeprecatedOption)
-yarp_renamed_option(ENABLE_yarpcar_bayer_carrier ENABLE_yarpcar_bayer) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_human_carrier ENABLE_yarpcar_human) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_mjpeg_carrier ENABLE_yarpcar_mjpeg) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_mpi_carrier ENABLE_yarpcar_mpi) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_mpibcast_carrier ENABLE_yarpcar_mpibcast) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_portmonitor_carrier ENABLE_yarpcar_portmonitor) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_priority_carrier ENABLE_yarpcar_priority) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_tcpros_carrier ENABLE_yarpcar_tcpros) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_rossrv_carrier ENABLE_yarpcar_rossrv) # since YARP 2.3.68
-yarp_renamed_option(ENABLE_yarpcar_xmlrpc_carrier ENABLE_yarpcar_xmlrpc) # since YARP 2.3.68
+yarp_renamed_option(CREATE_OPTIONAL_CARRIERS YARP_COMPILE_CARRIER_PLUGINS) # since YARP 3.0.0

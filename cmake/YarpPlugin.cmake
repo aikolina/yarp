@@ -5,13 +5,12 @@
 # A set of macros for building YARP plugins.
 #
 
-# Copyright: (C) 2009, 2010 RobotCub Consortium
-#            (C) 2013-2016 iCub Facility, Istituto Italiano di Tecnologia
-# Authors: Paul Fitzpatrick <paulfitz@alum.mit.edu>
-#          Giorgio Metta <giorgio.metta@iit.it>
-#          Lorenzo Natale <lorenzo.natale@iit.it>
-#          Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 ################################################################################
 ##
@@ -44,15 +43,25 @@
 ################################################################################
 
 
+## Ensure that these variables are always defined after including this file
+if(NOT DEFINED YARP_PLUGIN_LEVEL)
+  set(YARP_PLUGIN_LEVEL "0")
+endif()
+
+if(NOT DEFINED YARP_PLUGIN_MASTER)
+  set(YARP_PLUGIN_MASTER "")
+endif()
+
 ## Skip this whole file if it has already been included
 if(COMMAND YARP_END_PLUGIN_LIBRARY)
   return()
 endif()
 
 include(GNUInstallDirs)
-include(YarpInstallationHelpers)
 include(CMakeParseArguments)
 include(CMakeDependentOption)
+include(${CMAKE_CURRENT_LIST_DIR}/YarpInstallationHelpers.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/YarpPrintFeature.cmake)
 
 
 ################################################################################
@@ -62,7 +71,11 @@ include(CMakeDependentOption)
 # Make sure that all the hooks needed for creating a plugin library are in
 # place::
 #
-#    yarp_begin_plugin_library(<bundle_name>)
+#    yarp_begin_plugin_library(<bundle_name>
+#                              [QUIET]
+#                              [OPTION <name> [DEFAULT <ON|OFF>]]
+#                              [DOC "<plugin library documentation>"]
+#                             )
 #
 # Between this call, and a subsequent call to
 # :command:`yarp_end_plugin_library`, any yarp plugin target created is tracked
@@ -71,34 +84,73 @@ include(CMakeDependentOption)
 # Calls to this macro may be nested.
 #
 macro(YARP_BEGIN_PLUGIN_LIBRARY bundle_name)
-  if(X_YARP_PLUGIN_MODE)
+  set(_options QUIET)
+  set(_oneValueArgs OPTION
+                    DEFAULT
+                    DOC)
+  set(_multiValueArgs )
+  cmake_parse_arguments(_YBPL "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN} )
+
+  if(DEFINED _YBPL_DEFAULT AND NOT DEFINED _YBPL_OPTION)
+    message(FATAL_ERROR "DEFAULT argument cannot be used without OPTION")
+  endif()
+
+  yarp_colorize_string(bundle_name_col white 1 "${bundle_name}")
+
+  if(YARP_PLUGIN_LEVEL)
+    if(NOT _YBPL_DOC)
+      set(_YBPL_DOC "Nested plugin library: ${bundle_name_col}")
+    endif()
+
+    if(DEFINED _YBPL_OPTION)
+      message(FATAL_ERROR "Only first level libraries can have an option")
+    endif()
 
     # If we are nested inside a larger plugin block, we don't
     # have to do anything.
-    message(STATUS "nested library ${bundle_name}")
+
   else()
+    if(NOT _YBPL_DOC)
+      set(_YBPL_DOC "Plugin library: ${bundle_name_col}")
+    endif()
+
     # If we are the outermost plugin block, then we need to set up
     # everything for tracking the plugins within that block.
 
-    # Make a record of the fact that we are now within a plugin
-    set(X_YARP_PLUGIN_MODE TRUE)
-
-    # Declare that we are starting to compile the given plugin library
-    message(STATUS "starting plugin library: ${bundle_name}")
-
-    # Choose a prefix for CMake options related to this library
-    set(X_YARP_PLUGIN_PREFIX "${bundle_name}_")
-
     # Record the name of the plugin library name
-    set(X_YARP_PLUGIN_MASTER ${bundle_name})
+    set(YARP_PLUGIN_MASTER ${bundle_name})
 
     # Set some properties to an empty state
     set_property(GLOBAL PROPERTY YARP_BUNDLE_PLUGINS) # list of plugins
     set_property(GLOBAL PROPERTY YARP_BUNDLE_OWNERS)  # owner library
     set_property(GLOBAL PROPERTY YARP_BUNDLE_LIBS)    # list of library targets
-    set_property(GLOBAL PROPERTY YARP_BUNDLE_CODE)    # list of generated code
+    set_property(DIRECTORY PROPERTY YARP_BUNDLE_CODE) # list of generated code
+    set_property(DIRECTORY PROPERTY YARP_BUNDLE_INI)  # name for the .ini file
 
+    # Check if the plugin library should be enabled
+    set(_disabled 0)
+    if(DEFINED _YBPL_OPTION)
+      option(${_YBPL_OPTION} "Enable/disable ${_YBPL_DOC}" ${_YBPL_DEFAULT})
+      if(NOT ${_YBPL_OPTION})
+        set(_disabled 1)
+      endif()
+      if(COMMAND add_feature_info)
+        add_feature_info(${bundle_name} ${_YBPL_OPTION} "${_YBPL_DOC}.")
+      endif()
+    endif()
+    set_property(GLOBAL PROPERTY YARP_BUNDLE_DISABLED ${_disabled})
   endif()
+
+  if (NOT _YBPL_QUIET AND NOT YarpPlugin_QUIET)
+    if(DEFINED _YBPL_OPTION)
+      yarp_print_feature(${_YBPL_OPTION} ${YARP_PLUGIN_LEVEL} "${_YBPL_DOC}")
+    else()
+      message(STATUS "${_YBPL_DOC}")
+    endif()
+  endif()
+
+  # Make a record of the fact that we are now within a plugin
+  math(EXPR YARP_PLUGIN_LEVEL "${YARP_PLUGIN_LEVEL} + 1")
 endmacro()
 
 
@@ -115,14 +167,15 @@ endmacro()
 #                       INCLUDE <header>
 #                       [DEFAULT <ON|OFF>]
 #                       [OPTION <name>]
+#                       [DOC "<plugin documentation>"]
 #                       [ADVANCED]
 #                       [INTERNAL]
 #                       [DEPENDS <condition>]
 #                       [TEMPLATE <file_name|path_to_a_file>]
 #                       [TEMPLATE_DIR <dir>]
 #                       [EXTRA_CONFIG <config>]
-#                       [CODE <code>]        # Deprecated, used only by carriers
-#                       [WRAPPER <wrapper>]  # Deprecated, used only by devices
+#                       [QUIET]
+#                      )
 #
 # This macro converts a plugin declaration to code, and to set up a CMake option
 # for enabling or disabling the compilation of that plugin.
@@ -135,7 +188,8 @@ endmacro()
 # The ``TYPE`` argument is used to specify the class name (including the
 # eventual namespace) that implements the plugin.
 # ``INCLUDE`` is the header file that should be included and that contains the
-# definition of the class.
+# definition of the class. The path to the header file should be relative to one
+# of the include directories.
 #
 # For example, for a plugin implementing a ``carrier``, the header file
 # (``foo/Bar.h``) will contain something like this::
@@ -188,10 +242,14 @@ endmacro()
 # changed to `YARPPLUG_<KEY>` and used when the template is configured. For
 # example `EXTRA_CONFIG WRAPPER=foo` generates the `YARPPLUG_WRAPPER` variable
 # that is then replaced in the `yarp_plugin_device.cpp.in`.
+#
+# If the `QUIET` argument is used, or the `YarpPlugin_QUIET` variable is set,
+# the command does not print any message, except for warnings and errors.
 
 macro(YARP_PREPARE_PLUGIN _plugin_name)
   set(_options ADVANCED
-               INTERNAL)
+               INTERNAL
+               QUIET)
   set(_oneValueArgs TYPE
                     INCLUDE
                     CATEGORY
@@ -200,9 +258,7 @@ macro(YARP_PREPARE_PLUGIN _plugin_name)
                     DOC
                     DEFAULT
                     TEMPLATE
-                    TEMPLATE_DIR
-                    CODE
-                    WRAPPER)
+                    TEMPLATE_DIR)
   set(_multiValueArgs DEPENDS
                       EXTRA_CONFIG)
   cmake_parse_arguments(_YPP "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN} )
@@ -223,8 +279,26 @@ macro(YARP_PREPARE_PLUGIN _plugin_name)
     endif()
   endif()
 
+  if(NOT IS_ABSOLUTE "${_YPP_INCLUDE}")
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${_YPP_INCLUDE}")
+      # DEPRECATED Since YARP 3.4
+      message(DEPRECATION "${CMAKE_CURRENT_SOURCE_DIR}/The file \"${_YPP_INCLUDE}\" does not exist. This will not be allowed in a future release")
+    else()
+      get_filename_component(_abs_include "${_YPP_INCLUDE}" ABSOLUTE)
+      set(_YPP_INCLUDE ${_abs_include})
+    endif()
+  else()
+    if(NOT EXISTS "${_YPP_INCLUDE}")
+      message(SEND_ERROR "The file \"${_YPP_INCLUDE}\" does not exist")
+    endif()
+  endif()
+
   # Set up a flag to enable/disable compilation of this plugin.
-  set(_plugin_fullname "${X_YARP_PLUGIN_PREFIX}${_plugin_name}")
+  if(NOT YARP_PLUGIN_MASTER STREQUAL "")
+    set(_plugin_fullname "${YARP_PLUGIN_MASTER}_${_plugin_name}")
+  else()
+    set(_plugin_fullname "${_plugin_name}")
+  endif()
 
   if(NOT DEFINED _YPP_DOC)
     set(_feature_doc "${_plugin_name} ${_YPP_CATEGORY}")
@@ -238,17 +312,37 @@ macro(YARP_PREPARE_PLUGIN _plugin_name)
     set(_YPP_OPTION ENABLE_${_plugin_fullname})
   endif()
 
-  if(_YPP_INTERNAL)
-    option(${_YPP_OPTION} "${_option_doc}" ${_YPP_DEFAULT})
+  # Check if on previous CMake run the plugin was disabled due to missing
+  # dependencies, and eventually remove the variable
+  if(DEFINED ${_YPP_OPTION})
+    get_property(_option_strings_set CACHE ${_YPP_OPTION} PROPERTY STRINGS SET)
+    if(_option_strings_set)
+      # If the user thinks he is smarter than the machine, he deserves an error
+      get_property(_option_strings CACHE ${_YPP_OPTION} PROPERTY STRINGS)
+      list(GET _option_strings 0 _option_strings_first)
+      string(REGEX REPLACE ".+\"(.+)\".+" "\\1" _option_strings_first "${_option_strings_first}")
+      list(LENGTH _option_strings _option_strings_length)
+      math(EXPR _option_strings_last_index "${_option_strings_length} - 1")
+      list(GET _option_strings ${_option_strings_last_index} _option_strings_last)
+      if("${${_YPP_OPTION}}" STREQUAL "${_option_strings_last}")
+        message(SEND_ERROR "That was a trick, you cannot outsmart me! I will never let you win! ${_YPP_OPTION} stays OFF until I say so! \"${_option_strings_first}\" is needed to build ${_plugin_name}. Now stop bothering me, and install your dependencies, if you really want this plugin.")
+      endif()
+      unset(${_YPP_OPTION} CACHE)
+    endif()
+  endif()
+
+  # The bundle is enabled if this is a bundle and YARP_BUNDLE_DISABLED
+  # is false/not set), or if this is not a bundle
+  get_property(_bundle_disabled GLOBAL PROPERTY YARP_BUNDLE_DISABLED)
+  set(_bundle_enabled TRUE)
+  if(_bundle_disabled)
+    set(_bundle_enabled FALSE)
+  endif()
+  cmake_dependent_option(${_YPP_OPTION} "${_option_doc}" ${_YPP_DEFAULT}
+                         "${_bundle_enabled};${_YPP_DEPENDS}" OFF)
+  if(${_YPP_OPTION} AND _YPP_INTERNAL)
     set_property(CACHE ${_YPP_OPTION} PROPERTY TYPE INTERNAL)
   else()
-    if(DEFINED _YPP_DEPENDS)
-      cmake_dependent_option(${_YPP_OPTION} "${_option_doc}" ${_YPP_DEFAULT}
-                             "${_YPP_DEPENDS}" OFF)
-    else()
-      option(${_YPP_OPTION} "${_option_doc}" ${_YPP_DEFAULT})
-      set_property(CACHE ${_YPP_OPTION} PROPERTY TYPE BOOL)
-    endif()
     if(_YPP_ADVANCED)
       mark_as_advanced(FORCE ${_YPP_OPTION})
     else()
@@ -268,33 +362,110 @@ macro(YARP_PREPARE_PLUGIN _plugin_name)
     set(SKIP_${_plugin_fullname} ON)
   endif()
 
-  if(NOT DEFINED _YPP_TEMPLATE_DIR)
-    set(_YPP_TEMPLATE_DIR "template")
-  endif()
+  set(_disable_reason "")
 
-  # Search a template for the plugin or generate a basic one
-  if(NOT DEFINED _YPP_TEMPLATE)
-    set(_YPP_TEMPLATE "yarp_plugin_${_YPP_CATEGORY}.cpp.in")
-  endif()
-  unset(_template)
-  foreach(_dir "${CMAKE_CURRENT_SOURCE_DIR}"
-               ${CMAKE_MODULE_PATH}
-               "${YARP_MODULE_DIR}")
-    if(EXISTS "${_dir}/${_YPP_TEMPLATE_DIR}/${_YPP_TEMPLATE}")
-      set(_template "${_dir}/${_YPP_TEMPLATE_DIR}/${_YPP_TEMPLATE}")
-      break()
-    elseif(EXISTS "${_dir}/${_YPP_TEMPLATE}")
-      set(_template "${_dir}/${_YPP_TEMPLATE}")
-      break()
+  set(_ini_file_content
+"###### This file is automatically generated by CMake.
+[plugin ${_plugin_name}]
+type ${_YPP_CATEGORY}
+name ${_plugin_name}
+library \@YARPPLUG_LIBRARY\@
+")
+
+  # Variables used by the templates:
+  set(YARPPLUG_NAME "${_plugin_name}")
+  set(YARPPLUG_TYPE "${_YPP_TYPE}")
+  set(YARPPLUG_INCLUDE "${_YPP_INCLUDE}")
+  set(YARPPLUG_CATEGORY "${_YPP_CATEGORY}")
+  set(YARPPLUG_PARENT_TYPE "${_YPP_PARENT_TYPE}")
+  unset(_extra_config_list)
+  foreach(_conf ${_YPP_EXTRA_CONFIG})
+    if(NOT "${_conf}" MATCHES "^(.+)=(.+)$")
+      message(FATAL_ERROR "\"${_conf}\" is not in the form \"KEY=VALUE\"")
+    else()
+      set(_Key "${CMAKE_MATCH_1}")
+      string(TOUPPER "${_Key}" _KEY)
+      string(TOLOWER "${_Key}" _key)
+      set(_value "${CMAKE_MATCH_2}")
+      set(YARPPLUG_${_KEY} "${_value}")
+      string(APPEND _ini_file_content "${_key} ${_value}\n")
+      list(APPEND _extra_config_list YARPPLUG_${_KEY})
     endif()
   endforeach()
-  if(NOT DEFINED _template)
-    if(NOT DEFINED _YPP_PARENT_TYPE)
-      message(FATAL_ERROR "Template file not found and PARENT_TYPE not set. Cannot generate a plugin")
-    else()
-      file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${_YPP_TEMPLATE}"
-"/**
- * This file was generated by the YARP_PREPARE_PLUGIN CMake command.
+
+  if(NOT _bundle_enabled)
+    set(_disable_reason " (bundle disabled)")
+
+  elseif(NOT ${_YPP_OPTION})
+    unset(_missing_deps)
+    if(DEFINED _YPP_DEPENDS)
+      foreach(_dep ${_YPP_DEPENDS})
+        string(REGEX REPLACE " +" ";" _depx "${_dep}")
+        if(NOT (${_depx}))
+          list(APPEND _missing_deps "${_dep}")
+        endif()
+      endforeach()
+    endif()
+    if(DEFINED _missing_deps)
+      set(_disable_reason " (dependencies unsatisfied: \"${_missing_deps}\")")
+      # Set a value that can be visualized on ccmake and on cmake-gui, but
+      # still evaluates to false (
+      set(${_YPP_OPTION} "OFF - Dependencies unsatisfied: '${_missing_deps}' - ${_plugin_name}-NOTFOUND" CACHE STRING "${_option_doc}" FORCE)
+      string(REPLACE ";" "\;" _missing_deps "${_missing_deps}")
+      set_property(CACHE ${_YPP_OPTION}
+                   PROPERTY STRINGS "OFF - Dependencies unsatisfied: '${_missing_deps}' - ${_plugin_name}-NOTFOUND"
+                                    "OFF - You can try as much as you want, but '${_missing_deps}' is needed to build ${_plugin_name} - ${_plugin_name}-NOTFOUND"
+                                    "OFF - Are you crazy or what? '${_missing_deps}' is needed to build ${_plugin_name} - ${_plugin_name}-NOTFOUND"
+                                    "OFF - Didn't I already tell you that '${_missing_deps}' is needed to build ${_plugin_name}? - ${_plugin_name}-NOTFOUND"
+                                    "OFF - Stop it! - ${_plugin_name}-NOTFOUND"
+                                    "OFF - This is insane! Leave me alone! - ${_plugin_name}-NOTFOUND"
+                                    "ON - All right, you win. The plugin is enabled. Are you happy now? You just broke the build.")
+      # Set non-cache variable that will override the value in current scope
+      # For parent scopes, the "-NOTFOUND ensures that the variable still
+      # evaluates to false
+      set(${_YPP_OPTION} OFF)
+    endif()
+
+  else()
+    # If the plugin is enabled, add the appropriate source code into
+    # the library source list.
+
+    if(NOT DEFINED _YPP_TEMPLATE_DIR)
+      set(_YPP_TEMPLATE_DIR "template")
+    endif()
+
+    # Search a template for the plugin or generate a basic one
+    if(NOT DEFINED _YPP_TEMPLATE)
+      set(_YPP_TEMPLATE "yarp_plugin_${_YPP_CATEGORY}.cpp.in")
+    endif()
+    unset(_template)
+    foreach(_dir "${CMAKE_CURRENT_SOURCE_DIR}"
+                 ${CMAKE_MODULE_PATH}
+                 "${YARP_MODULE_DIR}")
+      if(EXISTS "${_dir}/${_YPP_TEMPLATE_DIR}/${_YPP_TEMPLATE}")
+        set(_template "${_dir}/${_YPP_TEMPLATE_DIR}/${_YPP_TEMPLATE}")
+        break()
+      elseif(EXISTS "${_dir}/${_YPP_TEMPLATE}")
+        set(_template "${_dir}/${_YPP_TEMPLATE}")
+        break()
+      endif()
+    endforeach()
+    if(NOT DEFINED _template)
+      if(NOT DEFINED _YPP_PARENT_TYPE)
+        message(FATAL_ERROR "Template file not found and PARENT_TYPE not set. Cannot generate a plugin")
+      else()
+        file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${_YPP_TEMPLATE}"
+"/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
+ */
+
+/*
+ * This is an automatically-generated file, generated by the YARP_PREPARE_PLUGIN
+ * CMake command.
  *
  * WARNING: This file will be overwritten when CMake is executed again, move it
  *          in the source directory if you want to customize it.
@@ -320,56 +491,30 @@ YARP_PLUGIN_EXPORT void add_owned_\@YARPPLUG_NAME\@(const char *owner) {
 
 YARP_DEFINE_SHARED_SUBCLASS(\@YARPPLUG_NAME\@, \@YARPPLUG_TYPE\@, \@YARPPLUG_PARENT_TYPE\@)
 ")
-      if(NOT YARP_FORCE_DYNAMIC_PLUGINS AND NOT BUILD_SHARED_LIBS)
-        message(WARNING "Cannot generate static plugins. Move the file \"${CMAKE_CURRENT_BINARY_DIR}/${_YPP_TEMPLATE}\"")
+        if(NOT YARP_FORCE_DYNAMIC_PLUGINS AND NOT BUILD_SHARED_LIBS)
+          message(WARNING "Cannot generate static plugins. Move the file \"${CMAKE_CURRENT_BINARY_DIR}/${_YPP_TEMPLATE}\"")
+        endif()
+
+        set(_YPP_TEMPLATE "${CMAKE_CURRENT_BINARY_DIR}/${_YPP_TEMPLATE}")
       endif()
-
-      set(_YPP_TEMPLATE "${CMAKE_CURRENT_BINARY_DIR}/${_YPP_TEMPLATE}")
+    else()
+      set(_YPP_TEMPLATE "${_template}")
+      unset(_template)
     endif()
-  else()
-    set(_YPP_TEMPLATE "${_template}")
-    unset(_template)
-  endif()
 
-  # If the plugin is enabled, add the appropriate source code into
-  # the library source list.
-  if(${_YPP_OPTION})
     # Go ahead and prepare some code to wrap this plugin.
-
     set(_fname ${CMAKE_CURRENT_BINARY_DIR}/yarp_plugin_${_plugin_fullname}.cpp)
-
-    # Variables used by the templates:
-    set(YARPPLUG_NAME "${_plugin_name}")
-    set(YARPPLUG_TYPE "${_YPP_TYPE}")
-    set(YARPPLUG_INCLUDE "${_YPP_INCLUDE}")
-    set(YARPPLUG_CATEGORY "${_YPP_CATEGORY}")
-    set(YARPPLUG_PARENT_TYPE "${_YPP_PARENT_TYPE}")
-    unset(_extra_config_list)
-    foreach(_conf ${_YPP_EXTRA_CONFIG})
-      if(NOT "${_conf}" MATCHES "^(.+)=(.+)$")
-        message(FATAL_ERROR "\"${_conf}\" is not in the form \"KEY=VALUE\"")
-      else()
-        set(_Key "${CMAKE_MATCH_1}")
-        string(TOUPPER "${_Key}" _KEY)
-        string(TOLOWER "${_Key}" _key)
-        set(_value "${CMAKE_MATCH_2}")
-        set(YARPPLUG_${_KEY} "${_value}")
-        list(APPEND _extra_config_list YARPPLUG_${_KEY})
-      endif()
-    endforeach()
-    if(DEFINED _YPP_WRAPPER)
-      yarp_deprecated_warning("WRAPPER argument is deprecated. Use EXTRA_CONFIG WRAPPER=<...> instead.") # since YARP 2.3.68
-      set(YARPPLUG_WRAPPER "${_YPP_WRAPPER}")
-    endif()
-    if(DEFINED _YPP_CODE)
-      yarp_deprecated_warning("CODE argument is deprecated. Use EXTRA_CONFIG CODE=<...> instead.") # since YARP 2.3.68
-      set(YARPPLUG_CODE "${_YPP_CODE}")
-    endif()
 
     # Configure the file
     configure_file("${_YPP_TEMPLATE}"
                    "${_fname}"
                    @ONLY)
+    # Put the file in the right source group if defined
+    get_property(autogen_source_group_set GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP SET)
+    if(autogen_source_group_set)
+      get_property(autogen_source_group GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP)
+      source_group("${autogen_source_group}" FILES "${_fname}")
+    endif()
 
     # Unset all the variables used by the template
     unset(YARPPLUG_NAME)
@@ -377,30 +522,30 @@ YARP_DEFINE_SHARED_SUBCLASS(\@YARPPLUG_NAME\@, \@YARPPLUG_TYPE\@, \@YARPPLUG_PAR
     unset(YARPPLUG_INCLUDE)
     unset(YARPPLUG_CATEGORY)
     unset(YARPPLUG_PARENT_TYPE)
-    unset(YARPPLUG_WRAPPER)
-    unset(YARPPLUG_CODE)
     foreach(_extra_config ${_extra_config_list})
       unset(${_extra_config})
     endforeach()
     unset(_extra_config_list)
 
     set_property(GLOBAL APPEND PROPERTY YARP_BUNDLE_PLUGINS ${_plugin_name})
-    set_property(GLOBAL APPEND PROPERTY YARP_BUNDLE_CODE ${_fname})
-    message(STATUS " +++ plugin ${_plugin_fullname}: enabled")
-  else()
-    unset(_missing_deps)
-    if(DEFINED _YPP_DEPENDS)
-      foreach(_dep ${_YPP_DEPENDS})
-        if(NOT ${_dep})
-          list(APPEND _missing_deps "${_dep}")
-        endif()
-      endforeach()
-    endif()
-    if(YarpPlugin_VERBOSE AND DEFINED _missing_deps)
-      message(STATUS " --- plugin ${_plugin_fullname}: dependencies unsatisfied: \"${_missing_deps}\"")
+    set_property(DIRECTORY APPEND PROPERTY YARP_BUNDLE_CODE ${_fname})
+  endif()
+
+  set_property(DIRECTORY APPEND PROPERTY YARP_BUNDLE_INI "${_plugin_name}.ini")
+  string(MAKE_C_IDENTIFIER "${_plugin_name}.ini" _ini_id)
+  set_property(DIRECTORY PROPERTY YARP_BUNDLE_INI_CONTENT_${_ini_id} ${_ini_file_content})
+
+  if(NOT _YPP_QUIET AND NOT YarpPlugin_QUIET)
+    if(${_YPP_OPTION})
+      yarp_colorize_string(_plugin_fullname_col green 0 "${_plugin_fullname}")
     else()
-      message(STATUS " --- plugin ${_plugin_fullname}: disabled")
+      if("${_disable_reason}" STREQUAL "")
+        yarp_colorize_string(_plugin_fullname_col yellow 0 "${_plugin_fullname}")
+      else()
+        yarp_colorize_string(_plugin_fullname_col red 0 "${_plugin_fullname}")
+      endif()
     endif()
+    yarp_print_feature("${_YPP_OPTION}" ${YARP_PLUGIN_LEVEL} "Plugin: ${_plugin_fullname_col}${_disable_reason}")
   endif()
 
   if(NOT _YPP_INTERNAL AND COMMAND add_feature_info)
@@ -436,8 +581,12 @@ macro(YARP_ADD_PLUGIN _library_name)
 
   # The user is adding a bone-fide plugin library.  We add it,
   # while inserting any generated source code needed for initialization.
-  get_property(srcs GLOBAL PROPERTY YARP_BUNDLE_CODE)
-  add_library(${_library_name} ${_library_type} ${srcs} ${ARGN})
+  add_library(${_library_name} ${_library_type})
+  target_sources(${_library_name} PRIVATE ${ARGN})
+
+  get_property(srcs DIRECTORY PROPERTY YARP_BUNDLE_CODE)
+  target_sources(${_library_name} PRIVATE ${srcs})
+
   if(YARP_FORCE_DYNAMIC_PLUGINS OR BUILD_SHARED_LIBS)
     # Do not add the "lib" prefix to dynamic plugin libraries.
     # This simplifies search on different platforms and makes it easier
@@ -451,7 +600,24 @@ macro(YARP_ADD_PLUGIN _library_name)
   # Add the library to the list of plugin libraries.
   set_property(GLOBAL APPEND PROPERTY YARP_BUNDLE_LIBS ${_library_name})
   # Reset the list of generated source code and link libraries to empty.
-  set_property(GLOBAL PROPERTY YARP_BUNDLE_CODE)
+  set_property(DIRECTORY PROPERTY YARP_BUNDLE_CODE)
+
+  get_property(_ini_file_set DIRECTORY PROPERTY YARP_BUNDLE_INI SET)
+  if(_ini_file_set)
+    get_property(_ini_files DIRECTORY PROPERTY YARP_BUNDLE_INI)
+    foreach(_ini_file IN LISTS _ini_files)
+      string(MAKE_C_IDENTIFIER "${_ini_file}" _ini_id)
+      get_property(_ini_file_content DIRECTORY PROPERTY YARP_BUNDLE_INI_CONTENT_${_ini_id})
+      string(REPLACE "\@YARPPLUG_LIBRARY\@" "${_library_name}" _ini_file_content "${_ini_file_content}")
+      file(WRITE "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_ini_file}" "${_ini_file_content}")
+      # Reset the .ini file content property
+      set_property(DIRECTORY PROPERTY YARP_BUNDLE_INI_CONTENT_${_ini_id})
+      set_property(TARGET ${_library_name} APPEND PROPERTY YARP_INI_FILES "${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_ini_file}")
+    endforeach()
+    # Reset .ini file name property
+    set_property(DIRECTORY PROPERTY YARP_BUNDLE_INI)
+
+  endif()
 endmacro()
 
 
@@ -463,15 +629,24 @@ endmacro()
 # it.
 #
 macro(YARP_END_PLUGIN_LIBRARY bundle_name)
+  set(_options QUIET)
+  set(_oneValueArgs )
+  set(_multiValueArgs )
+  cmake_parse_arguments(_YEPL "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN} )
+
   # make sure we are the outermost plugin library, if nesting is present.
-  if(NOT "${bundle_name}" STREQUAL "${X_YARP_PLUGIN_MASTER}")
+  if(NOT "${bundle_name}" STREQUAL "${YARP_PLUGIN_MASTER}")
     # If we are nested inside a larger plugin block, we don't
     # have to do anything.
-    message(STATUS "ending nested plugin library ${bundle_name}")
+    if (NOT _YEPL_QUIET AND NOT YarpPlugin_QUIET)
+      message(STATUS "ending nested plugin library ${bundle_name}")
+    endif()
   else()
-    message(STATUS "ending plugin library: ${bundle_name}")
+    if (NOT _YEPL_QUIET AND NOT YarpPlugin_QUIET)
+      message(STATUS "ending plugin library: ${bundle_name}")
+    endif()
     # generate code to call all plugin initializers
-    set(YARP_LIB_NAME ${X_YARP_PLUGIN_MASTER})
+    set(YARP_LIB_NAME ${YARP_PLUGIN_MASTER})
     get_property(devs GLOBAL PROPERTY YARP_BUNDLE_PLUGINS)
     get_property(owners GLOBAL PROPERTY YARP_BUNDLE_OWNERS)
 
@@ -489,31 +664,39 @@ macro(YARP_END_PLUGIN_LIBRARY bundle_name)
         set(YARP_CODE_POST "${YARP_CODE_POST}\n        add_owned_${dev}(\"${owner}\");")
       endforeach()
     endif()
-    configure_file(${YARP_MODULE_DIR}/template/yarp_plugin_library.cpp.in
-                   ${CMAKE_CURRENT_BINARY_DIR}/yarp_${X_YARP_PLUGIN_MASTER}_plugin_library.cpp @ONLY)
+    configure_file("${YARP_MODULE_DIR}/template/yarp_plugin_library.cpp.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/yarp_${YARP_PLUGIN_MASTER}_plugin_library.cpp" @ONLY)
+    # Put the file in the right source group if defined
+    get_property(autogen_source_group_set GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP SET)
+    if(autogen_source_group_set)
+      get_property(autogen_source_group GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP)
+      source_group("${autogen_source_group}" FILES "${CMAKE_CURRENT_BINARY_DIR}/yarp_${YARP_PLUGIN_MASTER}_plugin_library.cpp")
+    endif()
+
     get_property(code GLOBAL PROPERTY YARP_BUNDLE_CODE)
     get_property(libs GLOBAL PROPERTY YARP_BUNDLE_LIBS)
 
-    # ensure that yarp/conf/api.h is found in include paths.
-    if(TARGET YARP_OS)
-      # Building YARP
-      get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-      include_directories(${YARP_OS_INCLUDE_DIRS})
-    else()
-      include_directories(${YARP_INCLUDE_DIRS})
-    endif()
-
     # add the library initializer code
-    add_library(${X_YARP_PLUGIN_MASTER} ${code} ${CMAKE_CURRENT_BINARY_DIR}/yarp_${X_YARP_PLUGIN_MASTER}_plugin_library.cpp)
+    add_library(${YARP_PLUGIN_MASTER})
+
+    target_sources(${YARP_PLUGIN_MASTER} PRIVATE ${code} ${CMAKE_CURRENT_BINARY_DIR}/yarp_${YARP_PLUGIN_MASTER}_plugin_library.cpp)
+
+    # this cannot be target_link_libraries, or in static builds the master
+    # target will require the YARP_conf target, and this does not work well
+    # with separate exports.
+    # See also: https://gitlab.kitware.com/cmake/cmake/issues/18049
+    target_include_directories(${YARP_PLUGIN_MASTER} PRIVATE $<TARGET_PROPERTY:YARP::YARP_conf,INTERFACE_INCLUDE_DIRECTORIES>)
 
     if(NOT YARP_FORCE_DYNAMIC_PLUGINS AND NOT BUILD_SHARED_LIBS)
-      set_property(TARGET ${X_YARP_PLUGIN_MASTER} APPEND PROPERTY COMPILE_DEFINITIONS YARP_STATIC_PLUGIN)
-      target_link_libraries(${X_YARP_PLUGIN_MASTER} LINK_PRIVATE ${libs})
+      set_property(TARGET ${YARP_PLUGIN_MASTER} APPEND PROPERTY COMPILE_DEFINITIONS YARP_STATIC_PLUGIN)
+      target_link_libraries(${YARP_PLUGIN_MASTER} PRIVATE ${libs})
     endif()
     # give user access to a list of all the plugin libraries
-    set(${X_YARP_PLUGIN_MASTER}_LIBRARIES ${libs})
-    set(X_YARP_PLUGIN_MODE FALSE) # neutralize redefined methods
+    set(${YARP_PLUGIN_MASTER}_LIBRARIES ${libs})
   endif()
+
+  # Decrease YARP_PLUGIN_LEVEL
+  math(EXPR YARP_PLUGIN_LEVEL "${YARP_PLUGIN_LEVEL} - 1")
 endmacro()
 
 
@@ -527,90 +710,21 @@ macro(YARP_ADD_PLUGIN_YARPDEV_EXECUTABLE exename bundle_name)
     set(YARP_CODE_PRE)
     set(YARP_CODE_POST)
   else()
-    set(YARP_CODE_PRE "YARP_DECLARE_DEVICES(${bundle_name})")
-    set(YARP_CODE_POST "    YARP_REGISTER_DEVICES(${bundle_name})")
+    set(YARP_CODE_PRE "YARP_DECLARE_PLUGINS(${bundle_name})")
+    set(YARP_CODE_POST "    YARP_REGISTER_PLUGINS(${bundle_name})")
   endif()
-  configure_file(${YARP_MODULE_DIR}/template/yarp_plugin_yarpdev_main.cpp.in
-                 ${CMAKE_CURRENT_BINARY_DIR}/${bundle_name}_yarpdev.cpp @ONLY)
-  add_executable(${exename} ${CMAKE_CURRENT_BINARY_DIR}/${bundle_name}_yarpdev.cpp)
-  target_link_libraries(${exename} ${bundle_name})
-  if(TARGET YARP_OS)
-    # Building YARP
-    target_link_libraries(${exename} YARP_OS YARP_init YARP_dev)
-  else()
-    target_link_libraries(${exename} YARP::YARP_OS YARP::YARP_init YARP::YARP_dev)
+  configure_file("${YARP_MODULE_DIR}/template/yarp_plugin_yarpdev_main.cpp.in"
+                 "${CMAKE_CURRENT_BINARY_DIR}/${bundle_name}_yarpdev.cpp" @ONLY)
+  # Put the file in the right source group if defined
+  get_property(autogen_source_group_set GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP SET)
+  if(autogen_source_group_set)
+    get_property(autogen_source_group GLOBAL PROPERTY AUTOGEN_SOURCE_GROUP)
+    source_group("${autogen_source_group}" FILES "${CMAKE_CURRENT_BINARY_DIR}/${bundle_name}_yarpdev.cpp")
   endif()
+  add_executable(${exename})
+  target_sources(${exename} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/${bundle_name}_yarpdev.cpp)
+  target_link_libraries(${exename} PRIVATE ${bundle_name})
+  target_link_libraries(${exename} PRIVATE YARP::YARP_os
+                                           YARP::YARP_init
+                                           YARP::YARP_dev)
 endmacro()
-
-
-
-################################################################################
-# Deprecated macros
-#
-if(NOT YARP_NO_DEPRECATED)
-  include(${CMAKE_CURRENT_LIST_DIR}/YarpDeprecatedWarning.cmake)
-
-  macro(BEGIN_PLUGIN_LIBRARY)
-    yarp_deprecated_warning("BEGIN_PLUGIN_LIBRARY is deprecated. Use YARP_BEGIN_PLUGIN_LIBRARY instead.")
-    yarp_begin_plugin_library(${ARGN})
-  endmacro()
-
-  macro(ADD_PLUGIN_NORMALIZED)
-    yarp_deprecated_warning("ADD_PLUGIN_NORMALIZED is deprecated.\nUse YARP_ADD_PLUGIN_NORMALIZED instead.")
-    yarp_add_plugin_normalized(${ARGN})
-  endmacro()
-
-  macro(PREPARE_PLUGIN)
-    yarp_deprecated_warning("PREPARE_PLUGIN is deprecated.\nUse YARP_PREPARE_PLUGIN instead.")
-    yarp_prepare_plugin(${ARGN})
-  endmacro()
-
-  macro(PREPARE_DEVICE)
-    yarp_deprecated_warning("PREPARE_DEVICE is deprecated.\nUse YARP_PREPARE_PLUGIN(CATEGORY device) instead.")
-    yarp_prepare_plugin(${ARGN} CATEGORY device)
-  endmacro()
-
-  macro(YARP_PREPARE_DEVICE)
-    yarp_deprecated_warning("YARP_PREPARE_DEVICE is deprecated.\nUse YARP_PREPARE_PLUGIN(CATEGORY device) instead.")
-    yarp_prepare_plugin(${ARGN} CATEGORY device)
-  endmacro()
-
-  macro(PREPARE_CARRIER)
-    yarp_deprecated_warning("PREPARE_CARRIER is deprecated.\nUse YARP_PREPARE_PLUGIN(CATEGORY carrier) instead.")
-    yarp_prepare_plugin(${ARGN} CATEGORY carrier)
-  endmacro()
-
-  macro(YARP_PREPARE_CARRIER)
-    yarp_deprecated_warning("YARP_PREPARE_CARRIER is deprecated.\nUse YARP_PREPARE_PLUGIN(CATEGORY carrier) instead.")
-    yarp_prepare_plugin(${ARGN} CATEGORY carrier)
-  endmacro()
-
-  macro(END_PLUGIN_LIBRARY)
-    yarp_deprecated_warning("END_PLUGIN_LIBRARY is deprecated.\nUse YARP_END_PLUGIN_LIBRARY instead.")
-    yarp_end_plugin_library(${ARGN})
-  endmacro()
-
-  macro(ADD_PLUGIN_LIBRARY_EXECUTABLE)
-    yarp_deprecated_warning("ADD_PLUGIN_LIBRARY_EXECUTABLE is deprecated.\nUse YARP_ADD_PLUGIN_YARPDEV_EXECUTABLE instead.")
-    yarp_add_plugin_yarpdev_executable(${ARGN})
-  endmacro()
-
-  macro(YARP_ADD_PLUGIN_LIBRARY_EXECUTABLE)
-    yarp_deprecated_warning("YARP_ADD_PLUGIN_LIBRARY_EXECUTABLE is deprecated.\nUse YARP_ADD_PLUGIN_YARPDEV_EXECUTABLE instead.")
-    yarp_add_plugin_yarpdev_executable(${ARGN})
-  endmacro()
-
-  macro(YARP_ADD_CARRIER_FINGERPRINT file_name)
-    yarp_deprecated_warning("YARP_ADD_CARRIER_FINGERPRINT is deprecated.\nUse YARP_INSTALL instead.")
-    yarp_install(FILES ${file_name}
-                 COMPONENT runtime
-                 DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
-  endmacro()
-
-  macro(YARP_ADD_DEVICE_FINGERPRINT file_name)
-    yarp_deprecated_warning("YARP_ADD_DEVICE_FINGERPRINT is deprecated.\nUse YARP_INSTALL instead.")
-    yarp_install(FILES ${file_name}
-                 COMPONENT runtime
-                 DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
-  endmacro()
-endif()

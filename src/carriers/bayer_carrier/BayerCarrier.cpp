@@ -1,15 +1,18 @@
 /*
- * Copyright (C) 2012 IITRBCS
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "BayerCarrier.h"
 
+#include <yarp/os/LogComponent.h>
+#include <yarp/os/Route.h>
 #include <yarp/sig/ImageDraw.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstring>
+#include <cstdlib>
 
 #ifndef USE_LIBDC1394
 extern "C" {
@@ -22,8 +25,17 @@ extern "C" {
 using namespace yarp::os;
 using namespace yarp::sig;
 
+namespace {
+YARP_LOG_COMPONENT(BAYERCARRIER,
+                   "yarp.carrier.bayer",
+                   yarp::os::Log::minimumPrintLevel(),
+                   yarp::os::Log::LogTypeReserved,
+                   yarp::os::Log::printCallback(),
+                   nullptr)
+}
+
 // can't seem to do ipl/opencv/yarp style end-of-row padding
-void setDcImage(yarp::sig::Image& yimg, dc1394video_frame_t *dc, 
+void setDcImage(yarp::sig::Image& yimg, dc1394video_frame_t *dc,
                 int filter) {
     if (!dc) return;
     dc->image = (unsigned char *) yimg.getRawImage();
@@ -42,7 +54,7 @@ void setDcImage(yarp::sig::Image& yimg, dc1394video_frame_t *dc,
     dc->total_bytes = dc->image_bytes;
     dc->timestamp = 0;
     dc->frames_behind = 0;
-    dc->camera = NULL;
+    dc->camera = nullptr;
     dc->id = 0;
     dc->allocated_image_bytes = dc->image_bytes;
 #ifdef YARP_LITTLE_ENDIAN
@@ -69,7 +81,7 @@ yarp::os::ConnectionReader& BayerCarrier::modifyIncomingData(yarp::os::Connectio
     con.setTextMode(reader.isTextMode());
     Bottle b;
     b.read(reader);
-    b.addInt(42);
+    b.addInt32(42);
     b.addString("(p.s. bork bork bork)");
     b.write(con.getWriter());
     return con.getReader();
@@ -96,7 +108,7 @@ yarp::os::ConnectionReader& BayerCarrier::modifyIncomingData(yarp::os::Connectio
     have_result = false;
     if (need_reset) {
         int m = DC1394_BAYER_METHOD_BILINEAR;
-        Searchable& config = reader.getConnectionModifiers();
+        const Searchable& config = reader.getConnectionModifiers();
         half = false;
         if (config.check("size")) {
             if (config.find("size").asString() == "half") {
@@ -104,7 +116,7 @@ yarp::os::ConnectionReader& BayerCarrier::modifyIncomingData(yarp::os::Connectio
             }
         }
         if (config.check("method")) {
-            ConstString method = config.find("method").asString();
+            std::string method = config.find("method").asString();
             bayer_method_set = true;
             if (method=="ahd") {
                 m = DC1394_BAYER_METHOD_AHD;
@@ -124,10 +136,7 @@ yarp::os::ConnectionReader& BayerCarrier::modifyIncomingData(yarp::os::Connectio
             } else if (method=="vng") {
                 m = DC1394_BAYER_METHOD_VNG;
             } else {
-                if (!warned) {
-                    fprintf(stderr,"bayer method %s not recognized, try: ahd bilinear downsample edgesense hqlinear nearest simple vng\n", method.c_str());
-                    warned = true;
-                }
+                yCWarning/*Once*/(BAYERCARRIER, "bayer method %s not recognized, try: ahd bilinear downsample edgesense hqlinear nearest simple vng", method.c_str());
                 happy = false;
                 local->setSize(0);
                 return *local;
@@ -136,7 +145,7 @@ yarp::os::ConnectionReader& BayerCarrier::modifyIncomingData(yarp::os::Connectio
 
         setFormat(config.check("order",Value("grbg")).asString().c_str());
         header_in.setFromImage(in);
-        //printf("Need reset.\n");
+        yCTrace(BAYERCARRIER, "Need reset.");
         bayer_method = m;
         need_reset = false;
         processBuffered();
@@ -160,9 +169,8 @@ bool BayerCarrier::debayerHalf(yarp::sig::ImageOf<PixelMono>& src,
         return true;
     }
 
-    if (bayer_method_set && !warned) {
-        fprintf(stderr, "Not using dc1394 debayer methods (image width not a multiple of 8)\n");
-        warned = true;
+    if (bayer_method_set) {
+        yCWarning/*Once*/(BAYERCARRIER, "Not using dc1394 debayer methods (image width not a multiple of 8)");
     }
 
     // a safer implementation that doesn't use dc1394
@@ -204,9 +212,8 @@ bool BayerCarrier::debayerFull(yarp::sig::ImageOf<PixelMono>& src,
         return true;
     }
 
-    if (bayer_method_set && !warned) {
-        fprintf(stderr, "Not using dc1394 debayer methods (image width not a multiple of 8)\n");
-        warned = true;
+    if (bayer_method_set) {
+        yCWarning/*Once*/(BAYERCARRIER, "Not using dc1394 debayer methods (image width not a multiple of 8)");
     }
     int w = dest.width();
     int h = dest.height();
@@ -292,9 +299,13 @@ bool BayerCarrier::debayerFull(yarp::sig::ImageOf<PixelMono>& src,
     return true;
 }
 
+bool BayerCarrier::processBuffered() const {
+    return const_cast<BayerCarrier*>(this)->processBuffered();
+}
+
 bool BayerCarrier::processBuffered() {
     if (!have_result) {
-        //printf("Copy-based conversion.\n");
+        yCTrace(BAYERCARRIER, "Copy-based conversion.");
         if (half) {
             out.resize(in.width()/2,in.height()/2);
             debayerHalf(in,out);
@@ -309,12 +320,12 @@ bool BayerCarrier::processBuffered() {
     return true;
 }
 
-bool BayerCarrier::processDirect(const yarp::os::Bytes& bytes) {
+bool BayerCarrier::processDirect(yarp::os::Bytes& bytes) {
     if (have_result) {
         memcpy(bytes.get(),out.getRawImage(),bytes.length());
         return true;
     }
-    //printf("Copyless conversion\n");
+    yCTrace(BAYERCARRIER, "Copyless conversion");
     ImageOf<PixelRgb> wrap;
     wrap.setQuantum(out.getQuantum());
     wrap.setExternal(bytes.get(),out.width(),out.height());
@@ -327,7 +338,7 @@ bool BayerCarrier::processDirect(const yarp::os::Bytes& bytes) {
 }
 
 
-YARP_SSIZE_T BayerCarrier::read(const yarp::os::Bytes& b) {
+yarp::conf::ssize_t BayerCarrier::read(yarp::os::Bytes& b) {
     // copy across small stuff - the image header
     if (consumed<sizeof(header)) {
         size_t len = b.length();
@@ -336,7 +347,7 @@ YARP_SSIZE_T BayerCarrier::read(const yarp::os::Bytes& b) {
         }
         memcpy(b.get(),((char*)(&header))+consumed,len);
         consumed += len;
-        return (YARP_SSIZE_T) len;
+        return (yarp::conf::ssize_t) len;
     }
     // sane client will want to read image into correct-sized block
     if (b.length()==image_data_len) {
@@ -354,7 +365,7 @@ YARP_SSIZE_T BayerCarrier::read(const yarp::os::Bytes& b) {
         }
         memcpy(b.get(),out.getRawImage()+consumed-sizeof(header),len);
         consumed += len;
-        return (YARP_SSIZE_T) len;
+        return (yarp::conf::ssize_t) len;
     }
     return -1;
 }
@@ -362,7 +373,7 @@ YARP_SSIZE_T BayerCarrier::read(const yarp::os::Bytes& b) {
 
 bool BayerCarrier::setFormat(const char *fmt) {
     dcformat = DC1394_COLOR_FILTER_GRBG;
-    ConstString f(fmt);
+    std::string f(fmt);
     if (f.length()<2) return false;
     goff = (f[0]=='g'||f[0]=='G')?0:1;
     roff = (f[0]=='r'||f[0]=='R'||f[1]=='r'||f[1]=='R')?0:1;
@@ -377,4 +388,3 @@ bool BayerCarrier::setFormat(const char *fmt) {
     }
     return true;
 }
-

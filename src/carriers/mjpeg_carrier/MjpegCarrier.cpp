@@ -1,20 +1,23 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
+#include "MjpegCarrier.h"
+#include "MjpegLogComponent.h"
 
-#include <stdio.h>
-
+#include <cstdio>
 
 /*
   On Windows, libjpeg does some slightly odd-ball stuff, including
   unconditionally defining INT32 to be "long".  This needs to
   be worked around.  Work around begins...
  */
-#ifdef WIN32
+#if defined(_WIN32)
 #define INT32 long  // jpeg's definition
 #define QGLOBAL_H 1
 #endif
@@ -32,7 +35,7 @@ extern "C" {
 #pragma warning (pop)
 #endif
 
-#ifdef WIN32
+#if defined(_WIN32)
 #undef INT32
 #undef QGLOBAL_H
 #endif
@@ -40,42 +43,53 @@ extern "C" {
   work around ends.
  */
 
-
-#include "MjpegCarrier.h"
-
 #include <yarp/sig/Image.h>
 #include <yarp/sig/ImageNetworkHeader.h>
 #include <yarp/os/Name.h>
 #include <yarp/os/Bytes.h>
+#include <yarp/os/Route.h>
 
-#include "WireImage.h"
+#include <yarp/wire_rep_utils/WireImage.h>
+
+#include <map>
 
 using namespace yarp::os;
 using namespace yarp::sig;
+using namespace yarp::wire_rep_utils;
 
-#define dbg_printf if (0) printf
+static const std::map<int, J_COLOR_SPACE> yarpCode2Mjpeg { {VOCAB_PIXEL_MONO, JCS_GRAYSCALE},
+                                                           {VOCAB_PIXEL_MONO16, JCS_GRAYSCALE},
+                                                           {VOCAB_PIXEL_RGB , JCS_RGB},
+                                                           {VOCAB_PIXEL_RGBA , JCS_EXT_RGBA},
+                                                           {VOCAB_PIXEL_BGRA , JCS_EXT_BGRA},
+                                                           {VOCAB_PIXEL_BGR , JCS_EXT_BGR} };
 
-typedef struct {
+static const std::map<int, int> yarpCode2Channels { {VOCAB_PIXEL_MONO, 1},
+                                                    {VOCAB_PIXEL_MONO16, 2},
+                                                    {VOCAB_PIXEL_RGB , 3},
+                                                    {VOCAB_PIXEL_RGBA , 4},
+                                                    {VOCAB_PIXEL_BGRA , 4},
+                                                    {VOCAB_PIXEL_BGR , 3} };
+
+
+struct net_destination_mgr
+{
     struct jpeg_destination_mgr pub;
 
     JOCTET *buffer;
     int bufsize;
     JOCTET cache[1000000];  // need to make this variable...
-} net_destination_mgr;
+};
 
-typedef net_destination_mgr *net_destination_ptr;
+using net_destination_ptr = net_destination_mgr*;
 
 void send_net_data(JOCTET *data, int len, void *client) {
-    dbg_printf("Send %d bytes\n", len);
-    ConnectionState *p = (ConnectionState *)client;
-    char hdr[1000];
-    sprintf(hdr,"\n");
-    const char *brk = "\n";
-    if (hdr[1]=='\0') {
-        brk = "\r\n";
-    }
-    dbg_printf("Using terminator %s\n",(hdr[1]=='\0')?"\\r\\n":"\\n");
-    sprintf(hdr,"Content-Type: image/jpeg%s\
+    yCTrace(MJPEGCARRIER, "Send %d bytes", len);
+    auto* p = (ConnectionState *)client;
+    constexpr size_t hdr_size = 1000;
+    char hdr[hdr_size];
+    const char *brk = "\r\n";
+    std::snprintf(hdr, hdr_size, "Content-Type: image/jpeg%s\
 Content-Length: %d%s%s", brk, len, brk, brk);
     Bytes hbuf(hdr,strlen(hdr));
     p->os().write(hbuf);
@@ -85,21 +99,21 @@ Content-Length: %d%s%s", brk, len, brk, brk);
     static int ct = 0;
     ct++;
     if (ct==50) {
-        printf("Adding corruption\n");
+        yCTrace(MJPEGCARRIER, "Adding corruption");
         buf.get()[0] = 'z';
         ct = 0;
     }
     */
     p->os().write(buf);
-    sprintf(hdr,"%s--boundarydonotcross%s",brk,brk);
+    std::snprintf(hdr, hdr_size, "%s--boundarydonotcross%s", brk, brk);
     Bytes hbuf2(hdr,strlen(hdr));
     p->os().write(hbuf2);
 
 }
 
 static void init_net_destination(j_compress_ptr cinfo) {
-    //printf("Initializing destination\n");
-    net_destination_ptr dest = (net_destination_ptr)cinfo->dest;
+    yCTrace(MJPEGCARRIER, "Initializing destination");
+    auto dest = (net_destination_ptr)cinfo->dest;
     dest->buffer = &(dest->cache[0]);
     dest->bufsize = sizeof(dest->cache);
     dest->pub.next_output_byte = dest->buffer;
@@ -107,8 +121,8 @@ static void init_net_destination(j_compress_ptr cinfo) {
 }
 
 static boolean empty_net_output_buffer(j_compress_ptr cinfo) {
-    net_destination_ptr dest = (net_destination_ptr)cinfo->dest;
-    printf("Empty buffer - PROBLEM\n");
+    auto dest = (net_destination_ptr)cinfo->dest;
+    yCWarning(MJPEGCARRIER, "Empty buffer - PROBLEM");
     send_net_data(dest->buffer,dest->bufsize-dest->pub.free_in_buffer,
                   cinfo->client_data);
     dest->pub.next_output_byte = dest->buffer;
@@ -117,8 +131,8 @@ static boolean empty_net_output_buffer(j_compress_ptr cinfo) {
 }
 
 static void term_net_destination(j_compress_ptr cinfo) {
-    net_destination_ptr dest = (net_destination_ptr)cinfo->dest;
-    //printf("Terminating net %d %d\n", dest->bufsize,dest->pub.free_in_buffer);
+    auto dest = (net_destination_ptr)cinfo->dest;
+    yCTrace(MJPEGCARRIER, "Terminating net %d %zd", dest->bufsize,dest->pub.free_in_buffer);
     send_net_data(dest->buffer,dest->bufsize-dest->pub.free_in_buffer,
                   cinfo->client_data);
 }
@@ -131,7 +145,7 @@ void jpeg_net_dest(j_compress_ptr cinfo) {
     /* The destination object is made permanent so that multiple JPEG images
      * can be written to the same buffer without re-executing jpeg_net_dest.
      */
-    if (cinfo->dest == NULL) {    /* first time for this JPEG object? */
+    if (cinfo->dest == nullptr) {    /* first time for this JPEG object? */
         cinfo->dest = (struct jpeg_destination_mgr *)
             (*cinfo->mem->alloc_large) ((j_common_ptr) cinfo, JPOOL_PERMANENT,
                                         sizeof(net_destination_mgr));
@@ -147,11 +161,11 @@ bool MjpegCarrier::write(ConnectionState& proto, SizedWriter& writer) {
     WireImage rep;
     FlexImage *img = rep.checkForImage(writer);
 
-    if (img==NULL) return false;
+    if (img==nullptr) return false;
     int w = img->width();
     int h = img->height();
     int row_stride = img->getRowSize();
-    JOCTET *data = (JOCTET*)img->getRawImage();
+    auto* data = (JOCTET*)img->getRawImage();
 
     JSAMPROW row_pointer[1];
 
@@ -163,19 +177,19 @@ bool MjpegCarrier::write(ConnectionState& proto, SizedWriter& writer) {
     jpeg_net_dest(&cinfo);
     cinfo.image_width = w;
     cinfo.image_height = h;
-    cinfo.input_components = 3;
-    cinfo.in_color_space = JCS_RGB;
+    cinfo.in_color_space = yarpCode2Mjpeg.at(img->getPixelCode());
+    cinfo.input_components = yarpCode2Channels.at(img->getPixelCode());
     jpeg_set_defaults(&cinfo);
     //jpeg_set_quality(&cinfo, 85, TRUE);
-    dbg_printf("Starting to compress...\n");
+    yCTrace(MJPEGCARRIER, "Starting to compress...");
     jpeg_start_compress(&cinfo, TRUE);
     if(!envelope.empty()) {
         jpeg_write_marker(&cinfo, JPEG_COM, reinterpret_cast<const JOCTET*>(envelope.c_str()), envelope.length() + 1);
         envelope.clear();
     }
-    dbg_printf("Done compressing (height %d)\n", cinfo.image_height);
+    yCTrace(MJPEGCARRIER, "Done compressing (height %d)", cinfo.image_height);
     while (cinfo.next_scanline < cinfo.image_height) {
-        dbg_printf("Writing row %d...\n", cinfo.next_scanline);
+        yCTrace(MJPEGCARRIER, "Writing row %d...", cinfo.next_scanline);
         row_pointer[0] = data + cinfo.next_scanline * row_stride;
         jpeg_write_scanlines(&cinfo, row_pointer, 1);
     }
@@ -192,8 +206,8 @@ bool MjpegCarrier::reply(ConnectionState& proto, SizedWriter& writer) {
 
 bool MjpegCarrier::sendHeader(ConnectionState& proto) {
     Name n(proto.getRoute().getCarrierName() + "://test");
-    ConstString pathValue = n.getCarrierModifier("path");
-    ConstString target = "GET /?action=stream\n\n";
+    std::string pathValue = n.getCarrierModifier("path");
+    std::string target = "GET /?action=stream\n\n";
     if (pathValue!="") {
         target = "GET /";
         target += pathValue;
@@ -218,4 +232,3 @@ bool MjpegCarrier::autoCompression() const {
     return false;
 #endif
 }
-

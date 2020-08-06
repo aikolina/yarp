@@ -1,21 +1,16 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+project(opencv_test)
 
-find_package(YARP REQUIRED)
-list(APPEND CMAKE_MODULE_PATH ${YARP_MODULE_PATH})
-include_directories(${YARP_INCLUDE_DIRS})
-link_libraries(${YARP_LIBRARIES})
-
+find_package(YARP REQUIRED COMPONENTS sig cv)
 find_package(OpenCV REQUIRED)
 
-include_directories(${CMAKE_SOURCE_DIR} ${OPENCV_INCLUDE_DIR})
-
-# In addition to specifying the libraries to link, the directories containing the
-# libraries should be added in case the libraries are in a non-standard location
-link_directories(${OPENCV_LINK_DIRECTORIES})
-link_libraries(${OPENCV_LIBRARIES})
-
-add_executable(opencv_test main.cpp)
+add_executable(opencv_test)
+target_sources(opencv_test PRIVATE main.cpp)
+target_link_libraries(opencv_test PRIVATE ${YARP_LIBRARIES} ${OpenCV_LIBRARIES})

@@ -1,25 +1,22 @@
-# Copyright (C) 2014  iCub Facility, Istituto Italiano di Tecnologia
-# Authors: Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-#          Ali Paikan <ali.paikan@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-if(CREATE_YARPMANAGER)
+if(YARP_COMPILE_yarpmanager)
 
   include(YarpUseQt5)
-  include(YarpOSXUtilities)
+  include(YarpMacOSUtilities)
 
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_manager_INCLUDE_DIRS TARGET YARP_manager PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_manager_INCLUDE_DIRS}
-                      ./src-builder
-                      ./src-manager)
+  add_executable(yarpmanager WIN32)
 
   set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
   # Manager files
   set(yarpmanager_manager_SRCS src-manager/aboutdlg.cpp
                                src-manager/applicationviewwidget.cpp
+                               src-manager/clusterWidget.cpp
                                src-manager/customtreewidget.cpp
                                src-manager/entitiestreewidget.cpp
                                src-manager/genericinfodlg.cpp
@@ -36,6 +33,7 @@ if(CREATE_YARPMANAGER)
 
   set(yarpmanager_manager_HDRS src-manager/aboutdlg.h
                                src-manager/applicationviewwidget.h
+                               src-manager/clusterWidget.h
                                src-manager/customtreewidget.h
                                src-manager/entitiestreewidget.h
                                src-manager/genericinfodlg.h
@@ -52,6 +50,7 @@ if(CREATE_YARPMANAGER)
 
   set(yarpmanager_manager_UI_FILES src-manager/aboutdlg.ui
                                    src-manager/applicationviewwidget.ui
+                                   src-manager/clusterWidget.ui
                                    src-manager/genericinfodlg.ui
                                    src-manager/mainwindow.ui
                                    src-manager/moduleviewwidget.ui
@@ -111,39 +110,48 @@ if(CREATE_YARPMANAGER)
   qt5_add_resources(yarpmanager_QRC_GEN_SRCS ${yarpmanager_QRC_FILES})
   qt5_wrap_ui(yarpmanager_UI_GEN_SRCS ${yarpmanager_UI_FILES})
 
-  source_group("Header Files\\manager" FILES ${yarpmanager_manager_HDRS})
-  source_group("Header Files\\builder" FILES ${yarpmanager_builder_HDRS})
-  source_group("Source Files\\manager" FILES ${yarpmanager_manager_SRCS})
-  source_group("Source Files\\builder" FILES ${yarpmanager_builder_SRCS})
+  source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+               PREFIX "Source Files"
+               FILES ${yarpmanager_manager_SRCS}
+                     ${yarpmanager_builder_SRCS})
+  source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+               PREFIX "Header Files"
+               FILES ${yarpmanager_manager_HDRS}
+                     ${yarpmanager_builder_HDRS})
   source_group("Resources Files" FILES ${yarpmanager_QRC_FILES}
                                        ${yarpmanager_RC_FILES})
   source_group("UI Files" FILES ${yarpmanager_UI_FILES})
   source_group("Generated Files" FILES ${yarpmanager_QRC_GEN_SRCS}
                                        ${yarpmanager_UI_GEN_SRCS})
 
-  add_executable(yarpmanager WIN32 ${yarpmanager_SRCS}
-                                   ${yarpmanager_HDRS}
-                                   ${yarpmanager_QRC_FILES}
-                                   ${yarpmanager_QRC_GEN_SRCS}
-                                   ${yarpmanager_RC_FILES}
-                                   ${yarpmanager_UI_GEN_SRCS}
-                                   ${yarpmanager_UI_FILES})
+  target_sources(yarpmanager PRIVATE ${yarpmanager_SRCS}
+                                     ${yarpmanager_HDRS}
+                                     ${yarpmanager_QRC_FILES}
+                                     ${yarpmanager_QRC_GEN_SRCS}
+                                     ${yarpmanager_RC_FILES}
+                                     ${yarpmanager_UI_GEN_SRCS}
+                                     ${yarpmanager_UI_FILES})
 
-  target_link_libraries(yarpmanager YARP_OS
-                                    YARP_init
-                                    YARP_manager)
-  qtyarp_use_modules(yarpmanager Widgets
-                                 Gui)
-  qtyarp_deprecate_with_cmake_version(2.8.11)
-  if(WIN32 AND CMAKE_VERSION VERSION_LESS 2.8.11)
-    target_link_libraries(yarpmanager Qt5::WinMain)
+  target_include_directories(yarpmanager PRIVATE "${CMAKE_CURRENT_LIST_DIR}/src-builder"
+                                                  "${CMAKE_CURRENT_LIST_DIR}/src-manager")
+  if(MSVC)
+    target_include_directories(yarpmanager SYSTEM PRIVATE ${dirent_INCLUDE_DIRS})
   endif()
+
+  target_link_libraries(yarpmanager PRIVATE YARP::YARP_os
+                                            YARP::YARP_init
+                                            YARP::YARP_manager
+                                            YARP::YARP_profiler
+                                            Qt5::Widgets
+                                            Qt5::Gui)
 
   install(TARGETS yarpmanager COMPONENT utilities DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-  yarp_osx_duplicate_and_add_bundle(TARGET yarpmanager
-                                    APP_ICON Resources/AppIcon.icns
-                                    INSTALL_COMPONENT utilities
-                                    INSTALL_DESTINATION "${CMAKE_INSTALL_BINDIR}")
+  set_property(TARGET yarpmanager PROPERTY FOLDER "Graphical User Interfaces")
+
+  yarp_macos_duplicate_and_add_bundle(TARGET yarpmanager
+                                      APP_ICON Resources/AppIcon.icns
+                                      INSTALL_COMPONENT utilities
+                                      INSTALL_DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 endif()

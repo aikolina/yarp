@@ -1,13 +1,16 @@
 /*
- * Copyright (C) 2010 Ze Ji 
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2010 Ze Ji
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "DynamixelAX12FtdiDriver.h"
 
 #include <yarp/os/Value.h>
-#include <yarp/os/Log.h>
+#include <yarp/os/LogComponent.h>
 
 #include <cstdio>
 
@@ -16,8 +19,11 @@ using namespace yarp::dev;
 
 #define BOOL_EXIT_FAILURE false
 
+YARP_LOG_COMPONENT(DYNAMIXELAX12FTDIDRIVER, "yarp.devices.DynamixelAX12FtdiDriver")
+
+
 bool NOT_YET_IMPLEMENTED(const char *txt) {
-    fprintf(stderr, "%s not yet implemented for DynamixelAX12FtdiDriver\n", txt);
+    yCError(DYNAMIXELAX12FTDIDRIVER, "%s not yet implemented for DynamixelAX12FtdiDriver", txt);
     return false;
 }
 
@@ -62,21 +68,21 @@ DynamixelAX12FtdiDriver::~DynamixelAX12FtdiDriver() {
 
 bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
 
-    mutex.wait();
+    mutex.lock();
 
     FtdiDeviceSettings ftdiSetting;
     strcpy(ftdiSetting.description, config.check("FTDI_DESCRIPTION", Value("FT232R USB UART"), "Ftdi device description").asString().c_str());
     strcpy(ftdiSetting.serial, config.check("FTDI_SERIAL", Value("A7003MhG"), "Ftdi device serial").asString().c_str());
     strcpy(ftdiSetting.manufacturer, config.check("FTDI_MANUFACTURER", Value("FTDI"), "Ftdi device manufacturer").asString().c_str());
-    ftdiSetting.baudrate = config.check("baudrate", Value(57600), "Specifies the baudrate at which the communication port operates.").asInt();
-    ftdiSetting.vendor = config.check("ftdivendor", Value(0x0403), "USB device vendor. 0x0403 normally. Can be found by lsusb on linux").asInt();
-    ftdiSetting.product = config.check("ftdiproduct", Value(0x6001), "USB device product number. 0x6001 normally. Can be found by lsusb on linux").asInt();
-    ftdiSetting.flowctrol = config.check("flowctrl", Value(SIO_DISABLE_FLOW_CTRL), "flow control to use. Should be SIO_DISABLE_FLOW_CTRL = 0x0, SIO_RTS_CTS_HS = 0x1 << 8, SIO_DTR_DSR_HS = 0x2 << 8, or SIO_XON_XOFF_HS = 0x4 << 8").asInt();
+    ftdiSetting.baudrate = config.check("baudrate", Value(57600), "Specifies the baudrate at which the communication port operates.").asInt32();
+    ftdiSetting.vendor = config.check("ftdivendor", Value(0x0403), "USB device vendor. 0x0403 normally. Can be found by lsusb on linux").asInt32();
+    ftdiSetting.product = config.check("ftdiproduct", Value(0x6001), "USB device product number. 0x6001 normally. Can be found by lsusb on linux").asInt32();
+    ftdiSetting.flowctrol = config.check("flowctrl", Value(SIO_DISABLE_FLOW_CTRL), "flow control to use. Should be SIO_DISABLE_FLOW_CTRL = 0x0, SIO_RTS_CTS_HS = 0x1 << 8, SIO_DTR_DSR_HS = 0x2 << 8, or SIO_XON_XOFF_HS = 0x4 << 8").asInt32();
     ftdiSetting.write_chunksize = 3;
     ftdiSetting.read_chunksize = 256;
 
-    yTrace("DynamixelAx12Driver::initialize");
-    printf("Opening DynamixelAx12 Device\n");
+    yCTrace(DYNAMIXELAX12FTDIDRIVER, "DynamixelAx12Driver::initialize");
+    yCInfo(DYNAMIXELAX12FTDIDRIVER, "Opening DynamixelAx12 Device");
 
     int retCode;
 
@@ -87,19 +93,19 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
     retCode = ftdi_usb_find_all(&ftdic, &devlist, ftdiSetting.vendor, ftdiSetting.product);
     switch (retCode) {
         case -1:
-            fprintf(stderr, "usb_find_busses() failed\n");
+            yCError(DYNAMIXELAX12FTDIDRIVER, "usb_find_busses() failed");
             return BOOL_EXIT_FAILURE;
         case -2:
-            fprintf(stderr, "usb_find_devices() failed\n");
+            yCError(DYNAMIXELAX12FTDIDRIVER, "usb_find_devices() failed");
             return BOOL_EXIT_FAILURE;
         case -3:
-            fprintf(stderr, "out of memory\n");
+            yCError(DYNAMIXELAX12FTDIDRIVER, "out of memory");
             return BOOL_EXIT_FAILURE;
         case 0:
-            fprintf(stderr, "No device is found. Check connection.\n");
+            yCError(DYNAMIXELAX12FTDIDRIVER, "No device is found. Check connection.");
             return BOOL_EXIT_FAILURE;
         default:
-            printf("%d devices have been found.\n", retCode);
+            yCInfo(DYNAMIXELAX12FTDIDRIVER, "%d devices have been found.", retCode);
             break;
     }
 
@@ -107,12 +113,12 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
     int i = 0;
 
     for (curdev = devlist; curdev != NULL; i++) {
-        printf("Checking device: %d\n", i);
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Checking device: %d", i);
 
         if ((retCode = ftdi_usb_get_strings(&ftdic, curdev->dev, manufacturer, 128, description, 128, serial, 128)) < 0) {
-            fprintf(stderr, "ftdi_usb_get_strings failed: %d (%s)\n", ret, ftdi_get_error_string(&ftdic));
+            yCError(DYNAMIXELAX12FTDIDRIVER, "ftdi_usb_get_strings failed: %d (%s)", ret, ftdi_get_error_string(&ftdic));
         }
-        printf("Manufacturer: %s, Description: %s, Serial %s\n\n", manufacturer, description, serial);
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Manufacturer: %s, Description: %s, Serial %s", manufacturer, description, serial);
 
         // check if the current device is the right one
         if (strcmp(serial, ftdiSetting.serial) == 0) {
@@ -122,13 +128,13 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
     }
 
     if (curdev == NULL) {
-        fprintf(stderr, "No Dynamixel device is found. Check connection.\n");
+        yCError(DYNAMIXELAX12FTDIDRIVER, "No Dynamixel device is found. Check connection.");
         return BOOL_EXIT_FAILURE;
     }
 
     // open and reset everything in case we messed everything up with a control-c..
     if ((retCode = ftdi_usb_open_dev(&ftdic, curdev->dev)) < 0) {
-        fprintf(stderr, "unable to open ftdi device: %d (%s)\n", retCode, ftdi_get_error_string(&ftdic));
+        yCError(DYNAMIXELAX12FTDIDRIVER, "unable to open ftdi device: %d (%s)", retCode, ftdi_get_error_string(&ftdic));
         return BOOL_EXIT_FAILURE;
     }
     deviceOpen = true; // Only set to be able to do close()
@@ -137,7 +143,7 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
 
     // Now open again
     if ((retCode = ftdi_usb_open_dev(&ftdic, curdev->dev)) < 0) {
-        fprintf(stderr, "unable to open ftdi device: %d (%s)\n", retCode, ftdi_get_error_string(&ftdic));
+        yCError(DYNAMIXELAX12FTDIDRIVER, "unable to open ftdi device: %d (%s)", retCode, ftdi_get_error_string(&ftdic));
         return BOOL_EXIT_FAILURE;
     }
 
@@ -145,9 +151,9 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
     if (ftdic.type == TYPE_R) {
         unsigned int chipid;
         if (ftdi_read_chipid(&ftdic, &chipid) == 0) {
-            printf("FTDI Device open. FTDI chipid: %X\n", chipid);
+            yCInfo(DYNAMIXELAX12FTDIDRIVER, "FTDI Device open. FTDI chipid: %X", chipid);
         } else {
-            fprintf(stderr, "Unable to access FTDI device!\n");
+            yCError(DYNAMIXELAX12FTDIDRIVER, "Unable to access FTDI device!");
             return BOOL_EXIT_FAILURE;
         }
     }
@@ -156,11 +162,11 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
     // We have an open device and it is accessible, so set parameters
 
     if ((retCode = ftdi_set_baudrate(&ftdic, ftdiSetting.baudrate)) != 0)
-        fprintf(stderr, "Error setting baudrate, ret=%d\n", retCode);
+        yCError(DYNAMIXELAX12FTDIDRIVER, "Error setting baudrate, ret=%d", retCode);
     if (ftdi_set_line_property(&ftdic, BITS_8, STOP_BIT_1, NONE) == -1)
-        fprintf(stderr, "Error setting connection properties");
+        yCError(DYNAMIXELAX12FTDIDRIVER, "Error setting connection properties");
     if (ftdi_setflowctrl(&ftdic, SIO_DISABLE_FLOW_CTRL) == -1)
-        fprintf(stderr, "Error setting flow control");
+        yCError(DYNAMIXELAX12FTDIDRIVER, "Error setting flow control");
 
     // Set chunk sizes for in and out
     ftdi_write_data_set_chunksize(&ftdic, ftdiSetting.write_chunksize);
@@ -168,7 +174,7 @@ bool DynamixelAX12FtdiDriver::open(yarp::os::Searchable& config) {
 
     // Everything ready to rumble
 
-    mutex.post();
+    mutex.unlock();
 
     return true;
 }
@@ -184,7 +190,7 @@ bool DynamixelAX12FtdiDriver::close() {
         ftdi_usb_close(&ftdic);
     } else {
         // We don't seem to have a device open at this time
-        fprintf(stderr, "close():No device open to be be closed!\n");
+        yCError(DYNAMIXELAX12FTDIDRIVER, "close():No device open to be be closed!");
         return false;
     }
     return true;
@@ -202,12 +208,12 @@ bool DynamixelAX12FtdiDriver::configure(yarp::os::Searchable& config) {
 
 int DynamixelAX12FtdiDriver::syncSendCommand(unsigned char id, unsigned char inst[], int size, unsigned char ret[], int &retSize) {
     int r = 0;
-    mutex.wait();
+    mutex.lock();
     if (!ftdi_usb_purge_buffers(&ftdic)) {
         r = sendCommand(id, inst, size, ret, retSize);
     }
 
-    mutex.post();
+    mutex.unlock();
     return r;
 }
 
@@ -236,13 +242,10 @@ int DynamixelAX12FtdiDriver::sendCommand(unsigned char id, unsigned char inst[],
 
     // Calculate checksum
     command[size + 5 - 1] = ~(chksum + command[2] + command[3]);
-#ifdef __DEBUG__
-    printf("Packet sent: ");
+    yCDebug(DYNAMIXELAX12FTDIDRIVER, "Packet sent: ");
     for (i = 0; i < size + 5; i++) {
-        printf("%X ", command[i]);
+        yCDebug(DYNAMIXELAX12FTDIDRIVER, "    %X", command[i]);
     }
-    printf("\n");
-#endif
     // Write data to device
     retCode = ftdi_write_data(&ftdic, command, size + 5);
 
@@ -251,30 +254,30 @@ int DynamixelAX12FtdiDriver::sendCommand(unsigned char id, unsigned char inst[],
         do {
             //retCode stores the number of bytes read, which may not correspond to the number of bytes
             //one wants to read (the third parameter). This is a timing issue, so to learn how to fix
-            //it, I should send a command and then continually printf the bytes that I get back. At
+            //it, I should send a command and then continually prints the bytes that I get back. At
             //some point, I will get back the correct number of bytes. After doing this enough times,
             //I should work out the timing issue
             retCode = ftdi_read_data(&ftdic, header, 4);
-        }            // retCode: <0,: 	error code from usb_bulk_read()
-            //          0: 	no data was available
-            //          >0: 	number of bytes read
+        }            // retCode: <0,:     error code from usb_bulk_read()
+            //          0:     no data was available
+            //          >0:     number of bytes read
             /// TODO check if it works with Kaspar. Originally made by Sven. Need testing
         while (retCode == 0); // not needed. as it will hang if no device is connected
 
         if (retCode < 0) {
-            fprintf(stderr, "Error while reading header of status packet! From usb_bulk_read() (%d)\n", retCode);
+            yCError(DYNAMIXELAX12FTDIDRIVER, "Error while reading header of status packet! From usb_bulk_read() (%d)", retCode);
             return 0;
         } else if (retCode < 4) {
-            fprintf(stderr, "Error while reading header of status packet! (%d)\n", retCode);
+            yCError(DYNAMIXELAX12FTDIDRIVER, "Error while reading header of status packet! (%d)", retCode);
             return 0;
         } else {
             retCode = 0;
             if (header[0] != 0xFF || header[1] != 0xFF) {
                 badAnswer = true;
-                printf("Received data without header bytes: ");
+                yCInfo(DYNAMIXELAX12FTDIDRIVER, "Received data without header bytes: ");
             } else if (header[2] != id) {
                 badAnswer = true;
-                printf("Received status from wrong device (expected %d): ", id);
+                yCInfo(DYNAMIXELAX12FTDIDRIVER, "Received status from wrong device (expected %d): ", id);
             } else {
                 // Now that we know a well formed packet is arriving, read remaining bytes
                 do {
@@ -283,20 +286,20 @@ int DynamixelAX12FtdiDriver::sendCommand(unsigned char id, unsigned char inst[],
 
                 if (retCode != header[3]) {
                     badAnswer = true;
-                    printf("Received data with wrong length: ");
+                    yCInfo(DYNAMIXELAX12FTDIDRIVER, "Received data with wrong length: ");
                 } else {
                     //check checksum
                     chksum = 0;
                     for (i = 0; i < retCode - 1; i++) chksum += body[i];
                     if (body[retCode - 1] != (unsigned char) ~(chksum + header[2] + header[3])) {
                         badAnswer = true;
-                        printf("Received data with wrong checksum (%X != %X): ", body[retCode - 1], (unsigned char) ~(chksum + header[2] + header[3]));
+                        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Received data with wrong checksum (%X != %X): ", body[retCode - 1], (unsigned char) ~(chksum + header[2] + header[3]));
                     } else {
                         // Packet ok, so return the instruction part without checksum
                         for (i = 0; i < retCode - 1; i++) {
                             ret[i] = body[i];
                         }
-                        // retSize = retCode;    	// Sven's original code. 
+                        // retSize = retCode;        // Sven's original code.
                         retSize = retCode - 1; // retSize should be retCode - 1, as checksum is not included
                         return 1;
                     }
@@ -307,12 +310,11 @@ int DynamixelAX12FtdiDriver::sendCommand(unsigned char id, unsigned char inst[],
         // Print packet if something was wrong
         if (badAnswer) {
             for (i = 0; i < 4; i++) {
-                printf("%X ", header[i]);
+                yCInfo(DYNAMIXELAX12FTDIDRIVER, "%X ", header[i]);
             }
             for (i = 0; i < retCode; i++) {
-                printf("%X ", body[i]);
+                yCInfo(DYNAMIXELAX12FTDIDRIVER, "%X ", body[i]);
             }
-            printf("\n");
             return 0;
         }
     }
@@ -446,20 +448,24 @@ bool DynamixelAX12FtdiDriver::checkMotionDone(int j, bool *flag) {
 
 bool DynamixelAX12FtdiDriver::checkMotionDone(bool *flag) {
     bool t = true;
-    for (int k = 0; k < numOfAxes; k++) {
-        if (!this->checkMotionDone(k, &flag[k]))
+    bool tmp_done(false), all_done(true);
+    for (int k = 0; k < numOfAxes; k++)
+    {
+        if (!this->checkMotionDone(k, &tmp_done))
             t = false;
+        all_done &= tmp_done;
     }
+    *flag = all_done;
     return t;
 }
 
 bool DynamixelAX12FtdiDriver::setRefSpeed(int j, double sp) {
     if (sp < 1) {
-        printf("Invalid speed value, should be from 1 to 114");
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Invalid speed value, should be from 1 to 114");
         speeds[j] = 1;
         return false;
     } else if (sp > 114) {
-        printf("Invalid speed value, should be from 1 to 114");
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Invalid speed value, should be from 1 to 114");
         speeds[j] = 114;
         return false;
     } else {
@@ -532,10 +538,10 @@ bool DynamixelAX12FtdiDriver::stop() {
 int DynamixelAX12FtdiDriver::normalisePosition(double position) {
     if (position < 0) {
         position = 0;
-        printf("Invalid position value, should be from 0 to 300");
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Invalid position value, should be from 0 to 300");
     } else if (position > 300) {
         position = 300;
-        printf("Invalid position value, should be from 0 to 300");
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Invalid position value, should be from 0 to 300");
     }
 
     return (int) (1024 * position / 301);
@@ -545,10 +551,10 @@ int DynamixelAX12FtdiDriver::normaliseSpeed(double speed) {
     // speed -> [1 114] RPM
     // when speed is 0, it is maximum possible speed, no speed control. so it is not useful here
     if (speed < 1) {
-        printf("Invalid speed value, should be from 1 to 114");
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Invalid speed value, should be from 1 to 114");
         speed = 1;
     } else if (speed > 114) {
-        printf("Invalid speed value, should be from 1 to 114");
+        yCInfo(DYNAMIXELAX12FTDIDRIVER, "Invalid speed value, should be from 1 to 114");
         speed = 114;
     }
     return (int) (1024 * speed / 114 - 1);
@@ -558,13 +564,13 @@ bool DynamixelAX12FtdiDriver::getRefTorques(double *t) {
     for (int k = 0; k < numOfAxes; k++) {
         t[k] = torques[k];
     }
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is just the MAX tourque set for the ax12 servo.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is just the MAX tourque set for the ax12 servo.");
     return true;
 }
 
 bool DynamixelAX12FtdiDriver::getRefTorque(int j, double *t) {
     *t = torques[j];
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is just the MAX tourque set for the ax12 servo.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is just the MAX tourque set for the ax12 servo.");
     return true;
 }
 
@@ -583,10 +589,10 @@ bool DynamixelAX12FtdiDriver::setTorques(const double *t) {
  */
 bool DynamixelAX12FtdiDriver::setTorque(int j, double t) {
     if (t < 0) {
-        fprintf(stderr, "torque (%d) should in range [0 1023] or [0 0x3FF]. t is set to 0 here\n", (int)t);
+        yCError(DYNAMIXELAX12FTDIDRIVER, "torque (%d) should in range [0 1023] or [0 0x3FF]. t is set to 0 here", (int)t);
         t = 0;
     } else if (t > 1023) {
-        fprintf(stderr, "torque (%d) should in range [0 1023] or [0 0x3FF]. t is set to 1023 here\n", (int)t);
+        yCError(DYNAMIXELAX12FTDIDRIVER, "torque (%d) should in range [0 1023] or [0 0x3FF]. t is set to 1023 here", (int)t);
         t = 1023;
     }
 
@@ -600,7 +606,7 @@ bool DynamixelAX12FtdiDriver::setTorque(int j, double t) {
 }
 
 bool DynamixelAX12FtdiDriver::setTorquePid(int j, const Pid &pid) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("setTorquePid");
 }
 
@@ -623,7 +629,7 @@ bool DynamixelAX12FtdiDriver::getTorque(int j, double *t) {
         load *= (((blankReturn[2] >> 2)&0X01) ? -1 : 1);
         *t = load;
     } else {
-        fprintf(stderr, "%s\n", message);
+        yCError(DYNAMIXELAX12FTDIDRIVER, "%s", message);
         return false;
     }
     return ret;
@@ -640,87 +646,87 @@ bool DynamixelAX12FtdiDriver::getTorques(double *t) {
 }
 
 bool DynamixelAX12FtdiDriver::setTorquePids(const Pid *pids) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("setTorquePids");
 }
 
 bool DynamixelAX12FtdiDriver::setTorqueErrorLimit(int j, double limit) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("setTorqueErrorLimit");
 }
 
 bool DynamixelAX12FtdiDriver::setTorqueErrorLimits(const double *limits) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("setTorqueErrorLimits");
 }
 
 bool DynamixelAX12FtdiDriver::getTorqueError(int j, double *err) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorqueError");
 }
 
 bool DynamixelAX12FtdiDriver::getTorqueErrors(double *errs) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorqueErrors");
 }
 
 bool DynamixelAX12FtdiDriver::getTorquePidOutput(int j, double *out) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorquePidOutput");
 }
 
 bool DynamixelAX12FtdiDriver::getTorquePidOutputs(double *outs) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorquePidOutputs");
 }
 
 bool DynamixelAX12FtdiDriver::getTorquePid(int j, Pid *pid) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorquePid");
 }
 
 bool DynamixelAX12FtdiDriver::getTorquePids(Pid *pids) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorquePids");
 }
 
 bool DynamixelAX12FtdiDriver::getTorqueErrorLimit(int j, double *limit) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorqueErrorLimit");
 }
 
 bool DynamixelAX12FtdiDriver::getTorqueErrorLimits(double *limits) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getTorqueErrorLimits");
 }
 
 bool DynamixelAX12FtdiDriver::resetTorquePid(int j) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("resetTorquePid");
 }
 
 bool DynamixelAX12FtdiDriver::disableTorquePid(int j) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("disableTorquePid");
 }
 
 bool DynamixelAX12FtdiDriver::enableTorquePid(int j) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("enableTorquePid");
 }
 
 bool DynamixelAX12FtdiDriver::setTorqueOffset(int j, double v) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("setTorqueOffset");
 }
 
 bool DynamixelAX12FtdiDriver::getBemfParam(int j, double *bemf) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("getBemfParam");
 }
 
 bool DynamixelAX12FtdiDriver::setBemfParam(int j, double bemf) {
-    fprintf(stderr, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.\n");
+    yCError(DYNAMIXELAX12FTDIDRIVER, "Note: AX12 does not support torque control mode. This is only used to get torque feedback.");
     return NOT_YET_IMPLEMENTED("setBemfParam");
 }
 
@@ -776,7 +782,7 @@ bool DynamixelAX12FtdiDriver::getEncoder(int j, double *v) {
             *v = ((double) pos)*300.0 / 1024.0;
             return true;
         } else {
-            fprintf(stderr, "%s\n", message);
+            yCError(DYNAMIXELAX12FTDIDRIVER, "%s", message);
             return false;
         }
 
@@ -818,7 +824,7 @@ bool DynamixelAX12FtdiDriver::getEncoderSpeed(int j, double *sp) {
 
         *sp = speed * 113 / 1024 + 1; /// TODO should be changed. not very accurate, though close
     } else {
-        fprintf(stderr, "%s\n", message);
+        yCError(DYNAMIXELAX12FTDIDRIVER, "%s", message);
         return false;
     }
     return ret;
@@ -844,15 +850,15 @@ bool DynamixelAX12FtdiDriver::getEncoderAccelerations(double *accs) {
 
 bool DynamixelAX12FtdiDriver::initMotorIndex(yarp::os::Bottle *sensorIndex) {
     int s = sensorIndex->size() - 1;
-    if (s != sensorIndex->get(0).asInt()) {
-        fprintf(stderr, "sensor number does not match the real number in configuration file\n");
+    if (s != sensorIndex->get(0).asInt32()) {
+        yCError(DYNAMIXELAX12FTDIDRIVER, "sensor number does not match the real number in configuration file");
         return false;
     }
     numOfAxes = s;
     unsigned char *tmp = NULL;
     tmp = (unsigned char *) realloc(jointNumbers, numOfAxes * sizeof (unsigned char));
     if (tmp != NULL) {
-        //	jointNumbers = {0x65, 0x74, 0x84, 0x66, 0x75, 0x85, 0x67, 0x76, 0x86, 0x6B, 0x77, 0x87, 0x6A, 0x68, 0x69, 0x6C};
+        //    jointNumbers = {0x65, 0x74, 0x84, 0x66, 0x75, 0x85, 0x67, 0x76, 0x86, 0x6B, 0x77, 0x87, 0x6A, 0x68, 0x69, 0x6C};
         jointNumbers = tmp;
     } else {
         return false;
@@ -882,8 +888,90 @@ bool DynamixelAX12FtdiDriver::initMotorIndex(yarp::os::Bottle *sensorIndex) {
     }
 
     for (int i = 0; i < numOfAxes; i++) {
-        jointNumbers[i] = (unsigned char) (sensorIndex->get(i + 1).asInt());
+        jointNumbers[i] = (unsigned char) (sensorIndex->get(i + 1).asInt32());
     }
     return true;
 }
 
+bool DynamixelAX12FtdiDriver::positionMove(const int n_joint, const int *joints, const double *refs)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= positionMove(joints[j], refs[j]);
+    }
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::relativeMove(const int n_joint, const int *joints, const double *deltas)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= relativeMove(joints[j], deltas[j]);
+    }
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::checkMotionDone(const int n_joint, const int *joints, bool *flag)
+{
+    bool ret = true;
+    bool tmp_joint(false), tmp_device(true);
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= checkMotionDone(joints[j], &tmp_joint);
+        tmp_device &= tmp_joint;
+    }
+    *flag = tmp_device;
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::setRefSpeeds(const int n_joint, const int *joints, const double *spds)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= setRefSpeed(joints[j], spds[j]);
+    }
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::setRefAccelerations(const int n_joint, const int *joints, const double *accs)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= setRefAcceleration(joints[j], accs[j]);
+    }
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::getRefSpeeds(const int n_joint, const int *joints, double *spds)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= getRefSpeed(joints[j], &spds[j]);
+    }
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::getRefAccelerations(const int n_joint, const int *joints, double *accs)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= getRefSpeed(joints[j], &accs[j]);
+    }
+    return ret;
+}
+
+bool DynamixelAX12FtdiDriver::stop(const int n_joint, const int *joints)
+{
+    bool ret = true;
+    for(int j=0; j<n_joint; j++)
+    {
+        ret &= stop(joints[j]);
+    }
+    return ret;
+}

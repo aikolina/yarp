@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef APPLICATIONVIEWWIDGET_H
@@ -21,6 +29,7 @@
 #include <QList>
 #include <QDockWidget>
 #include "yarpbuilderlib.h"
+#include <customtreewidget.h>
 
 namespace Ui {
 class ApplicationViewWidget;
@@ -38,46 +47,53 @@ public:
                                    yarp::manager::Manager *lazyManager,
                                    yarp::os::Property* config,
                                    bool editingMode = false,
-                                   QWidget *parent = 0);
-    ~ApplicationViewWidget();
+                                   QWidget *parent = nullptr);
+    ~ApplicationViewWidget() override;
 
-    void runApplicationSet();
-    void stopApplicationSet();
-    void killApplicationSet();
-    void connectConnectionSet();
-    void disconnectConnectionSet();
+    void runApplicationSet(bool onlySelected);
+    void stopApplicationSet(bool onlySelected);
+    void killApplicationSet(bool onlySelected);
+    void connectConnectionSet(bool onlySelected);
+    void disconnectConnectionSet(bool onlySelected);
     void refresh();
     void selectAll();
     void exportGraph();
 
     bool isRunning();
 
-    void onModStart(int which);
-    void onModStop(int which);
-    void onModStdout(int which, const char* msg);
-    void onConConnect(int which);
-    void onConDisconnect(int which);
-    void onResAvailable(int which);
-    void onResUnAvailable(int which);
-    void onConAvailable(int from, int to);
-    void onConUnAvailable(int from, int to);
-    void onError(void);
-    void onLoadBalance(void);
+    void onModStart(int which) override;
+    void onModStop(int which) override;
+    void onModStdout(int which, const char* msg) override;
+    void onConConnect(int which) override;
+    void onConDisconnect(int which) override;
+    void onResAvailable(int which) override;
+    void onResUnAvailable(int which) override;
+    void onConAvailable(int from, int to) override;
+    void onConUnAvailable(int from, int to) override;
+    void onError() override;
+    void onLoadBalance() override;
     void closeManager();
     QToolBar* getBuilderToolBar();
     bool isBuilderFloating();
     void showBuilder(bool);
 
+    bool anyModuleSelected();
+    bool anyConnectionSelected();
+
+    CustomTreeWidget* getModuleList();
+    CustomTreeWidget* getConnectionList();
+
     bool save();
     QString getFileName();
+    void setFileName(QString filename);
     QString getAppName();
+    void setAppName(QString appName);
 
     bool isEditingMode();
 
-    void showBuilderWindows(yarp::os::Property& proprty);
-
 private:
     bool getConRowByID(int id, int *row);
+    bool getResRowByID(int id, int *row);
     QTreeWidgetItem *getModRowByID(int id, QTreeWidgetItem *parent = NULL);
     void reportErrors();
     void prepareManagerFrom(yarp::manager::Manager* lazy);
@@ -101,6 +117,9 @@ private:
     void attachStdOutNestedApplication(QTreeWidgetItem *it,std::vector<int> *MIDs);
     void modStdOutNestedApplication(QTreeWidgetItem *it, int id,QString s);
     void selectAllNestedApplicationModule(QTreeWidgetItem *it, bool check);
+    bool scanAvailableCarriers(QString carrier, bool isConnection = true);
+    void updateConnection(int index, std::vector<int> &CIDs);
+
 
 
 private:
@@ -108,6 +127,7 @@ private:
     QDockWidget *builderWidget;
     BuilderWindow *builder;
     QToolBar *builderToolBar;
+    QStringList stringLst;
 
     Ui::ApplicationViewWidget *ui;
     SafeManager safeManager;
@@ -146,12 +166,14 @@ private:
 
     bool editingMode;
 
+    std::vector<std::string> listOfResourceNames;
+
 
 private slots:
     void onAssignHost();
     void onCloseStdOut(int);
-    void onAttachStdout(void);
-    void onDetachStdout(void);
+    void onAttachStdout();
+    void onDetachStdout();
     void onYARPView();
     void onYARPHear();
     void onYARPRead();
@@ -181,10 +203,8 @@ private slots:
     void onRefreshApplication();
     void onModuleSelected(QList<int> ids);
     void onConnectionSelected(QList<int> id);
-    //void onBuilderFloatingChanged(bool);
 
     void onModuleItemChanged(QTreeWidgetItem*,int);
-    void onBuilderFloatChanged(bool);
 
 signals:
     void logWarning(QString);
@@ -197,8 +217,6 @@ signals:
     void selfResUnavailable(int);
     void selfStart(int);
     void selfStop(int);
-    void builderWindowFloating(bool);
-
 
 
 };

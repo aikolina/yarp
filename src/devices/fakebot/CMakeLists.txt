@@ -1,33 +1,36 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 yarp_prepare_plugin(fakebot
                     CATEGORY device
-                    TYPE yarp::dev::FakeBot
-                    INCLUDE FakeBot.h
-                    DEPENDS CREATE_DEVICE_LIBRARY_MODULES)
+                    TYPE FakeBot
+                    INCLUDE FakeBot.h)
 
 if(NOT SKIP_fakebot)
-  set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_sig_INCLUDE_DIRS TARGET YARP_sig PROPERTY INCLUDE_DIRS)
-  get_property(YARP_dev_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_sig_INCLUDE_DIRS}
-                      ${YARP_dev_INCLUDE_DIRS})
-  yarp_add_plugin(yarp_fakebot FakeBot.cpp
-                               FakeBot.h)
-  target_link_libraries(yarp_fakebot YARP_OS
-                                     YARP_sig
-                                     YARP_dev)
-  yarp_install(TARGETS yarp_fakebot
-               EXPORT YARP
-               COMPONENT runtime
-               LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
-               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR})
-  yarp_install(FILES fakebot.ini
-               COMPONENT runtime
-               DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
-endif()
+  yarp_add_plugin(yarp_fakebot)
 
+  target_sources(yarp_fakebot PRIVATE FakeBot.cpp
+                                      FakeBot.h)
+
+  target_link_libraries(yarp_fakebot PRIVATE YARP::YARP_os
+                                             YARP::YARP_sig
+                                             YARP::YARP_dev)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS YARP_os
+                                                      YARP_sig
+                                                      YARP_dev)
+
+  yarp_install(TARGETS yarp_fakebot
+               EXPORT YARP_${YARP_PLUGIN_MASTER}
+               COMPONENT ${YARP_PLUGIN_MASTER}
+               LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
+               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
+               YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+
+  set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
+
+  set_property(TARGET yarp_fakebot PROPERTY FOLDER "Plugins/Device/Fake")
+endif()

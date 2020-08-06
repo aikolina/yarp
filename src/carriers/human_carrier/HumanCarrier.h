@@ -1,10 +1,15 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
+#include <yarp/os/Carrier.h>
+#include <yarp/os/Route.h>
+#include <yarp/os/SizedWriter.h>
 #include "HumanStream.h"
 
 class HumanCarrier : public Carrier {
@@ -12,59 +17,59 @@ public:
 
     // First, the easy bits...
 
-    virtual Carrier *create() {
+    Carrier *create() const override {
         return new HumanCarrier();
     }
 
-    virtual ConstString getName() {
+    std::string getName() const override {
         return "human";
     }
 
-    virtual bool isConnectionless() {
+    bool isConnectionless() const override {
         return true;
     }
 
-    virtual bool canAccept() {
+    bool canAccept() const override {
         return true;
     }
 
-    virtual bool canOffer() {
+    bool canOffer() const override {
         return true;
     }
 
-    virtual bool isTextMode() {
+    bool isTextMode() const override {
         // let's be text mode, for human-friendliness
         return true;
     }
 
-    virtual bool canEscape() {
+    bool canEscape() const override {
         return true;
     }
 
-    virtual bool requireAck() {
+    bool requireAck() const override {
         return true;
     }
 
-    virtual bool supportReply() {
+    bool supportReply() const override {
         return true;
     }
 
-    virtual bool isLocal() {
+    bool isLocal() const override {
         return false;
     }
 
-    virtual ConstString toString() {
+    std::string toString() const override {
         return "humans are handy";
     }
 
-    virtual void getHeader(const Bytes& header) {
+    void getHeader(Bytes& header) const override {
         const char *target = "HUMANITY";
         for (size_t i=0; i<8 && i<header.length(); i++) {
             header.get()[i] = target[i];
         }
     }
 
-    virtual bool checkHeader(const Bytes& header) {
+    bool checkHeader(const Bytes& header) override {
         if (header.length()!=8) {
             return false;
         }
@@ -77,32 +82,34 @@ public:
         return true;
     }
 
-    virtual void setParameters(const Bytes& header) {
+    void setParameters(const Bytes& header) override {
         // no parameters - no carrier variants
     }
 
 
     // Now, the initial hand-shaking
 
-    virtual bool prepareSend(ConnectionState& proto) {
+    bool prepareSend(ConnectionState& proto) override {
         // nothing special to do
         return true;
     }
 
-    virtual bool sendHeader(ConnectionState& proto);
+    bool sendHeader(ConnectionState& proto) override;
 
-    virtual bool expectSenderSpecifier(ConnectionState& proto) {
+    bool expectSenderSpecifier(ConnectionState& proto) override {
         // interpret everything that sendHeader wrote
-        proto.setRoute(proto.getRoute().addFromName(proto.is().readLine()));
+        Route route = proto.getRoute();
+        route.setFromName(proto.is().readLine());
+        proto.setRoute(route);
         return proto.is().isOk();
     }
 
-    virtual bool expectExtraHeader(ConnectionState& proto) {
+    bool expectExtraHeader(ConnectionState& proto) override {
         // interpret any extra header information sent - optional
         return true;
     }
 
-    virtual bool respondToHeader(ConnectionState& proto) {
+    bool respondToHeader(ConnectionState& proto) override {
         // SWITCH TO NEW STREAM TYPE
         HumanStream *stream = new HumanStream();
         if (stream==NULL) { return false; }
@@ -110,7 +117,7 @@ public:
         return true;
     }
 
-    virtual bool expectReplyToHeader(ConnectionState& proto) {
+    bool expectReplyToHeader(ConnectionState& proto) override {
         // SWITCH TO NEW STREAM TYPE
         HumanStream *stream = new HumanStream();
         if (stream==NULL) { return false; }
@@ -118,14 +125,14 @@ public:
         return true;
     }
 
-    virtual bool isActive() {
+    bool isActive() const override {
         return true;
     }
 
 
     // Payload time!
 
-    virtual bool write(ConnectionState& proto, SizedWriter& writer) {
+    bool write(ConnectionState& proto, SizedWriter& writer) override {
         bool ok = sendIndex(proto,writer);
         if (!ok) return false;
         writer.write(proto.os());
@@ -133,15 +140,15 @@ public:
     }
 
     virtual bool sendIndex(ConnectionState& proto,SizedWriter& writer) {
-        ConstString prefix = "human says ";
+        std::string prefix = "human says ";
         Bytes b2((char*)prefix.c_str(),prefix.length());
         proto.os().write(b2);
         return true;
     }
 
-    virtual bool expectIndex(ConnectionState& proto) {
-        ConstString prefix = "human says ";
-        ConstString compare = prefix;
+    bool expectIndex(ConnectionState& proto) override {
+        std::string prefix = "human says ";
+        std::string compare = prefix;
         Bytes b2((char*)prefix.c_str(),prefix.length());
         proto.is().read(b2);
         bool ok = proto.is().isOk() && (prefix==compare);
@@ -151,16 +158,16 @@ public:
 
     // Acknowledgements, we don't do them
 
-    virtual bool sendAck(ConnectionState& proto) {
-        ConstString prefix = "computers rule!\r\n";
+    bool sendAck(ConnectionState& proto) override {
+        std::string prefix = "computers rule!\r\n";
         Bytes b2((char*)prefix.c_str(),prefix.length());
         proto.os().write(b2);
         return true;
     }
 
-    virtual bool expectAck(ConnectionState& proto) {
-        ConstString prefix = "computers rule!\r\n";
-        ConstString compare = prefix;
+    bool expectAck(ConnectionState& proto) override {
+        std::string prefix = "computers rule!\r\n";
+        std::string compare = prefix;
         Bytes b2((char*)prefix.c_str(),prefix.length());
         proto.is().read(b2);
         bool ok = proto.is().isOk() && (prefix==compare);

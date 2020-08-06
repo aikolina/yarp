@@ -1,7 +1,25 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "include/mainwindow.h"
 #include <QApplication>
 
-#if defined(WIN32)
+#if defined(_WIN32)
     #pragma warning (disable : 4099)
     #pragma warning (disable : 4250)
     #pragma warning (disable : 4520)
@@ -10,13 +28,16 @@
 #include <iostream>
 #include <yarp/os/ResourceFinder.h>
 #include <yarp/os/Network.h>
+#include <QtGlobal>
 
-#if defined(WIN32)
+#include <yarp/os/Os.h>
+
+#if defined(_WIN32)
     #include <windows.h>
 #else
-    #include <errno.h>
+    #include <cerrno>
     #include <sys/types.h>
-    #include <signal.h>
+    #include <csignal>
 #endif
 
 using namespace std;
@@ -24,7 +45,12 @@ using namespace yarp::os;
 
 int main(int argc, char *argv[])
 {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#else
     qputenv("QT_DEVICE_PIXEL_RATIO", QByteArray("auto"));
+#endif
+    setEnergySavingModeState(false);
     QApplication a(argc, argv);
 
     Network yarp;
@@ -34,7 +60,6 @@ int main(int argc, char *argv[])
     }
 
     yarp::os::ResourceFinder rf;
-    rf.setVerbose( true );
     rf.setDefaultConfigFile( "config.ini" );        //overridden by --from parameter
     rf.setDefaultContext( "yarpdataplayer" );        //overridden by --context parameter
     rf.configure( argc, argv );
@@ -47,5 +72,7 @@ int main(int argc, char *argv[])
         w.show();
     }
 
-    return (a.exec()!=0?1:0);
+    int returnFlag = (a.exec()!=0?1:0);
+    setEnergySavingModeState(true);
+    return returnFlag;
 }

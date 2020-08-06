@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "yarpmin.h"
@@ -39,7 +42,7 @@ int main(int argc, char *argv[]) {
         res = yarp_receive_data_header(con);
         if (res>=0) {
             // get image header, see YARPImagePortContentHeader
-            // class in src/libYARP_sig/src/Image.cpp
+            // class in src/libYARP_sig/src/yarp/sig/Image.cpp
             unsigned char header[4*15];
             int image_len = res - sizeof(header);
             int i;

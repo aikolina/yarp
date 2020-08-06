@@ -1,28 +1,35 @@
-# Copyright (C) 2009  RobotCub Consortium
-# Copyright (C) 2012  iCub Facility, Istituto Italiano di Tecnologia
-# Authors: Lorenzo Natale, Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 # This module checks if all the dependencies are installed and if the
-# dependencies to build some parts of Yarp are satisfied.
+# dependencies to build some parts of YARP are satisfied.
 # For every dependency, it creates the following variables:
 #
-# YARP_USE_${PACKAGE}: Can be disabled by the user if he doesn't want to use that
+# YARP_USE_${Package}: Can be disabled by the user if he doesn't want to use that
 #                      dependency.
-# YARP_HAS_${PACKAGE}: Internal flag. It should be used to check if a part of
-#                      Yarp should be built. It is on if YARP_USE_${PACKAGE} is
+# YARP_HAS_${Package}: Internal flag. It should be used to check if a part of
+#                      YARP should be built. It is on if YARP_USE_${Package} is
 #                      on and either the package was found or will be built.
-# YARP_BUILD_${PACKAGE}: Internal flag. Used to check if yarp has to build an
+# YARP_BUILD_${Package}: Internal flag. Used to check if YARP has to build an
 #                        external package.
-# YARP_USE_SYSTEM_${PACKAGE}: This flag is shown only for packages in the
+# YARP_BUILD_DEPS_${Package}: Internal flag. Used to check if dependencies
+#                             required to build the package are available.
+# YARP_HAS_SYSTEM_${Package}: Internal flag. Used to check if the package is
+#                             available on the system.
+# YARP_USE_SYSTEM_${Package}: This flag is shown only for packages in the
 #                             extern folder that were also found on the system
 #                             (TRUE by default). If this flag is enabled, the
 #                             system installed library will be used instead of
-#                             the version shipped with Yarp.
+#                             the version shipped with YARP.
 
 
 include(YarpRenamedOption)
 include(CMakeDependentOption)
+include(YarpPrintFeature)
 
 # USEFUL MACROS:
 
@@ -31,29 +38,35 @@ macro(checkandset_dependency package)
 
   string(TOUPPER ${package} PKG)
 
-  # YARP_HAS_SYSTEM_${PKG}
+  # YARP_HAS_SYSTEM_${package}
   if(${package}_FOUND OR ${PKG}_FOUND)
-    set(YARP_HAS_SYSTEM_${PKG} TRUE)
+    set(YARP_HAS_SYSTEM_${package} TRUE)
   else()
-    set(YARP_HAS_SYSTEM_${PKG} FALSE)
+    set(YARP_HAS_SYSTEM_${package} FALSE)
   endif()
 
-  # YARP_USE_${PKG}
-  cmake_dependent_option(YARP_USE_${PKG} "Use package ${package}" TRUE
-                         YARP_HAS_SYSTEM_${PKG} FALSE)
-  mark_as_advanced(YARP_USE_${PKG})
+  # YARP_USE_${package}
+  cmake_dependent_option(YARP_USE_${package} "Use package ${package}" TRUE
+                         YARP_HAS_SYSTEM_${package} FALSE)
+  if(NOT "${package}" STREQUAL "${PKG}")
+    yarp_renamed_option(YARP_USE_${PKG} YARP_USE_${package}) # Deprecated since YARP 3.2
+  endif()
+  mark_as_advanced(YARP_USE_${package})
 
-  # YARP_USE_SYSTEM_${PKG}
-  set(YARP_USE_SYSTEM_${PKG} ${YARP_USE_${PKG}} CACHE INTERNAL "Use system-installed ${package}, rather than a private copy (recommended)" FORCE)
-
-  # YARP_HAS_${PKG}
-  if(${YARP_HAS_SYSTEM_${PKG}})
-    set(YARP_HAS_${PKG} ${YARP_USE_${PKG}})
-  else()
-    set(YARP_HAS_${PKG} FALSE)
+  # YARP_USE_SYSTEM_${package}
+  set(YARP_USE_SYSTEM_${package} ${YARP_USE_${package}} CACHE INTERNAL "Use system-installed ${package}, rather than a private copy (recommended)" FORCE)
+  if(NOT "${package}" STREQUAL "${PKG}")
+    unset(YARP_USE_SYSTEM_${PKG} CACHE) # Deprecated since YARP 3.2
   endif()
 
-endmacro ()
+  # YARP_HAS_${package}
+  if(${YARP_HAS_SYSTEM_${package}})
+    set(YARP_HAS_${package} ${YARP_USE_${package}})
+  else()
+    set(YARP_HAS_${package} FALSE)
+  endif()
+
+endmacro()
 
 
 # Check if a package is installed or if is going to be built and set some cmake variables
@@ -61,43 +74,47 @@ macro(checkbuildandset_dependency package)
 
   string(TOUPPER ${package} PKG)
 
-  # YARP_HAS_SYSTEM_${PKG}
+  # YARP_HAS_SYSTEM_${package}
   if (${package}_FOUND OR ${PKG}_FOUND)
-    set(YARP_HAS_SYSTEM_${PKG} TRUE)
+    set(YARP_HAS_SYSTEM_${package} TRUE)
   else()
-    set(YARP_HAS_SYSTEM_${PKG} FALSE)
+    set(YARP_HAS_SYSTEM_${package} FALSE)
   endif()
 
-  # YARP_USE_${PKG}
-  option(YARP_USE_${PKG} "Use package ${package}" TRUE)
-  mark_as_advanced(YARP_USE_${PKG})
-
-  # YARP_USE_SYSTEM_${PKG}
-  cmake_dependent_option(YARP_USE_SYSTEM_${PKG} "Use system-installed ${package}, rather than a private copy (recommended)" TRUE
-                         "YARP_HAS_SYSTEM_${PKG};YARP_USE_${PKG}" FALSE)
-  mark_as_advanced(YARP_USE_SYSTEM_${PKG})
-
-  # YARP_HAS_${PKG}
-  set(YARP_HAS_${PKG} ${YARP_USE_${PKG}})
-
-  # YARP_BUILD_${PKG}
-  if(YARP_USE_${PKG} AND NOT YARP_USE_SYSTEM_${PKG})
-    set(YARP_BUILD_${PKG} TRUE)
-  else()
-      set(YARP_BUILD_${PKG} FALSE)
+  # YARP_BUILD_DEPS_${package}
+  set(YARP_BUILD_DEPS_${package} 1)
+  if(${ARGC} GREATER 1)
+    foreach(_dep ${ARGN})
+      if(NOT YARP_HAS_${_dep})
+        set(YARP_BUILD_DEPS_${package} 0)
+      endif()
+    endforeach()
   endif()
 
-  if(YARP_USE_${PKG} AND NOT YARP_USE_SYSTEM_${PKG})
-    if(${ARGC} GREATER 1)
-      foreach(_dep ${ARGN})
-        string(TOUPPER ${_dep} _DEP)
-        if(NOT YARP_HAS_${_DEP})
-          message(WARNING "${_dep} (required to build ${package}) not found.")
-          set(YARP_HAS_${PKG} FALSE)
-          set(YARP_BUILD_${PKG} FALSE)
-        endif()
-      endforeach()
-    endif()
+  # YARP_USE_${package}
+  cmake_dependent_option(YARP_USE_${package} "Use package ${package}" TRUE
+                         "YARP_HAS_SYSTEM_${package} OR YARP_BUILD_DEPS_${package}" FALSE)
+  mark_as_advanced(YARP_USE_${package})
+  if(NOT "${package}" STREQUAL "${PKG}")
+    yarp_renamed_option(YARP_USE_${PKG} YARP_USE_${package}) # Deprecated since YARP 3.2
+  endif()
+
+  # YARP_USE_SYSTEM_${package}
+  cmake_dependent_option(YARP_USE_SYSTEM_${package} "Use system-installed ${package}, rather than a private copy (recommended)" TRUE
+                         "YARP_HAS_SYSTEM_${package};YARP_USE_${package}" FALSE)
+  mark_as_advanced(YARP_USE_SYSTEM_${package})
+  if(NOT "${package}" STREQUAL "${PKG}")
+    yarp_renamed_option(YARP_USE_SYSTEM_${PKG} YARP_USE_SYSTEM_${package}) # Deprecated since YARP 3.2
+  endif()
+
+  # YARP_HAS_${package}
+  set(YARP_HAS_${package} ${YARP_USE_${package}})
+
+  # YARP_BUILD_${package}
+  if(YARP_USE_${package} AND NOT YARP_USE_SYSTEM_${package} AND YARP_BUILD_DEPS_${package})
+    set(YARP_BUILD_${package} TRUE)
+  else()
+    set(YARP_BUILD_${package} FALSE)
   endif()
 
 endmacro()
@@ -105,28 +122,26 @@ endmacro()
 # Always build some package and set some cmake variables
 macro(buildandset_dependency package)
 
-  string(TOUPPER ${package} PKG)
+  set(YARP_HAS_SYSTEM_${package} FALSE)
 
-  set(YARP_HAS_SYSTEM_${PKG} FALSE)
+  # YARP_USE_${package}
+  option(YARP_USE_${package} "Use package ${package}" TRUE)
+  mark_as_advanced(YARP_USE_${package})
 
-  # YARP_USE_${PKG}
-  option(YARP_USE_${PKG} "Use package ${package}" TRUE)
-  mark_as_advanced(YARP_USE_${PKG})
+  # YARP_HAS_${package}
+  set(YARP_HAS_${package} ${YARP_USE_${package}})
 
-  # YARP_HAS_${PKG}
-  set(YARP_HAS_${PKG} ${YARP_USE_${PKG}})
+  # YARP_BUILD_${package}
+  set(YARP_BUILD_${package} TRUE)
 
-  # YARP_BUILD_${PKG}
-  set(YARP_BUILD_${PKG} TRUE)
-
-  if(YARP_USE_${PKG})
+  if(YARP_USE_${package})
     if(${ARGC} GREATER 1)
       foreach(_dep ${ARGN})
         string(TOUPPER ${_dep} _DEP)
         if(NOT YARP_HAS_${_DEP})
           message(WARNING "${_dep} (required to build ${package}) not found.")
-          set(YARP_HAS_${PKG} FALSE)
-          set(YARP_BUILD_${PKG} FALSE)
+          set(YARP_HAS_${package} FALSE)
+          set(YARP_BUILD_${package} FALSE)
         endif()
       endforeach()
     endif()
@@ -139,33 +154,19 @@ endmacro()
 
 # Check if a required package is installed.
 macro(check_required_dependency package)
-
-  string(TOUPPER ${package} PKG)
-
-  if(NOT YARP_HAS_${PKG})
-      message(FATAL_ERROR "Required package ${package} not found. Please install it to build yarp.")
-#  else()
-#      message(STATUS "${PKG} -> OK")
+  if(NOT YARP_HAS_${package})
+    message(FATAL_ERROR "Required package ${package} not found. Please install it to build yarp.")
   endif()
-
 endmacro()
 
 
 # Check if a dependency required to enable an option is installed.
 macro(check_optional_dependency optionname package)
-
-  string(TOUPPER ${package} PKG)
-
   if(${optionname})
-    if(NOT YARP_HAS_${PKG})
+    if(NOT YARP_HAS_${package})
       message(FATAL_ERROR "Optional package ${package} not found. Please install it or disable the option \"${optionname}\" to build yarp.")
-#     else()
-#       message(STATUS "${PKG} ${optionname} -> OK")
     endif()
-#   else()
-#     message(STATUS "${PKG} ${optionname} -> NOT REQUIRED")
   endif()
-
 endmacro()
 
 
@@ -173,8 +174,7 @@ endmacro()
 function(check_alternative_dependency optionname)
   if(${optionname})
     foreach(package "${ARGN}")
-      string(TOUPPER ${package} PKG)
-      if(YARP_HAS_${PKG})
+      if(YARP_HAS_${package})
         return()
       endif()
     endforeach()
@@ -185,10 +185,8 @@ endfunction()
 
 # Check if a dependency required to disable an option is installed.
 macro(check_skip_dependency optionname package)
-  string(TOUPPER ${package} PKG)
-
   if(NOT ${optionname})
-    if(NOT YARP_HAS_${PKG})
+    if(NOT YARP_HAS_${package})
       message(FATAL_ERROR "Optional package ${package} not found. Please install it or enable the option \"${optionname}\" to build yarp.")
     endif()
   endif()
@@ -200,27 +198,45 @@ macro(print_dependency package)
 
   string(TOUPPER ${package} PKG)
 
-#  message("YARP_HAS_SYSTEM_${PKG} = ${YARP_HAS_SYSTEM_${PKG}}")
-#  message("YARP_USE_${PKG} = ${YARP_USE_${PKG}}")
-#  message("YARP_USE_SYSTEM_${PKG} = ${YARP_USE_SYSTEM_${PKG}}")
-#  message("YARP_HAS_${PKG} = ${YARP_HAS_${PKG}}")
-#  if(NOT "${YARP_BUILD_${PKG}}" STREQUAL "")
-#    message("YARP_BUILD_${PKG} = ${YARP_BUILD_${PKG}}")
+#  message("YARP_HAS_SYSTEM_${package} = ${YARP_HAS_SYSTEM_${package}}")
+#  message("YARP_USE_${package} = ${YARP_USE_${package}}")
+#  message("YARP_USE_SYSTEM_${package} = ${YARP_USE_SYSTEM_${package}}")
+#  message("YARP_HAS_${package} = ${YARP_HAS_${package}}")
+#  if(NOT "${YARP_BUILD_${package}}" STREQUAL "")
+#    message("YARP_BUILD_${package} = ${YARP_BUILD_${package}}")
+#    message("YARP_BUILD_DEPS_${package} = ${YARP_BUILD_DEPS_${package}}")
 #  endif()
 
   if(DEFINED ${package}_REQUIRED_VERSION)
-    set(_version " (>= ${${package}_REQUIRED_VERSION})")
+    set(_required_version " (>= ${${package}_REQUIRED_VERSION})")
   endif()
-  if(NOT DEFINED YARP_HAS_${PKG})
-    message(STATUS " --- ${package}${_version}: disabled")
-  elseif(NOT YARP_HAS_${PKG})
-    message(STATUS " --- ${package}${_version}: not found")
-  elseif(YARP_HAS_SYSTEM_${PKG} AND YARP_USE_SYSTEM_${PKG})
+  if(DEFINED ${package}_VERSION)
+    set(_version " ${${package}_VERSION}")
+  endif()
+  yarp_colorize_string(_help black 1 "CMAKE_DISABLE_FIND_PACKAGE_${package}")
+  if(NOT DEFINED YARP_HAS_${package})
+    set(_reason "disabled")
+    set(_color yellow)
+  elseif(NOT YARP_HAS_${package} AND DEFINED YARP_BUILD_DEPS_${package} AND NOT YARP_BUILD_DEPS_${package})
+    set(_reason "build dependencies missing")
+    set(_color red)
+  elseif(NOT YARP_HAS_${package})
+    if (${CMAKE_DISABLE_FIND_PACKAGE_${package}})
+      set(_reason "disabled by the user (${_help})")
+      set(_color yellow)
+    else(NOT YARP_HAS_${package})
+      set(_reason "not found")
+      set(_color red)
+    endif()
+  elseif(YARP_HAS_SYSTEM_${package} AND YARP_USE_SYSTEM_${package})
     unset(_where)
     if(${package}_DIR)
       set(_where " (${${package}_DIR})")
     elseif(${package}_LIBRARIES)
       list(GET ${package}_LIBRARIES 0 _lib)
+      if(_lib MATCHES "^(optimized|debug)$")
+        list(GET ${package}_LIBRARIES 1 _lib)
+      endif()
       set(_where " (${_lib})")
     elseif(${package}_INCLUDE_DIRS)
       list(GET ${package}_INCLUDE_DIRS 0 _incl)
@@ -234,91 +250,47 @@ macro(print_dependency package)
     elseif(${PKG}_INCLUDE_DIR)
       set(_where " (${${PKG}_INCLUDE_DIR})")
     endif()
-    message(STATUS " +++ ${package}${_version}: found${_where}")
-  elseif(YARP_HAS_SYSTEM_${PKG})
-    message(STATUS " +++ ${package}${_version}: compiling (system package disabled)")
+    set(_reason "found${_version}${_where} (${_help})")
+    set(_color green)
+  elseif(YARP_HAS_SYSTEM_${package})
+    set(_reason "compiling (system package disabled)")
+    set(_color cyan)
+  elseif(DEFINED YARP_CUSTOM_REASON_${package})
+    set(_reason "compiling (${YARP_CUSTOM_REASON_${package}})")
+    set(_color cyan)
   else()
-    message(STATUS " +++ ${package}${_version}: compiling (not found)")
+    set(_reason "compiling (not found)")
+    set(_color cyan)
   endif()
-  unset(_version)
 
+  yarp_colorize_string(_package_col ${_color} 0 "${package}")
+  yarp_print_with_checkbox(YARP_HAS_${package} "${_package_col}${_required_version}: ${_reason}")
+
+  unset(_lib)
+  unset(_where)
+  unset(_version)
+  unset(_required_version)
+  unset(_reason)
 endmacro()
 
 
-# OPTIONS:
+################################################################################
+# Find all packages
 
-option(SKIP_ACE "Compile YARP without ACE (Linux only, TCP only, limited functionality)" OFF)
-mark_as_advanced(SKIP_ACE)
-
-
-option(CREATE_LIB_MATH "Create math library libYARP_math?" OFF)
-cmake_dependent_option(CREATE_LIB_MATH_USING_GSL "Create math library libYARP_math using GSL?" OFF CREATE_LIB_MATH ON)
-cmake_dependent_option(CREATE_YARPROBOTINTERFACE "Do you want to compile yarprobotinterface?" ON YARP_COMPILE_EXECUTABLES OFF)
-cmake_dependent_option(CREATE_YARPMANAGER_CONSOLE "Do you want to compile YARP Module Manager (console)?" ON YARP_COMPILE_EXECUTABLES OFF)
-cmake_dependent_option(CREATE_YARPDATADUMPER "Do you want to compile yarpdatadumper?" ON YARP_COMPILE_EXECUTABLES OFF)
-cmake_dependent_option(CREATE_GUIS "Do you want to compile GUIs" OFF YARP_COMPILE_EXECUTABLES OFF)
-cmake_dependent_option(CREATE_YARPVIEW "Do you want to compile yarpview?" ON CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPMANAGER "Do you want to compile yarpmanager?" ON CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPLOGGER "Do you want to create yarplogger?" ON CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPSCOPE "Do you want to create yarpscope?" ON CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPDATAPLAYER "Do you want to compile yarpdataplayer?" ON CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPMOTORGUI "Do you want to compile yarpmotorgui?" ON CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPLASERSCANNERGUI  "Do you want to compile yarplaserscannergui?" OFF CREATE_GUIS OFF)
-cmake_dependent_option(CREATE_YARPBATTERYGUI "Do you want to compile yarpbatterygui?" OFF CREATE_GUIS OFF)
-
-yarp_renamed_option(CREATE_YMANAGER CREATE_YARPMANAGER_CONSOLE)
-yarp_renamed_option(CREATE_GYARPMANAGER CREATE_YARPMANAGER)
-yarp_deprecated_option(CREATE_GYARPBUILDER)
-yarp_deprecated_option(CREATE_YARPBUILDER)
-yarp_deprecated_option(CREATE_YARPMANAGER_PP) # Since YARP 2.3.68
-
-if(CREATE_YARPMANAGER_CONSOLE OR CREATE_YARPMANAGER)
-  set(CREATE_LIB_MANAGER ON CACHE INTERNAL "Create manager library libYARP_manager?")
-else()
-  unset(CREATE_LIB_MANAGER CACHE)
-endif()
-
-
-message(STATUS "Detecting required libraries")
-message(STATUS "CMake modules directory: ${CMAKE_MODULE_PATH}")
-
-
-# FIND PACKAGES:
-
-# YCM is located in the main CMakeLists.txt file
+# YCM is already searched in the main extern/ycm, therefore there is no need to
+# look for it here.
 checkandset_dependency(YCM)
 
-if(SKIP_ACE)
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(ACE_LIBRARIES pthread rt dl)
-  endif()
-else()
-  find_package(ACE QUIET)
-  checkandset_dependency(ACE)
-  # FIXME Replace SKIP_ACE with YARP_USE_ACE
-  set_property(CACHE YARP_USE_ACE PROPERTY TYPE INTERNAL)
-  set_property(CACHE YARP_USE_ACE PROPERTY VALUE TRUE)
-  if(SKIP_ACE)
-    set_property(CACHE YARP_USE_ACE PROPERTY VALUE FALSE)
-  endif()
+find_package(ACE 6.0.0 QUIET)
+checkandset_dependency(ACE)
+# FIXME Deprecate SKIP_ACE in favour of YARP_USE_ACE
+# YARP_USE_ACE is marked as internal
+set_property(CACHE YARP_USE_ACE PROPERTY TYPE INTERNAL)
+set_property(CACHE YARP_USE_ACE PROPERTY VALUE TRUE)
 
-  # __ACE_INLINE__ is needed in some configurations
-  if(NOT ACE_COMPILES_WITHOUT_INLINE_RELEASE)
-    foreach(_config ${YARP_OPTIMIZED_CONFIGURATIONS})
-      string(TOUPPER ${_config} _CONFIG)
-      set(CMAKE_C_FLAGS_${_CONFIG} "${CMAKE_C_FLAGS_${_CONFIG}} -D__ACE_INLINE__")
-      set(CMAKE_CXX_FLAGS_${_CONFIG} "${CMAKE_CXX_FLAGS_${_CONFIG}} -D__ACE_INLINE__")
-    endforeach()
-  endif()
-
-  if(NOT ACE_COMPILES_WITHOUT_INLINE_DEBUG)
-    foreach(_config ${YARP_DEBUG_CONFIGURATIONS})
-      string(TOUPPER ${_config} _CONFIG)
-      set(CMAKE_C_FLAGS_${_CONFIG} "${CMAKE_C_FLAGS_${_CONFIG}} -D__ACE_INLINE__")
-      set(CMAKE_CXX_FLAGS_${_CONFIG} "${CMAKE_CXX_FLAGS_${_CONFIG}} -D__ACE_INLINE__")
-    endforeach()
-  endif()
-endif()
+set(RobotTestingFramework_REQUIRED_VERSION 2)
+find_package(RobotTestingFramework ${RobotTestingFramework_REQUIRED_VERSION} QUIET)
+checkandset_dependency(RobotTestingFramework)
 
 find_package(SQLite QUIET)
 checkbuildandset_dependency(SQLite)
@@ -326,39 +298,35 @@ checkbuildandset_dependency(SQLite)
 find_package(Libedit QUIET)
 checkandset_dependency(Libedit)
 
-if(CREATE_LIB_MATH)
-  if(CREATE_LIB_MATH_USING_GSL)
-    find_package(GSL QUIET)
-    checkandset_dependency(GSL)
-  else()
-    find_package(Eigen3 QUIET)
-    checkandset_dependency(Eigen3)
-  endif()
-endif()
+set(TinyXML_REQUIRED_VERSION 2.6)
+find_package(TinyXML ${TinyXML_REQUIRED_VERSION} QUIET)
+checkbuildandset_dependency(TinyXML)
 
-if(CREATE_YARPROBOTINTERFACE OR CREATE_YARPSCOPE OR CREATE_LIB_MANAGER)
-  set(TinyXML_REQUIRED_VERSION 2.6)
-  find_package(TinyXML ${TinyXML_REQUIRED_VERSION} QUIET)
-  checkbuildandset_dependency(TinyXML)
-endif()
-
+set(YARP_CUSTOM_REASON_xmlrpcpp "customized version")
 buildandset_dependency(xmlrpcpp)
 
-if(CREATE_GUIS)
-  find_package(Qt5 COMPONENTS Core Widgets Gui Quick Qml Multimedia Xml PrintSupport QUIET)
-  checkandset_dependency(Qt5)
-endif()
+set(YARP_CUSTOM_REASON_hmac "not searched")
+buildandset_dependency(hmac)
 
-if(CREATE_YARPSCOPE)
-  find_package(QCustomPlot QUIET)
-  checkbuildandset_dependency(QCustomPlot Qt5)
-endif()
+find_package(Eigen3 QUIET)
+checkandset_dependency(Eigen3)
 
-if(YARP_COMPILE_BINDINGS)
-  set(SWIG_REQUIRED_VERSION 1.3.29)
-  find_package(SWIG ${SWIG_REQUIRED_VERSION} QUIET)
-  checkandset_dependency(SWIG)
-endif()
+find_package(Qt5 COMPONENTS Core Widgets Gui Quick Qml Multimedia Xml PrintSupport OPTIONAL_COMPONENTS DBus QUIET)
+checkandset_dependency(Qt5)
+
+find_package(QCustomPlot QUIET)
+checkbuildandset_dependency(QCustomPlot Qt5)
+
+find_package(Graphviz QUIET)
+checkandset_dependency(Graphviz)
+
+set(YARP_CUSTOM_REASON_QGVCore "customized version")
+find_package(QGVCore QUIET)
+checkbuildandset_dependency(QGVCore Qt5 Graphviz)
+
+set(SWIG_REQUIRED_VERSION 3.0.12)
+find_package(SWIG ${SWIG_REQUIRED_VERSION} QUIET)
+checkandset_dependency(SWIG)
 
 # First part of workaround for OpenCV 2.4 bug https://github.com/robotology/yarp/issues/1024#issuecomment-267074067
 # Can be removed once we only support OpenCV 3
@@ -376,15 +344,18 @@ checkandset_dependency(Lua)
 set(Libdc1394_REQUIRED_VERSION 2.0)
 find_package(Libdc1394 ${Libdc1394_REQUIRED_VERSION} QUIET)
 checkandset_dependency(Libdc1394)
-yarp_deprecated_option(USE_LIBDC1394) # since YARP 2.3.68
 
 find_package(JPEG QUIET)
 checkandset_dependency(JPEG)
 
+find_package(PNG QUIET)
+checkandset_dependency(PNG)
+
 find_package(MPI QUIET)
 checkandset_dependency(MPI)
 
-find_package(LibOVR QUIET)
+set(LibOVR_REQUIRED_VERSION 1.19)
+find_package(LibOVR ${LibOVR_REQUIRED_VERSION} QUIET)
 checkandset_dependency(LibOVR)
 
 find_package(GLFW3 QUIET)
@@ -393,23 +364,14 @@ checkandset_dependency(GLFW3)
 find_package(GLEW QUIET)
 checkandset_dependency(GLEW)
 
+find_package(OpenGL QUIET)
+checkandset_dependency(OpenGL)
+
 find_package(FTDI QUIET)
 checkandset_dependency(FTDI)
 
-# FindCUDA bug when crosscompiling
-# See https://gitlab.kitware.com/cmake/cmake/issues/16509
-if(NOT CMAKE_CROSSCOMPILING)
-  find_package(CUDA QUIET)
-else()
-  set(CUDA_FOUND FALSE)
-endif()
-checkandset_dependency(CUDA)
-
 find_package(FFMPEG QUIET)
 checkandset_dependency(FFMPEG)
-
-find_package(wxWidgets QUIET)
-checkandset_dependency(wxWidgets)
 
 find_package(SDL QUIET)
 checkandset_dependency(SDL)
@@ -417,28 +379,225 @@ checkandset_dependency(SDL)
 find_package(PortAudio QUIET)
 checkandset_dependency(PortAudio)
 
-find_package(NVIDIACg QUIET)
-checkandset_dependency(NVIDIACg)
+set(ZFP_REQUIRED_VERSION 0.5.1)
+find_package(ZFP ${ZFP_REQUIRED_VERSION} QUIET)
+checkandset_dependency(ZFP)
 
-find_package(Libusb1 QUIET)
-checkandset_dependency(Libusb1)
+find_package(OpenNI2 QUIET)
+checkandset_dependency(OpenNI2)
 
-find_package(Stage QUIET)
-checkandset_dependency(Stage)
+find_package(realsense2 QUIET)
+checkandset_dependency(realsense2)
+
+find_package(Doxygen)
+checkandset_dependency(Doxygen)
+
+find_package(GObject QUIET)
+checkandset_dependency(GObject)
+
+find_package(GLIB2 QUIET)
+checkandset_dependency(GLIB2)
+
+set(GStreamer_REQUIRED_VERSION 1.4)
+find_package(GStreamer ${GStreamer_REQUIRED_VERSION} QUIET)
+checkandset_dependency(GStreamer)
+
+set(GStreamerPluginsBase_REQUIRED_VERSION 1.4)
+find_package(GStreamerPluginsBase ${GStreamerPluginsBase_REQUIRED_VERSION} COMPONENTS app QUIET)
+checkandset_dependency(GStreamerPluginsBase)
+
+set(BISON_REQUIRED_VERSION 2.5)
+find_package(BISON ${BISON_REQUIRED_VERSION} QUIET)
+checkandset_dependency(BISON)
+
+find_package(FLEX QUIET)
+checkandset_dependency(FLEX)
+
+find_package(I2C QUIET)
+checkandset_dependency(I2C)
 
 
-# PRINT DEPENDENCIES STATUS:
+find_package(Libv4l2 QUIET)
+checkandset_dependency(Libv4l2)
 
-message(STATUS "I have found the following libraries:")
+find_package(Libv4lconvert QUIET)
+checkandset_dependency(Libv4lconvert)
+
+find_package(Fuse QUIET)
+checkandset_dependency(Fuse)
+
+
+################################################################################
+# Options
+
+macro(YARP_DEPENDENT_OPTION _option _doc _default _deps _force)
+
+  if(DEFINED ${_option})
+    get_property(_option_strings_set CACHE ${_option} PROPERTY STRINGS SET)
+    if(_option_strings_set)
+      # If the user thinks he is smarter than the machine, he deserves an error
+      get_property(_option_strings CACHE ${_option} PROPERTY STRINGS)
+      list(GET _option_strings 0 _option_strings_first)
+      string(REGEX REPLACE ".+\"(.+)\".+" "\\1" _option_strings_first "${_option_strings_first}")
+      list(LENGTH _option_strings _option_strings_length)
+      math(EXPR _option_strings_last_index "${_option_strings_length} - 1")
+      list(GET _option_strings ${_option_strings_last_index} _option_strings_last)
+      if("${${_option}}" STREQUAL "${_option_strings_last}")
+        message(SEND_ERROR "That was a trick, you cannot outsmart me! I will never let you win! ${_option} stays OFF until I say so! \"${_option_strings_first}\" is needed to enable ${_option}. Now stop bothering me, and install your dependencies, if you really want to enable this option.")
+      endif()
+      unset(${_option} CACHE)
+    endif()
+  endif()
+
+  cmake_dependent_option(${_option} "${_doc}" ${_default} "${_deps}" ${_force})
+
+  unset(_missing_deps)
+  foreach(_dep ${_deps})
+    string(REGEX REPLACE " +" ";" _depx "${_dep}")
+    if(NOT (${_depx}))
+      list(APPEND _missing_deps "${_dep}")
+    endif()
+  endforeach()
+
+  if(DEFINED _missing_deps)
+    set(${_option}_disable_reason " (dependencies unsatisfied: \"${_missing_deps}\")")
+    # Set a value that can be visualized on ccmake and on cmake-gui, but
+    # still evaluates to false
+    set(${_option} "OFF - Dependencies unsatisfied: '${_missing_deps}' - ${_option}-NOTFOUND" CACHE STRING "${_option_doc}" FORCE)
+    string(REPLACE ";" "\;" _missing_deps "${_missing_deps}")
+    set_property(CACHE ${_option}
+                PROPERTY STRINGS "OFF - Dependencies unsatisfied: '${_missing_deps}' - ${_option}-NOTFOUND"
+                                 "OFF - You can try as much as you want, but '${_missing_deps}' is needed to enable ${_option} - ${_option}-NOTFOUND"
+                                 "OFF - Are you crazy or what? '${_missing_deps}' is needed to enable ${_option} - ${_option}-NOTFOUND"
+                                 "OFF - Didn't I already tell you that '${_missing_deps}' is needed to enable ${_option}? - ${_option}-NOTFOUND"
+                                 "OFF - Stop it! - ${_option}-NOTFOUND"
+                                 "OFF - This is insane! Leave me alone! - ${_option}-NOTFOUND"
+                                 "ON - All right, you win. The option is enabled. Are you happy now? You just broke the build.")
+    # Set non-cache variable that will override the value in current scope
+    # For parent scopes, the "-NOTFOUND ensures that the variable still
+    # evaluates to false
+    set(${_option} ${_force})
+  endif()
+
+endmacro()
+
+
+option(SKIP_ACE "Compile YARP without ACE (Linux only, limited functionality)" OFF)
+mark_as_advanced(SKIP_ACE)
+if(SKIP_ACE)
+  set_property(CACHE YARP_USE_ACE PROPERTY VALUE FALSE)
+  unset(YARP_HAS_ACE) # Not set = disabled
+endif()
+
+yarp_dependent_option(YARP_COMPILE_libYARP_math "Create math library YARP_math?" ON
+                      YARP_HAS_Eigen3 OFF)
+yarp_renamed_option(CREATE_LIB_MATH YARP_COMPILE_libYARP_math) # Deprecated since YARP 3.2
+
+yarp_dependent_option(YARP_COMPILE_libYARP_robotinterface "Do you want to compile the library YARP_robotinterface?" ON
+                      "YARP_HAS_TinyXML" OFF)
+
+yarp_dependent_option(YARP_COMPILE_GUIS "Do you want to compile GUIs" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_HAS_Qt5" OFF)
+yarp_renamed_option(CREATE_GUIS YARP_COMPILE_GUIS) # Deprecated since YARP 3.2
+
+yarp_dependent_option(YARP_COMPILE_yarprobotinterface "Do you want to compile yarprobotinterface?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_HAS_TinyXML" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpmanager-console "Do you want to compile YARP Module Manager (console)?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_HAS_TinyXML" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpdatadumper "Do you want to compile yarpdatadumper?" ON
+                      "YARP_COMPILE_EXECUTABLES" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpview "Do you want to compile yarpview?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpmanager "Do you want to compile yarpmanager?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5;YARP_HAS_TinyXML" OFF)
+yarp_dependent_option(YARP_COMPILE_yarplogger "Do you want to create yarplogger?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpscope "Do you want to create yarpscope?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5;YARP_HAS_TinyXML;YARP_HAS_QCustomPlot" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpdataplayer "Do you want to compile yarpdataplayer?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpmotorgui "Do you want to compile yarpmotorgui?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpbatterygui "Do you want to compile yarpbatterygui?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5;Qt5_VERSION VERSION_GREATER_EQUAL 5.4;" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpmobilebasegui "Do you want to compile yarpmobilebasegui?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5" OFF)
+yarp_dependent_option(YARP_COMPILE_yarplaserscannergui  "Do you want to compile yarplaserscannergui?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5;YARP_HAS_OpenCV" OFF)
+yarp_dependent_option(YARP_COMPILE_yarpviz "Do you want to compile yarpviz?" ON
+                      "YARP_COMPILE_EXECUTABLES;YARP_COMPILE_GUIS;YARP_HAS_Qt5;YARP_HAS_Graphviz;YARP_HAS_QGVCore" OFF)
+
+yarp_dependent_option(YARP_COMPILE_RobotTestingFramework_ADDONS "Compile Robot Testing Framework addons." ON
+                      "YARP_HAS_RobotTestingFramework" OFF)
+
+yarp_renamed_option(CREATE_YARPROBOTINTERFACE YARP_COMPILE_yarprobotinterface) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPMANAGER_CONSOLE YARP_COMPILE_yarpmanager-console) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPDATADUMPER YARP_COMPILE_yarpdatadumper) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPVIEW YARP_COMPILE_yarpview) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPMANAGER YARP_COMPILE_yarpmanager) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPLOGGER YARP_COMPILE_yarplogger) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPSCOPE YARP_COMPILE_yarpscope) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPDATAPLAYER YARP_COMPILE_yarpdataplayer) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPMOTORGUI YARP_COMPILE_yarpmotorgui) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPLASERSCANNERGUI YARP_COMPILE_yarplaserscannergui) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPBATTERYGUI YARP_COMPILE_yarpbatterygui) # Deprecated since YARP 3.2
+yarp_renamed_option(CREATE_YARPVIZ YARP_COMPILE_yarpviz) # Deprecated since YARP 3.2
+yarp_renamed_option(YARP_COMPILE_RTF_ADDONS YARP_COMPILE_RobotTestingFramework_ADDONS) # Deprecated since YARP 3.2
+
+
+################################################################################
+# Disable some parts if they are not required
+
+set(YARP_COMPILE_libYARP_manager OFF)
+if(YARP_COMPILE_yarpmanager-console OR YARP_COMPILE_yarpmanager OR YARP_COMPILE_RobotTestingFramework_ADDONS)
+  set(YARP_COMPILE_libYARP_manager ON)
+endif()
+
+set(YARP_COMPILE_libYARP_profiler OFF)
+if(YARP_COMPILE_yarpviz OR YARP_COMPILE_yarpmanager)
+  set(YARP_COMPILE_libYARP_profiler ON)
+endif()
+
+set(YARP_COMPILE_libYARP_robottestingframework OFF)
+if(YARP_COMPILE_RobotTestingFramework_ADDONS)
+  set(YARP_COMPILE_libYARP_robottestingframework ON)
+endif()
+
+if(NOT YARP_COMPILE_yarprobotinterface AND
+   NOT YARP_COMPILE_yarpscope AND
+   NOT YARP_COMPILE_libYARP_manager AND
+   NOT YARP_COMPILE_libYARP_robotinterface)
+  set(YARP_BUILD_TinyXML FALSE)
+  unset(YARP_HAS_TinyXML)
+endif()
+
+if(NOT YARP_COMPILE_yarpviz)
+  set(YARP_BUILD_QGVCore FALSE)
+  unset(YARP_HAS_QGVCore)
+endif()
+
+if(NOT YARP_COMPILE_yarpscope)
+  set(YARP_BUILD_QCustomPlot FALSE)
+  unset(YARP_HAS_QCustomPlot)
+endif()
+
+################################################################################
+# Print dependencies status
+
+message(STATUS "Libraries found:")
+
 print_dependency(YCM)
 print_dependency(ACE)
+print_dependency(RobotTestingFramework)
 print_dependency(SQLite)
 print_dependency(Eigen3)
-print_dependency(GSL)
 print_dependency(TinyXML)
 print_dependency(xmlrpcpp)
+print_dependency(hmac)
 print_dependency(Qt5)
 print_dependency(QCustomPlot)
+print_dependency(Graphviz)
+print_dependency(QGVCore)
 print_dependency(Libedit)
 print_dependency(SWIG)
 print_dependency(OpenCV)
@@ -446,42 +605,76 @@ print_dependency(Lua)
 print_dependency(LibOVR)
 print_dependency(GLFW3)
 print_dependency(GLEW)
+print_dependency(OpenGL)
 print_dependency(Libdc1394)
 print_dependency(JPEG)
+print_dependency(PNG)
 print_dependency(MPI)
 print_dependency(FTDI)
-print_dependency(CUDA)
 print_dependency(FFMPEG)
-print_dependency(wxWidgets)
 print_dependency(SDL)
 print_dependency(PortAudio)
-print_dependency(NVIDIACg)
-print_dependency(Libusb1)
-print_dependency(Stage)
+print_dependency(ZFP)
+print_dependency(OpenNI2)
+print_dependency(realsense2)
+print_dependency(GLIB2)
+print_dependency(GObject)
+print_dependency(GStreamer)
+print_dependency(GStreamerPluginsBase)
+print_dependency(BISON)
+print_dependency(FLEX)
+print_dependency(I2C)
+print_dependency(Libv4l2)
+print_dependency(Libv4lconvert)
+print_dependency(Fuse)
+
+################################################################################
+# Print information for user
+
+message(STATUS "Enabled features:")
+
+yarp_print_feature(BUILD_SHARED_LIBS 0 "Build shared libraries")
+yarp_print_feature(SKIP_ACE 0 "Disable ACE library")
+yarp_print_feature(YARP_NO_DEPRECATED 0 "Filter out deprecated declarations from YARP API")
+yarp_print_feature(YARP_NO_DEPRECATED_WARNINGS 1 "Do not warn when using YARP deprecated declarations")
+
+yarp_print_feature(YARP_COMPILE_libYARP_math 0 "Compile YARP_math library")
+
+yarp_print_feature(YARP_COMPILE_EXECUTABLES 0 "Compile executables")
+yarp_print_feature(YARP_COMPILE_yarprobotinterface 1 "Compile yarprobotinterface${YARP_COMPILE_yarprobotinterface_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpmanager-console 1 "Compile YARP Module Manager (console)${YARP_COMPILE_yarpmanager-console_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpdatadumper 1 "Compile yarpdatadumper${YARP_COMPILE_yarpdatadumper_disable_reason}")
+yarp_print_feature("YARP_COMPILE_yarpdatadumper AND YARP_HAS_OpenCV" 2 "yarpdatadumper video support")
+yarp_print_feature(YARP_COMPILE_GUIS 1 "Compile GUIs${YARP_COMPILE_GUIS_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpview 2 "Compile yarpview${YARP_COMPILE_yarpview_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpmanager 2 "Compile yarpmanager${YARP_COMPILE_yarpmanager_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarplogger 2 "Compile yarplogger${YARP_COMPILE_yarplogger_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpscope 2 "Compile yarpscope${YARP_COMPILE_yarpscope_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpdataplayer 2 "Compile yarpdataplayer${YARP_COMPILE_yarpdataplayer_disable_reason}")
+yarp_print_feature("YARP_COMPILE_yarpdataplayer AND YARP_HAS_OpenCV" 3 "yarpdataplayer video support")
+yarp_print_feature(YARP_COMPILE_yarpmotorgui 2 "Compile yarpmotorgui${YARP_COMPILE_yarpmotorgui_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarplaserscannergui 2 "Compile yarplaserscannergui${YARP_COMPILE_yarplaserscannergui_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpbatterygui 2 "Compile yarpbatterygui${YARP_COMPILE_yarpbatterygui_disable_reason}")
+yarp_print_feature(YARP_COMPILE_yarpviz 2 "Compile yarpviz${YARP_COMPILE_yarpviz_disable_reason}")
+
+yarp_print_feature(YARP_COMPILE_RobotTestingFramework_ADDONS 0 "Compile Robot Testing Framework addons")
+yarp_print_feature(YARP_COMPILE_UNMAINTAINED 0 "Compile Unmaintained components")
+
+yarp_print_feature(YARP_COMPILE_EXAMPLES 0 "Compile YARP examples")
+
+yarp_print_feature(YARP_COMPILE_TESTS 0 "Compile and enable YARP tests")
+yarp_print_feature(YARP_DISABLE_FAILING_TESTS 1 "Disable tests that fail randomly due to race conditions")
+yarp_print_feature(YARP_ENABLE_BROKEN_TESTS 1 "Enable broken tests")
+yarp_print_feature(YARP_ENABLE_INTEGRATION_TESTS 1 "Run integration tests")
+yarp_print_feature(YARP_ENABLE_EXAMPLES_AS_TESTS 1 "Compile examples as unit tests")
+yarp_print_feature(YARP_VALGRIND_TESTS 1 "Run YARP tests under Valgrind")
 
 
-# CHECK DEPENDENCIES:
+################################################################################
+# Check options consistency
 
 check_skip_dependency(SKIP_ACE ACE)
+check_required_dependency(hmac)
 check_required_dependency(SQLite)
-check_alternative_dependency(CREATE_LIB_MATH Eigen3 GSL)
-if(CREATE_LIB_MATH)
-  check_optional_dependency(CREATE_LIB_MATH_USING_GSL GSL)
-  check_skip_dependency(CREATE_LIB_MATH_USING_GSL Eigen3)
-endif()
-check_optional_dependency(CREATE_LIB_MANAGER TinyXML)
-check_optional_dependency(CREATE_YARPSCOPE TinyXML)
-check_optional_dependency(CREATE_GUIS Qt5)
-check_optional_dependency(CREATE_YARPSCOPE QCustomPlot)
-check_optional_dependency(CREATE_YARPLASERSCANNERGUI OpenCV)
 check_optional_dependency(YARP_COMPILE_BINDINGS SWIG)
-
-
-#########################################################################
-# Print information for user (CDash)
-if (CREATE_LIB_MATH)
-  message(STATUS "YARP_math selected for compilation")
-endif()
-if (CREATE_GUIS)
-  message(STATUS "GUIs selected for compilation")
-endif()
+check_optional_dependency(YARP_COMPILE_RobotTestingFramework_ADDONS RobotTestingFramework)

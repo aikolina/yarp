@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
+
 ########################################################################
 # Minimal framework for bash integration tests
 #
@@ -8,7 +14,7 @@
 #    require_name_server  - make sure a yarp name server is available
 #    require_ros_name_server - make sure a ros name server is available
 #    get_uri              - convert a port name to I.P.AD.DRESS:NUMBER
-#    add_helper $pid      - store a PID of something that should be 
+#    add_helper $pid      - store a PID of something that should be
 #                           killed on emergency exit/abort
 #    cleanup_helper       - make sure helper is gone, killing it if
 #                           necessary

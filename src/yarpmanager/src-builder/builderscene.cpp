@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "builderscene.h"
 #include <QDebug>
 #include <QMimeData>
@@ -10,12 +28,14 @@
 #include <QGraphicsSceneWheelEvent>
 
 BuilderScene::BuilderScene(QObject *parent) :
-    QGraphicsScene(parent)
+    QGraphicsScene(parent),
+    currentLine(nullptr),
+    startConnectionItem(nullptr),
+    endConnectionItem(nullptr),
+    snap(false),
+    editingMode(false)
 {
-    currentLine = NULL;
-    startConnectionItem = NULL;
     //connect(this,SIGNAL(changed(QList<QRectF>)),this,SLOT(onSceneChanged(QList<QRectF>)));
-    snap = false;
     setStickyFocus(true);
 }
 
@@ -44,18 +64,18 @@ void BuilderScene::dropEvent(QGraphicsSceneDragDropEvent *event)
     qlonglong pointer = event->mimeData()->data("pointer").toLongLong();
     QString itemType = event->mimeData()->text();
 
-    // Unselect all
+    // Deselect all
     foreach (QGraphicsItem *it, selectedItems()) {
         it->setSelected(false);
     }
 
     if(itemType == "module" ){
-        Module *mod = (yarp::manager::Module*)pointer;
-        addedModule((void*)mod,event->scenePos());
+        auto* mod = (yarp::manager::Module*)pointer;
+        emit addedModule((void*)mod,event->scenePos());
     }
     if(itemType == "application" ){
-        Application *app = (yarp::manager::Application*)pointer;
-        addedApplication((void*)app,event->scenePos());
+        auto* app = (yarp::manager::Application*)pointer;
+        emit addedApplication((void*)app,event->scenePos());
     }
 
 }
@@ -76,7 +96,7 @@ void BuilderScene::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if(currentLine && !it){
         removeItem(currentLine);
         delete currentLine;
-        currentLine = NULL;
+        currentLine = nullptr;
     }
 
     QGraphicsScene::mousePressEvent(event);
@@ -119,7 +139,7 @@ void BuilderScene::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 void BuilderScene::onNewConnectionRequested(QPointF p,QGraphicsItem *item)
 {
 
-    startConnectionItem = NULL;
+    startConnectionItem = nullptr;
     if(!editingMode || !((BuilderItem*)item)->allowOutputConnections()){
         return;
     }
@@ -132,7 +152,7 @@ void BuilderScene::onNewConnectionRequested(QPointF p,QGraphicsItem *item)
     }else{
         removeItem(currentLine);
         delete currentLine;
-        currentLine = NULL;
+        currentLine = nullptr;
     }
 
 
@@ -149,11 +169,11 @@ void BuilderScene::onNewConnectionAdded(QPointF p,QGraphicsItem *item)
         if(currentLine){
             removeItem(currentLine);
             delete currentLine;
-            currentLine = NULL;
+            currentLine = nullptr;
         }
 
-            BuilderItem *startItem = (BuilderItem*)startConnectionItem;
-            BuilderItem *endItem = (BuilderItem*)item;
+            auto* startItem = (BuilderItem*)startConnectionItem;
+            auto* endItem = (BuilderItem*)item;
 
             if(!startItem || !endItem){
                 return;
@@ -195,12 +215,11 @@ void BuilderScene::onNewConnectionAdded(QPointF p,QGraphicsItem *item)
            if (startItem->allowOutputConnections() &&
                endItem->allowInputConnections()) {
                if(!startItem->arrowAlreadyPresent(endItem)){
-                   addNewConnection(startItem,endItem);
-
+                   emit addNewConnection(startItem,endItem);
                }
            }
 
-        startConnectionItem = NULL;
+        startConnectionItem = nullptr;
     }
 
 }
@@ -221,7 +240,7 @@ void BuilderScene::onSceneChanged(QList<QRectF> rects)
                     return;
 
                 }
-                BuilderItem *it = (BuilderItem*)gIt;
+                auto* it = (BuilderItem*)gIt;
                 it->updateConnections();
                 //qDebug() << "UPDATE";
             }

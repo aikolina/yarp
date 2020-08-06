@@ -1,6 +1,9 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Paul Fitzpatrick, Giorgio Metta, Lorenzo Natale, Alessandro Scalzo, Daniele E. Domenichelli
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 
 #########################################################################
@@ -10,27 +13,26 @@ include(TestBigEndian)
 include(CheckCXXCompilerFlag)
 include(CheckIncludeFiles)
 include(CheckIncludeFileCXX)
-
-# CheckTypeSize changes CMAKE_MINIMUM_REQUIRED_VERSION, see
-# http://www.cmake.org/Bug/view.php?id=14864 (fixed in CMake 3.1)
-# We save it here, and restore it after including the file.
-if(NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 3.1)
-  message(AUTHOR_WARNING "CMAKE_MINIMUM_REQUIRED_VERSION is now ${CMAKE_MINIMUM_REQUIRED_VERSION}. This check can be removed.")
-endif()
-if(CMAKE_VERSION VERSION_LESS 3.1)
-  set(_CMAKE_MINIMUM_REQUIRED_VERSION ${CMAKE_MINIMUM_REQUIRED_VERSION})
-endif()
 include(CheckTypeSize)
-if(CMAKE_VERSION VERSION_LESS 3.1)
-  cmake_minimum_required(VERSION ${_CMAKE_MINIMUM_REQUIRED_VERSION})
-endif()
 
 # Ensure that install directories are set
 include(GNUInstallDirs)
 
 
 #########################################################################
+# C++14 is required
+# These variables are used by try_compile, so they must be set here
+
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+
+#########################################################################
 # Check whether system is big- or little- endian
+
+unset(YARP_BIG_ENDIAN)
+unset(YARP_LITTLE_ENDIAN)
 
 test_big_endian(IS_BIG_ENDIAN)
 if(${IS_BIG_ENDIAN})
@@ -41,103 +43,117 @@ endif()
 
 
 #########################################################################
-# Find 16, 32, and 64 bit types, portably
+# Find 32, 64 and optionally 128-bit floating point types and check whether
+# floating point types are IEC559
 
-set(YARP_INT16)
-set(YARP_INT32)
-set(YARP_INT64)
-set(YARP_FLOAT32)
-set(YARP_FLOAT64)
+unset(YARP_FLOAT32)
+unset(YARP_FLOAT64)
+unset(YARP_FLOAT128)
 
-check_type_size("short" SIZEOF_SHORT)
-check_type_size("int" SIZEOF_INT)
-check_type_size("long" SIZEOF_LONG)
-if(SIZEOF_INT EQUAL 4)
-  set(YARP_INT32 "int")
-  set(YARP_INT32_FMT "d")
-else()
-  if(SIZEOF_SHORT EQUAL 4)
-    set(YARP_INT32 "short")
-    set(YARP_INT32_FMT "hd")
-  elseif(SIZEOF_LONG EQUAL 4)
-    set(YARP_INT32 "long")
-    set(YARP_INT32_FMT "ld")
-  endif()
-endif()
+set(YARP_FLOAT32_IS_IEC559 0)
+set(YARP_FLOAT64_IS_IEC559 0)
+set(YARP_FLOAT128_IS_IEC559 0)
 
-if(SIZEOF_SHORT EQUAL 2)
-  set(YARP_INT16 "short")
-else()
-  # Hmm - there's no other native type to get 16 bits
-  # We will continue since most people using YARP do not need one.
-  message(STATUS "Warning: cannot find a 16 bit type on your system")
-  message(STATUS "Continuing...")
-endif()
+set(YARP_HAS_FLOAT128_T 0)
+
+
+macro(CHECK_FLOATING_POINT_IS_IEC559 _type)
+  string(REPLACE " " "_" _type_s "${_type}")
+  file(WRITE "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_type_s}-is_iec559.cpp"
+"#include <limits>
+int main() {
+  return std::numeric_limits<${_type}>::is_iec559 ? 1 : 0;
+}
+")
+
+  try_run(YARP_${_type_s}_IS_IEC559
+          _unused
+          "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
+          "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_type_s}-is_iec559.cpp")
+endmacro()
+
+check_floating_point_is_iec559("float")
+check_floating_point_is_iec559("double")
+check_floating_point_is_iec559("long double")
+
+
 
 check_type_size("float" SIZEOF_FLOAT)
 check_type_size("double" SIZEOF_DOUBLE)
-if(SIZEOF_DOUBLE EQUAL 8)
+check_type_size("long double" SIZEOF_LONG_DOUBLE)
+
+if(YARP_float_IS_IEC559)
+  set(YARP_FLOAT32 "float")
+  set(YARP_FLOAT32_IS_IEC559 1)
+elseif(SIZEOF_FLOAT EQUAL 4)
+  set(YARP_FLOAT32 "float")
+elseif(SIZEOF_DOUBLE EQUAL 4)
+  set(YARP_FLOAT32 "double")
+elseif(SIZEOF_LONG_DOUBLE EQUAL 4)
+  set(YARP_FLOAT32 "long double")
+endif()
+if(NOT YARP_FLOAT32)
+  message(FATAL_ERROR "Cannot find a 32-bit floating point type")
+endif()
+
+if(YARP_double_IS_IEC559)
   set(YARP_FLOAT64 "double")
+  set(YARP_FLOAT64_IS_IEC559 1)
+elseif(SIZEOF_DOUBLE EQUAL 8)
+  set(YARP_FLOAT64 "double")
+elseif(SIZEOF_LONG_DOUBLE EQUAL 8)
+  set(YARP_FLOAT64 "long double")
 elseif(SIZEOF_FLOAT EQUAL 8)
   set(YARP_FLOAT64 "float")
 endif()
-
-if(SIZEOF_DOUBLE EQUAL 4)
-  set(YARP_FLOAT32 "double")
-elseif(SIZEOF_FLOAT EQUAL 4)
-  set(YARP_FLOAT32 "float")
+if(NOT YARP_FLOAT64)
+  message(FATAL_ERROR "Cannot find a 64-bit floating point type")
 endif()
 
-if(SIZEOF_LONG EQUAL 8)
-  set(YARP_INT64 "long")
-  set(YARP_INT64_FMT "ld")
-else()
-  check_type_size("long long" SIZEOF_LONGLONG)
-  if(SIZEOF_LONGLONG EQUAL 8)
-    set(YARP_INT64 "long long")
-  else()
-    check_type_size("__int64" SIZEOF___INT64)
-    if(SIZEOF___INT64 EQUAL 8)
-      set(YARP_INT64 "__int64")
-    endif()
-  endif()
-  set(YARP_INT64_FMT "lld")
+if(YARP_long_double_IS_IEC559)
+  set(YARP_FLOAT128 "long double")
+  set(YARP_FLOAT128_IS_IEC559 1)
+elseif(SIZEOF_LONG_DOUBLE EQUAL 16)
+  set(YARP_FLOAT128 "long double")
+elseif(SIZEOF_DOUBLE EQUAL 16)
+  set(YARP_FLOAT128 "double")
+elseif(SIZEOF_FLOAT EQUAL 16)
+  set(YARP_FLOAT128 "float")
+endif()
+if(YARP_FLOAT128)
+  set(YARP_HAS_FLOAT128_T 1)
 endif()
 
-check_type_size("void *" YARP_POINTER_SIZE)
 
+#########################################################################
+# Check the maximum number of digits for the exponent for floating point types
 
-set(YARP_SSIZE_T int)
-check_type_size(ssize_t YARP_SSIZE_T_LOWER)
-if(HAVE_YARP_SSIZE_T_LOWER)
-  set(YARP_SSIZE_T ssize_t)
-else()
-  check_type_size(SSIZE_T YARP_SSIZE_T_HIGHER)
-  if(HAVE_YARP_SSIZE_T_HIGHER)
-    set(YARP_SSIZE_T SSIZE_T)
-  else()
-    check_type_size(size_t YARP_SIZE_T)
-    if(YARP_SIZE_T EQUAL 8)
-      set(YARP_SSIZE_T ${YARP_INT64})
-    elseif(YARP_SIZE_T EQUAL 4)
-      set(YARP_SSIZE_T ${YARP_INT32})
-    elseif(YARP_SIZE_T EQUAL 2)
-      set(YARP_SSIZE_T ${YARP_INT16})
-    endif()
-  endif()
-endif()
+macro(CHECK_FLOATING_POINT_EXPONENT_DIGITS _type)
+  file(WRITE "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_type}-exp-dig.cpp"
+"#include <algorithm>
+#include <cfloat>
+#include <cmath>
+int main()
+{
+    return std::max (
+        static_cast<int>(std::floor(std::log10(${_type}_MAX_EXP))) + 1,
+        static_cast<int>(std::floor(std::log10(${_type}_MIN_EXP))) + 1);
+}
+")
+  try_run(YARP_${_type}_EXP_DIG
+          _unused
+          "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
+          "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/${_type}-exp-dig.cpp")
+endmacro()
 
-set(YARP_HAVE_SYS_TYPES_H ${HAVE_SYS_TYPES_H})
-set(YARP_HAVE_STDDEF_H ${HAVE_STDDEF_H})
-check_include_file_cxx(cstddef YARP_HAVE_CSTDDEF)
-
+check_floating_point_exponent_digits(FLT)
+check_floating_point_exponent_digits(DBL)
+check_floating_point_exponent_digits(LDBL)
 
 #########################################################################
 # Set up compile flags
 
-add_definitions(-DYARP_PRESENT)
-add_definitions(-D_REENTRANT)
-set_property(GLOBAL APPEND PROPERTY YARP_DEFS -D_REENTRANT)
+add_definitions(-DBUILDING_YARP)
 
 # on windows, we have to tell ace how it was compiled
 if(WIN32)
@@ -150,13 +166,7 @@ if(WIN32)
 
   ## check if we are using the MINGW compiler
   if(MINGW)
-    add_definitions(-D__MINGW__ -D__MINGW32__ "-mms-bitfields" "-mthreads" "-Wpointer-arith" "-pipe")
-    # "-fno-exceptions" can be useful too... unless you need exceptions :-)
-    if(MSYS)
-      add_definitions(-D__ACE_INLINE__ -DACE_HAS_ACE_TOKEN -DACE_HAS_ACE_SVCCONF -DACE_BUILD_DLL)
-    else()
-      add_definitions("-fvisibility=hidden" "-fvisibility-inlines-hidden" "-Wno-attributes")
-    endif()
+    add_definitions("-mms-bitfields" "-mthreads" "-pipe")
   endif()
 
   ## check if we are using the MSVC compiler
@@ -167,19 +177,21 @@ if(WIN32)
     add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
     # this gets rid of warning about deprecated POSIX names
     add_definitions(-D_CRT_NONSTDC_NO_DEPRECATE)
+    # disable deprecated warnings generated by ACE
+    add_definitions(-D_WINSOCK_DEPRECATED_NO_WARNINGS)
+    add_definitions(-D_WINSOCK_DEPRECATED_NO_WARNINGS)
 
-    # disable: warning C4355: 'this' : used ...
-    ## this never worked, giving up.
-    #add_definitions(/wd4355)
+    # Check whether colored output is available on Windows console.
+    set(YARP_HAS_WIN_VT_SUPPORT 0)
+    if(NOT CMAKE_SYSTEM_VERSION VERSION_LESS 10.0.10586)
+      set(YARP_HAS_WIN_VT_SUPPORT 1)
+    endif()
 
     # Traditionally, we add "d" postfix to debug libraries
     set(CMAKE_DEBUG_POSTFIX "d")
   endif()
 else()
 
-    if(NOT CMAKE_MINIMUM_REQUIRED_VERSION VERSION_LESS 3.0)
-      message(AUTHOR_WARNING "CMAKE_MINIMUM_REQUIRED_VERSION is now ${CMAKE_MINIMUM_REQUIRED_VERSION}. The check in this macro can be removed.")
-    endif()
     macro(YARP_CHECK_AND_APPEND_CXX_COMPILER_FLAG _out _flag)
       string(TOUPPER "${_flag}" _VAR)
       string(REGEX REPLACE " .+" "" _VAR "${_VAR}")
@@ -216,7 +228,8 @@ else()
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wredundant-decls")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wunknown-pragmas")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wunused-result")
-    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wc++11-compat")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wc++17-compat")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wc++2a-compat")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wheader-guard")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wignored-attributes")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wnewline-eof")
@@ -225,30 +238,26 @@ else()
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wmicrosoft-exists")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wstatic-inline-explicit-instantiation")
     yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wmisleading-indentation")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wtautological-compare")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Winconsistent-missing-override")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wsuggest-override")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wmaybe-uninitialized")
+    yarp_check_and_append_cxx_compiler_flag(WANTED_WARNING_FLAGS "-Wnull-conversion")
 
     ## Unwanted warning flags ##
     unset(UNWANTED_WARNING_FLAGS)
     yarp_check_and_append_cxx_compiler_flag(UNWANTED_WARNING_FLAGS "-Wno-unused-parameter") # FIXME Enable later
-    yarp_check_and_append_cxx_compiler_flag(UNWANTED_WARNING_FLAGS "-Wno-long-long")
-    yarp_check_and_append_cxx_compiler_flag(UNWANTED_WARNING_FLAGS "-Wno-cast-align") # FIXME Enable later
 
 
     ## Experimental warning flags ##
     # FIXME Those warnings should be enabled later
     unset(EXPERIMENTAL_WARNING_FLAGS)
     yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wconversion")
+    yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wcast-qual")
     yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wsign-conversion")
     yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wold-style-cast")
     yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Winline")
     yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wfloat-equal")
-    yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wc++98-compat")
-    yarp_check_and_append_cxx_compiler_flag(EXPERIMENTAL_WARNING_FLAGS "-Wc++98-compat-pedantic")
-
-
-    ## Visibility hidden flags ##
-    unset(VISIBILITY_HIDDEN_FLAGS)
-    yarp_check_and_append_cxx_compiler_flag(VISIBILITY_HIDDEN_FLAGS "-fvisibility=hidden")
-    yarp_check_and_append_cxx_compiler_flag(VISIBILITY_HIDDEN_FLAGS "-fvisibility-inlines-hidden")
 
 
     ## Deprcated declarations flags ##
@@ -275,13 +284,6 @@ else()
     yarp_check_and_append_cxx_compiler_flag(HARDENING_FLAGS "-Wl,-znow")
     yarp_check_and_append_cxx_compiler_flag(HARDENING_FLAGS "-fPIE -pie")
 
-
-    ## C++98 flags ##
-    unset(CXX98_FLAGS)
-    check_cxx_compiler_flag("-std=c++98" CXX_HAS_STD_CXX98)
-    if(CXX_HAS_STD_CXX98)
-      set(CXX98_FLAGS "-std=c++98")
-    endif()
 
     ## C++11 flags ##
     unset(CXX11_FLAGS)
@@ -321,61 +323,16 @@ endif()
 
 
 #########################################################################
-# Generate compiler.h header
+# Try to locate some system headers
 
-# Read the file containing all the documentation for compiler.h
-# Change offset here in case yarp_conf_compiler.dox.in comment changes
-file(READ
-     "${YARP_MODULE_DIR}/template/yarp_conf_compiler.dox.in"
-     _compiler_dox
-     OFFSET 97)
-
-
-# WriteCompilerDetectionHeader is supported since CMake 3.1, but until 3.3 there
-# is a bug in the non-c++11 compatible nullptr implementation, therefore we use
-# a pre-generated version of the file
-if(NOT ${CMAKE_MINIMUM_REQUIRED_VERSION} VERSION_LESS 3.3)
-  message(AUTHOR_WARNING "CMAKE_MINIMUM_REQUIRED_VERSION is now ${CMAKE_MINIMUM_REQUIRED_VERSION}. This check can be removed.")
-endif()
-if(${CMAKE_VERSION} VERSION_LESS 3.3)
-  string(REPLACE "\\\;" ";" _compiler_dox ${_compiler_dox})
-  configure_file(${YARP_MODULE_DIR}/template/yarp_conf_compiler.h.in
-                 ${CMAKE_BINARY_DIR}/generated_include/yarp/conf/compiler.h
-                 @ONLY)
-else()
-  include(WriteCompilerDetectionHeader)
-
-  get_property(_cxx_known_features GLOBAL PROPERTY CMAKE_CXX_KNOWN_FEATURES)
-
-  write_compiler_detection_header(
-    FILE "${CMAKE_BINARY_DIR}/generated_include/yarp/conf/compiler.h"
-    PREFIX YARP
-    COMPILERS
-      GNU
-      Clang
-      AppleClang
-      MSVC
-    FEATURES ${_cxx_known_features}
-    VERSION 3.1.0
-    PROLOG ${_compiler_dox})
-endif()
-
-
-#########################################################################
-# Try to locate execinfo.h
-check_include_files(execinfo.h YARP_HAS_EXECINFO)
-
-
-#########################################################################
-# Translate the names of some YARP options, for yarp_config_options.h.in
-# and YARPConfig.cmake.in
-set(YARP_HAS_MATH_LIB ${CREATE_LIB_MATH})
-set(YARP_HAS_NAME_LIB TRUE)
-
-
-#########################################################################
-# Tweak tests for MSVC, to add paths to DLLs
-if(MSVC)
-  configure_file(${YARP_MODULE_DIR}/template/TestConfig.cmake ${CMAKE_BINARY_DIR}/TestConfig.cmake @ONLY)
-  set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY TEST_INCLUDE_FILE ${CMAKE_BINARY_DIR}/TestConfig.cmake)
-endif()
+check_include_files(execinfo.h YARP_HAS_EXECINFO_H)
+check_include_files(sys/wait.h YARP_HAS_SYS_WAIT_H)
+check_include_files(sys/types.h YARP_HAS_SYS_TYPES_H)
+check_include_files(sys/prctl.h YARP_HAS_SYS_PRCTL_H)
+# Even if <csignal> is c++11, on some platforms it it still missing
+check_include_files(csignal YARP_HAS_CSIGNAL)
+check_include_files(signal.h YARP_HAS_SIGNAL_H)
+check_include_files(sys/signal.h YARP_HAS_SYS_SIGNAL_H)
+check_include_files(netdb.h YARP_HAS_NETDB_H)
+check_include_files(dlfcn.h YARP_HAS_DLFCN_H)
+check_include_files(ifaddrs.h YARP_HAS_IFADDRS_H)

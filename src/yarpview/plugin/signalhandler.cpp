@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "signalhandler.h"
@@ -18,10 +26,11 @@ SignalHandler::SignalHandler(QObject *parent) :
     QObject(parent),timer(this)
 {
 
-    saveSetFrameMode = false;
-    saveCurrentFrameMode = false;
-    freezeMode = false;
-    synchMode = false;
+    b_saveSetFrameMode = false;
+    b_saveCurrentFrameMode = false;
+    b_freezeMode = false;
+    b_synchRateMode = false;
+    b_autosizeMode = false;
     defaultNameCounter = 0;
     customNameCounter = 0;
     framesetCounter = 0;
@@ -81,28 +90,28 @@ void SignalHandler::sendVideoFrame(QVideoFrame f)
 {
     portFps.update();
 
-    if(synchMode){
+    if(b_synchRateMode){
         displayFps.update();
-        internalSendFrame(f);
+        emit internalSendFrame(f);
     }else{
         mutex.lock();
         frame = f;
         if(!timer.isActive()){
-            selfStartTimer();
+            emit selfStartTimer();
         }
         mutex.unlock();
 
     }
 
-    if(saveCurrentFrameMode){
-        saveCurrentFrameMode = false;
+    if(b_saveCurrentFrameMode){
+        b_saveCurrentFrameMode = false;
         f.map(QAbstractVideoBuffer::ReadOnly);
         QImage img = QImage(f.bits(),f.width(),f.height(),QImage::Format_RGB32);
         f.unmap();
         saveFrame(img);
     }
 
-    if(saveSetFrameMode){
+    if(b_saveSetFrameMode){
         f.map(QAbstractVideoBuffer::ReadOnly);
         QImage img = QImage(f.bits(),f.width(),f.height(),QImage::Format_RGB32);
         f.unmap();
@@ -120,8 +129,8 @@ void SignalHandler::sendVideoFrame(QVideoFrame f)
  */
 void SignalHandler::internalReceiveFrame(QVideoFrame f)
 {
-    if(!freezeMode){
-        sendFrame(&f);
+    if(!b_freezeMode){
+        emit sendFrame(&f);
     }
 }
 
@@ -129,10 +138,10 @@ void SignalHandler::internalReceiveFrame(QVideoFrame f)
  *
  *  \param check
  */
-void SignalHandler::synchToDisplay(bool check)
+void SignalHandler::synchDisplayPeriod(bool check)
 {
-    synchMode = check;
-    if(synchMode){
+    b_synchRateMode = check;
+    if(b_synchRateMode){
         if(timer.isActive()){
             timer.stop();
         }
@@ -143,13 +152,27 @@ void SignalHandler::synchToDisplay(bool check)
     }
 }
 
+/*! \brief Enable/Disable the synch size mode.
+*
+*  \param check
+*/
+void SignalHandler::synchDisplaySize(bool check)
+{
+    b_autosizeMode = check;
+}
+
+bool SignalHandler::getAutosizeMode()
+{
+    return b_autosizeMode;
+}
+
 /*! \brief Enable/Disable the freeze mode.
  *
  *  \param check
  */
 void SignalHandler::freeze(bool check)
 {
-    freezeMode = check;
+    b_freezeMode = check;
 }
 
 /*! \brief Sets the refresh interval.
@@ -175,7 +198,7 @@ void SignalHandler::onTimerElapsed()
  */
 void SignalHandler::saveCurrentFrame()
 {
-    saveCurrentFrameMode = true;
+    b_saveCurrentFrameMode = true;
 }
 
 /*! \brief Sets the filename used for saving a video frame.
@@ -278,7 +301,7 @@ void SignalHandler::checkCustomNameCounterCount(QString file)
  */
 void SignalHandler::setFileNames(QUrl url)
 {
-    if(saveSetFrameMode == false)
+    if(b_saveSetFrameMode == false)
         this->fileNames = url.toLocalFile();
 }
 
@@ -286,13 +309,13 @@ void SignalHandler::setFileNames(QUrl url)
 void SignalHandler::startDumpFrames()
 {
     framesetCounter = 0;
-    saveSetFrameMode = true;
+    b_saveSetFrameMode = true;
 }
 
 /*! \brief Stops the Dump frame modality (Save frame set).*/
 void SignalHandler::stopDumpFrames()
 {
-    saveSetFrameMode = false;
+    b_saveSetFrameMode = false;
 }
 
 
@@ -304,5 +327,5 @@ void SignalHandler::onFpsTimer()
     displayFps.getStats(dAvg,dMin,dMax);
     displayFps.reset();
 
-    sendFps(pAvg,pMin,pMax,dAvg,dMin,dMax);
+    emit sendFps(pAvg,pMin,pMax,dAvg,dMin,dMax);
 }

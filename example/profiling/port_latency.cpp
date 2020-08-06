@@ -1,13 +1,16 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Authors: Lorenzo Natale
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <stdio.h>
 #include <yarp/os/all.h>
 
-#include <math.h>
+#include <cmath>
 
 #include <stdlib.h>
 #include <time.h>
@@ -15,13 +18,13 @@
 using namespace yarp::os;
 
 // Port latency, basic test.
-// Send a sequence of message to a port. Test the 
+// Send a sequence of message to a port. Test the
 // time it takes for the message to be received.
 // Compute average.
 //
 // Time only makes sense if server and client run
 // on the same machine.
-// 
+//
 // Lorenzo Natale May 2008
 //
 // Added paralell port code August 2008.
@@ -83,7 +86,7 @@ public:
 
     double inline get()
     { return datum; }
-    
+
     void inline set(double v)
     {  datum=v; }
 
@@ -107,7 +110,7 @@ public:
             unsigned int rnd=rand();
             payload[k]=rnd; //paranoid
         }
-        
+
     }
 
     unsigned int getPayloadSize()
@@ -196,13 +199,13 @@ public:
     }
 };
 
-class serverThread: public RateThread
+class serverThread: public PeriodicThread
 {
     BufferedPort<TestData> port;
     unsigned int payload;
 
 public:
-    serverThread():RateThread(100)
+    serverThread():PeriodicThread(0.100)
     {}
 
     void setPayload(unsigned int p)
@@ -218,8 +221,8 @@ public:
         portName+="/port:o";
         port.open(portName.c_str());
 
-        RateThread::setRate(int (period*1000.0+0.5));
-        RateThread::start();
+        PeriodicThread::setPeriod(period);
+        PeriodicThread::start();
     }
 
     void run()
@@ -245,7 +248,7 @@ public:
     {
         port.close();
     }
-}; 
+};
 
 int server(double server_wait, const std::string &name, unsigned int payload)
 {
@@ -282,7 +285,7 @@ int client(int nframes, std::string &name)
     portName="/profiling/client/";
     portName+=name;
     portName+="/port:o";
-    
+
     reader.outPort.open(portName.c_str());
 
     while( (reader.count<nframes) || forever)
@@ -307,7 +310,7 @@ int client(int nframes, std::string &name)
 
     stdLatency=sqrt(stdLatency);
 
-    fprintf(stderr, "Received: %d average latency %.3lf +/- %.5lf [ms]\n", 
+    fprintf(stderr, "Received: %d average latency %.3lf +/- %.5lf [ms]\n",
             reader.count, averageLatency, stdLatency);
     return 0;
 }
@@ -326,7 +329,7 @@ int main(int argc, char **argv) {
     if (p.check("server"))
         {
 
-            int payload=p.check("payload", Value(1)).asInt();
+            int payload=p.check("payload", Value(1)).asInt32();
 
             printf("Setting payload to %d[bytes]\n", payload);
 
@@ -339,14 +342,8 @@ int main(int argc, char **argv) {
                     return -1;
                 }
 
-            return server(p.find("period").asDouble()/1000.0, name, payload);
+            return server(p.find("period").asFloat64()/1000.0, name, payload);
         }
     else if (p.check("client"))
-        return client(p.find("nframes").asInt(), name);
+        return client(p.find("nframes").asInt32(), name);
 }
-
-
-
-
-
-

@@ -1,54 +1,56 @@
 /*
- * Copyright (C) 2014 iCub Facility
- * Authors: Ali Paikan
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef MONITOR_SHAREDLIB_INC
 #define MONITOR_SHAREDLIB_INC
 
-#include <string>
-#include <yarp/os/ConstString.h>
+#include "MonitorBinding.h"
+
+#include <yarp/os/MonitorObject.h>
 #include <yarp/os/SharedLibraryClass.h>
 #include <yarp/os/SharedLibrary.h>
 #include <yarp/os/YarpPlugin.h>
 
-#include <yarp/os/MonitorObject.h>
-#include "MonitorBinding.h"
+#include <string>
 
 class MonitorSharedLib : public MonitorBinding
 {
 
 public:
-    MonitorSharedLib(void);
-    virtual ~MonitorSharedLib();
-    
-    bool load(const yarp::os::Property &options);
-    bool setParams(const yarp::os::Property& params);
-    bool getParams(yarp::os::Property& params);
+    MonitorSharedLib();
+    ~MonitorSharedLib() override;
 
-    bool acceptData(yarp::os::Things &thing);
-    yarp::os::Things& updateData(yarp::os::Things &thing);
-    yarp::os::Things& updateReply(yarp::os::Things &thing);
+    bool load(const yarp::os::Property &options) override;
+    bool setParams(const yarp::os::Property& params) override;
+    bool getParams(yarp::os::Property& params) override;
 
-    bool peerTrigged(void);
-    bool canAccept(void);
+    bool acceptData(yarp::os::Things &thing) override;
+    yarp::os::Things& updateData(yarp::os::Things &thing) override;
+    yarp::os::Things& updateReply(yarp::os::Things &thing) override;
 
-    bool setAcceptConstraint(const char* constraint) {
-        if(!constraint)
-            return false;        
+    bool peerTrigged() override;
+    bool canAccept() override;
+
+    bool setAcceptConstraint(const char* constraint) override {
+        if(!constraint) {
+            return false;
+        }
         MonitorSharedLib::constraint = constraint;
         return true;
     }
 
-    const char* getAcceptConstraint(void) {
+    const char* getAcceptConstraint() override {
         return constraint.c_str();
     }
 
-    bool hasAccept() { return true; }
-    bool hasUpdate() { return true; } 
-    bool hasUpdateReply() { return true; }
+    bool hasAccept() override { return true; }
+    bool hasUpdate() override { return true; }
+    bool hasUpdateReply() override { return true; }
 
 private:
     std::string constraint;
@@ -58,5 +60,3 @@ private:
 };
 
 #endif //_MONITOR_SHAREDLIB_INC_
-
-

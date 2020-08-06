@@ -1,14 +1,7 @@
-
-/*
- * Copyright (C) 2013 iCub Facility Istituto Italiano di Tecnologia
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- *
- */
-
 /**
- * @page yarp_data_dirs YARP data directories
+\page yarp_data_dirs YARP data directories
 
-\author Elena Ceseracciu and Lorenzo Natale
+\tableofcontents
 
 YARP utilities and modules written by users need to find and access data and configuration files at run-time. The former use generic configuration files and manifest files for modules and plugins. The latter often require configuration and data files. YARP has an OS-dependent set of default locations where to look for files, and a set of rules that define the search priorities. The default locations can be overridden or extended by modifying the environment variables that YARP relies on. To simplify finding and accessing these files YARP provides a helper class called ResourceFinder.
 
@@ -24,7 +17,7 @@ The key points to keep in mind are:
 \li    Installation directories are generally non-writable, users without root privileges cannot edit installed configuration files unless they first copy them inside their own private directories, the latter must take precedence and hide the others;
 \li    Therefore it is normal that configuration files can be in multiple places, inside user-specific, private or shared installation directories;
 \li    External packages can install files so that YARP can find them (see \ref datafiles_3rdparty "here");
-\li    Type of files are divided in families that are placed in specific sub-directories. Current allowed sub-directories are listed \ref datafiles_datadirs "here".
+\li    Types of files are divided in families that are placed in specific sub-directories. Current allowed sub-directories are listed \ref datafiles_datadirs "here".
 
 File customization can happen by copying files or contexts from the shared installation directories to the ones private to the user. The \ref yarp-config utility simplifies this process.
 
@@ -205,6 +198,4 @@ The content of the file iCub.ini tells YARP where to look for additional resourc
   path "/usr/local/share/iCub"
 \endverbatim
 
- *
- */
-
+*/

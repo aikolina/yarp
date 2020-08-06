@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef TCPROSSTREAM_INC
@@ -12,38 +13,30 @@
 #include <yarp/os/OutputStream.h>
 #include <yarp/os/TwoWayStream.h>
 #include <yarp/os/ManagedBytes.h>
-#include <yarp/os/ConstString.h>
-#include "BlobNetworkHeader.h"
-#include "WireTwiddler.h"
+
+#include <yarp/wire_rep_utils/BlobNetworkHeader.h>
+#include <yarp/wire_rep_utils/WireTwiddler.h>
 
 #include <string>
 #include <map>
 
-#include <tcpros_carrier_api.h>
-
-namespace yarp {
-    namespace os {
-        class TcpRosStream;
-    }
-}
-
-
-class YARP_tcpros_carrier_API yarp::os::TcpRosStream : public TwoWayStream, 
-                                                       public InputStream,
-                                                       public OutputStream
+class TcpRosStream :
+        public yarp::os::TwoWayStream,
+        public yarp::os::InputStream,
+        public yarp::os::OutputStream
 {
 private:
-    TwoWayStream *delegate;
+    yarp::os::TwoWayStream *delegate;
     int raw;
-    BlobNetworkHeader header;
-    ManagedBytes scan;
+    yarp::wire_rep_utils::BlobNetworkHeader header;
+    yarp::os::ManagedBytes scan;
     char *cursor;
     int remaining;
     int phase;
     bool expectTwiddle;
-    WireTwiddler twiddler;
-    yarp::os::ConstString kind;
-    WireTwiddlerReader twiddlerReader;
+    yarp::wire_rep_utils::WireTwiddler twiddler;
+    std::string kind;
+    yarp::wire_rep_utils::WireTwiddlerReader twiddlerReader;
     bool initiative;
     bool setInitiative;
 public:
@@ -55,6 +48,9 @@ public:
                  const char *kind) :
             delegate(delegate),
             raw(raw),
+            header(yarp::wire_rep_utils::BlobNetworkHeader{0,0,0}),
+            cursor(nullptr),
+            remaining(0),
             phase(0),
             expectTwiddle(service && sender),
             kind(kind),
@@ -72,46 +68,46 @@ public:
         }
     }
 
-    virtual yarp::os::InputStream& getInputStream() { return *this; }
-    virtual yarp::os::OutputStream& getOutputStream() { return *this; }
+    yarp::os::InputStream& getInputStream() override { return *this; }
+    yarp::os::OutputStream& getOutputStream() override { return *this; }
 
 
-    virtual const yarp::os::Contact& getLocalAddress() {
+    const yarp::os::Contact& getLocalAddress() const override {
         return delegate->getLocalAddress();
     }
 
-    virtual const yarp::os::Contact& getRemoteAddress() {
+    const yarp::os::Contact& getRemoteAddress() const override {
         return delegate->getRemoteAddress();
     }
 
-    virtual bool isOk() {
+    bool isOk() const override {
         return delegate->isOk();
     }
 
-    virtual void reset() {
+    void reset() override {
         delegate->reset();
     }
 
-    virtual void close() {
+    void close() override {
         delegate->close();
     }
 
-    virtual void beginPacket() {
+    void beginPacket() override {
         twiddlerReader.reset();
         delegate->beginPacket();
     }
 
-    virtual void endPacket() {
+    void endPacket() override {
         delegate->endPacket();
     }
 
     using yarp::os::OutputStream::write;
-    virtual void write(const Bytes& b);
+    void write(const yarp::os::Bytes& b) override;
 
     using yarp::os::InputStream::read;
-    virtual YARP_SSIZE_T read(const Bytes& b);
+    yarp::conf::ssize_t read(yarp::os::Bytes& b) override;
 
-    virtual void interrupt() {
+    void interrupt() override {
         delegate->getInputStream().interrupt();
     }
 
@@ -119,7 +115,7 @@ public:
 
     static std::map<std::string, std::string> rosToKind();
     static std::string rosToKind(const char *rosname);
-    static bool configureTwiddler(WireTwiddler& twiddler, const char *txt, const char *prompt, bool sender, bool reply);
+    static bool configureTwiddler(yarp::wire_rep_utils::WireTwiddler& twiddler, const char *txt, const char *prompt, bool sender, bool reply);
 };
 
 #endif

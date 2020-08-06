@@ -1,10 +1,11 @@
-
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Lorenzo Natale
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
-
 
 #include <stdio.h>
 
@@ -13,7 +14,6 @@
 #include <yarp/os/Property.h>
 #include <yarp/dev/ControlBoardInterfaces.h>
 #include <yarp/os/Time.h>
-#include <yarp/os/Random.h>
 
 #include <yarp/sig/Vector.h>
 
@@ -41,17 +41,17 @@ int main(int argc, char **argv)
     Property parameters;
     parameters.fromCommand(argc, argv);
 
-    ConstString part=parameters.find("part").asString();
-    int id=parameters.find("id").asInt();
+    std::string part=parameters.find("part").asString();
+    int id=parameters.find("id").asInt32();
     double time=0;
     if (parameters.check("time"))
         {
-            time=parameters.find("time").asDouble();
+            time=parameters.find("time").asFloat64();
         }
     else
         time=-1;
 
-    ConstString protocol;
+    std::string protocol;
     if (parameters.check("prot"))
     {
         protocol=parameters.find("prot").asString();
@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     else
         protocol="tcp";
 
-    ConstString rname;
+    std::string rname;
     if (parameters.check("robot"))
     {
         rname=parameters.find("robot").asString();
@@ -70,8 +70,6 @@ int main(int argc, char **argv)
     PolyDriver dd;
     Property p;
 
-    Random::seed((unsigned int)Time::now());
-     
     string remote=string("/")+rname.c_str();
     if (part!="")
         {
@@ -86,7 +84,7 @@ int main(int argc, char **argv)
         }
     local+=string("/stress");
 
-    stringstream lStream; 
+    stringstream lStream;
     lStream << id;
     local += lStream.str();
 
@@ -95,7 +93,7 @@ int main(int argc, char **argv)
     p.put("remote", remote.c_str());
     p.put("carrier", protocol.c_str());
     dd.open(p);
-    
+
     if (!dd.isValid())
     {
         fprintf(stderr, "Error, could not open controlboard\n");
@@ -115,7 +113,7 @@ int main(int argc, char **argv)
     dd.view(ipid);
     dd.view(ilim);
     dd.view(ical);
-    
+
     int c=100;
     int nj;
     Vector encoders;
@@ -131,7 +129,7 @@ int main(int argc, char **argv)
             count++;
             double v;
             int jj=0;
-            
+
             for(jj=0; jj<nj; jj++)
                 {
                     //    ienc->getEncoder(jj, encoders.data()+jj);
@@ -158,6 +156,6 @@ int main(int argc, char **argv)
         }
 
     printf("bye bye from %d\n", id);
-    
+
     return 0;
 }

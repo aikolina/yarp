@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "mainwindow.h"
@@ -13,31 +21,45 @@
 
 #include <yarp/os/Network.h>
 #include <yarp/os/Property.h>
+#include <yarp/os/Os.h>
+#include <yarp/os/Log.h>
 #include <yarp/os/ResourceFinder.h>
-#include <yarp/os/ConstString.h>
+#include <string>
 #include <yarp/os/ResourceFinderOptions.h>
 
 
 #define HELP_MESSAGE        "\
 Usage:\n\
-      yarpmanager [option...]\n\n\
+   yarpmanager [option]\n\n\
 Options:\n\
-  --help                  Show help\n\
-  --from                  Configuration file name\n\
-  --application           Path to application to open\n"
+  --from                Configuration file name\n\
+  --application         Path to application to open\n\
+  --ymanagerini_dir     \n\
+  --apppath             \n\
+  --modpath             \n\
+  --respath             \n\
+  --templpath           \n\
+  --load_subfolders     \n\
+  --watchdog            \n\
+  --module_failure      \n\
+  --connection_failure  \n\
+  --auto_connect        \n\
+  --auto_dependency     \n\
+  --add_current_dir     add the current dir to the search path\n\
+"
 
 #define DEF_CONFIG_FILE     "ymanager.ini"
 
 
-#if defined(WIN32)
-//#include <yarp/os/impl/PlatformSignal.h>
+#if defined(_WIN32)
+//#include <csignal>
 #include <windows.h>
 
 #else
 
-#include <errno.h>
+#include <cerrno>
 #include <sys/types.h>
-#include <signal.h>
+#include <csignal>
 #endif
 
 void onSignal(int signum);
@@ -45,11 +67,11 @@ void onSignal(int signum);
 int main(int argc, char *argv[])
 {
 
-#if defined(WIN32)
-    // We create a console. This is inherited by console processes created by the localhost broker. 
+#if defined(_WIN32)
+    // We create a console. This is inherited by console processes created by the localhost broker.
     // It is useful because new processes can receive ctrl+brk signals and shutdown cleanly.
-    // This console is not actually needed for printing so we hide it.  In principle we could 
-    // redirect the output of all processes to this console, in practice this would be end up 
+    // This console is not actually needed for printing so we hide it.  In principle we could
+    // redirect the output of all processes to this console, in practice this would be end up
     // soon in a big mess.
    AllocConsole();
    HWND hwnd = GetConsoleWindow();
@@ -60,45 +82,54 @@ int main(int argc, char *argv[])
 
     // Setup resource finder
 
-    yarp::os::ResourceFinder rf;
-    rf.setVerbose(false);
+    yarp::os::ResourceFinder& rf = yarp::os::ResourceFinder::getResourceFinderSingleton();
     rf.setDefaultContext("yarpmanager");
     rf.setDefaultConfigFile(DEF_CONFIG_FILE);
     rf.configure(argc, argv);
 
-    yarp::os::Network yarp;
-    yarp.setVerbosity(-1);
+    yarp::os::Network yarp(yarp::os::YARP_CLOCK_SYSTEM);
 
     yarp::os::Property config;
     config.fromString(rf.toString());
 
-    if(config.check("help")){
-        qDebug("%s",HELP_MESSAGE);
+    if(config.check("help"))
+    {
+        yInfo("%s",HELP_MESSAGE);
         return 0;
     }
 
     /**
     *  preparing default options
     */
+    bool add_curr_dir = false;
+    if(config.check("add_current_dir"))
+    {
+        add_curr_dir=true;
+    }
+    const int cur_dir_max_size=512;
+    char current_dir[cur_dir_max_size]; current_dir[0]=0;
+    yarp::os::getcwd(current_dir,cur_dir_max_size);
+    config.put("current_dir", current_dir);
 
-    std::string inifile=rf.findFile("from").c_str();
-    std::string inipath="";
-    size_t lastSlash=inifile.rfind("/");
+    std::string inifile=rf.findFile("from");
+    std::string inipath;
+    size_t lastSlash=inifile.rfind('/');
     if (lastSlash!=std::string::npos){
         inipath=inifile.substr(0, lastSlash+1);
     }else{
-        lastSlash=inifile.rfind("\\");
+        lastSlash=inifile.rfind('\\');
         if (lastSlash!=std::string::npos){
             inipath=inifile.substr(0, lastSlash+1);
         }
     }
 
     if(!config.check("ymanagerini_dir")){
-        config.put("ymanagerini_dir", inipath.c_str());
+        config.put("ymanagerini_dir", inipath);
     }
 
     yarp::os::Bottle appPaths;
     if(!config.check("apppath")){
+
         appPaths= rf.findPaths("applications");
 
         yarp::os::ResourceFinderOptions findRobotScripts;
@@ -107,12 +138,17 @@ int main(int argc, char *argv[])
 //        yarp::os::Bottle appPaths2=rf.findPaths("scripts");
 //        std::cout << "app path : " << appPaths.toString()<< std::endl;
         QString appPathsStr="";
-        for (int ind=0; ind < appPaths.size(); ++ind){
+        for (size_t ind=0; ind < appPaths.size(); ++ind){
             appPathsStr += (appPaths.get(ind).asString() + ";").c_str();
         }
-        for (int ind=0; ind < appPaths2.size(); ++ind){
+        for (size_t ind=0; ind < appPaths2.size(); ++ind){
             appPathsStr += (appPaths2.get(ind).asString() + ";").c_str();
         }
+        if (add_curr_dir)
+        {
+            appPathsStr += (current_dir + std::string(";")).c_str();
+        }
+        std::string sss= appPathsStr.toLatin1().data();
         config.put("apppath", appPathsStr.toLatin1().data());
     }
 
@@ -120,8 +156,12 @@ int main(int argc, char *argv[])
        appPaths=rf.findPaths("modules");
        //std::cout << "mod path : " << appPaths.toString()<< std::endl;
        QString modPathsStr="";
-       for (int ind=0; ind < appPaths.size(); ++ind){
+       for (size_t ind=0; ind < appPaths.size(); ++ind){
            modPathsStr += (appPaths.get(ind).asString() + ";").c_str();
+       }
+       if (add_curr_dir)
+       {
+           modPathsStr += (current_dir + std::string(";")).c_str();
        }
        config.put("modpath", modPathsStr.toLatin1().data());
     }
@@ -130,8 +170,12 @@ int main(int argc, char *argv[])
        appPaths=rf.findPaths("resources");
        //std::cout << "res path : " << appPaths.toString()<< std::endl;
        QString resPathsStr="";
-       for (int ind=0; ind < appPaths.size(); ++ind){
+       for (size_t ind=0; ind < appPaths.size(); ++ind){
            resPathsStr += (appPaths.get(ind).asString() + ";").c_str();
+       }
+       if (add_curr_dir)
+       {
+           resPathsStr += (current_dir + std::string(";")).c_str();
        }
        config.put("respath", resPathsStr.toLatin1().data());
     }
@@ -140,15 +184,19 @@ int main(int argc, char *argv[])
        appPaths=rf.findPaths("templates/applications");
       // std::cout << "templ path : " << appPaths.toString()<< std::endl;
        QString templPathsStr="";
-       for (int ind=0; ind < appPaths.size(); ++ind){
+       for (size_t ind=0; ind < appPaths.size(); ++ind){
             templPathsStr += (appPaths.get(ind).asString() + ";").c_str();
+       }
+       if (add_curr_dir)
+       {
+           templPathsStr += (current_dir + std::string(";")).c_str();
        }
        config.put("templpath", templPathsStr.toLatin1().data());
 
     }
 
     if(!config.check("load_subfolders")){
-        config.put("load_subfolders", "no");
+        config.put("load_subfolders", "yes");
     }
 
     if(!config.check("watchdog")){
@@ -171,11 +219,11 @@ int main(int argc, char *argv[])
         config.put("auto_dependency", "no");
     }
 
-#if defined(WIN32)
+#if defined(_WIN32)
     //setup signal handler for windows
-//    ACE_OS::signal(SIGINT, (ACE_SignalHandler) onSignal);
-//    ACE_OS::signal(SIGBREAK, (ACE_SignalHandler) onSignal);
-//    ACE_OS::signal(SIGTERM, (ACE_SignalHandler) onSignal);
+//    signal(SIGINT, onSignal);
+//    signal(SIGBREAK, onSignal);
+//    signal(SIGTERM, onSignal);
 
 #else
     // Set up the structure to specify the new action.

@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <stdio.h>
@@ -24,7 +27,7 @@ BufferedPort<Bottle> *iPort=0;
 
 static void handler (int) {
     static int ct = 0;
-    ct++;    
+    ct++;
 
     fprintf(stderr, "[try %d of %d] Asking to shut down smoothly\n",ct, 3);
     terminated = true;
@@ -64,7 +67,7 @@ int main(int argc, char *argv[]) {
     // name port
     Value *val;
     Value *prot;
-    ConstString local = "/get_image";
+    std::string local = "/get_image";
     if (opt.check("local",val)) {
         local = val->asString().c_str();
     }
@@ -77,7 +80,7 @@ int main(int argc, char *argv[]) {
             Network::connect(val->asString(), local.c_str(), prot->asString().c_str());
         else
             Network::connect(val->asString(), local.c_str());
-    }        
+    }
     // read
     double first = Time::now();
     double prev = 0;
@@ -108,4 +111,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-

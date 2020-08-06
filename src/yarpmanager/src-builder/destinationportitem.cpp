@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "destinationportitem.h"
 #include <QGraphicsDropShadowEffect>
 #include <QDebug>
@@ -13,7 +31,7 @@ DestinationPortItem::DestinationPortItem(QString itemName, bool isInApp,
     this->itemName = itemName;
     errorState = false;
     portAvailable = false;
-    sigHandler = new ItemSignalHandler((QGraphicsItem*)this,DestinationPortItemType,NULL);
+    sigHandler = new ItemSignalHandler((QGraphicsItem*)this,DestinationPortItemType,nullptr);
     pressed = false;
     moved = false;
     this->nestedInApp = isInApp;
@@ -21,7 +39,11 @@ DestinationPortItem::DestinationPortItem(QString itemName, bool isInApp,
     this->app = app;
 
     QFontMetrics fontMetric(font);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int textWidth = fontMetric.horizontalAdvance(itemName);
+#else
     int textWidth = fontMetric.width(itemName);
+#endif
 
     prepareGeometryChange();
     mainRect = QRectF(-((2*PORT_TEXT_WIDTH) + textWidth)/2,-16,(2*PORT_TEXT_WIDTH) + textWidth,32);
@@ -35,7 +57,7 @@ DestinationPortItem::DestinationPortItem(QString itemName, bool isInApp,
     setFlag(ItemSendsGeometryChanges,!isInApp);
 
     if(!isInApp){
-        QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect();
+        auto* effect = new QGraphicsDropShadowEffect();
         effect->setColor(QColor(80,80,80,80));
         effect->setBlurRadius(5);
         setGraphicsEffect(effect);
@@ -45,7 +67,7 @@ DestinationPortItem::DestinationPortItem(QString itemName, bool isInApp,
     allowOutputs= false;
 
     lineEditWidget = new QGraphicsProxyWidget(this);
-    QLineEdit *lineEdit = new QLineEdit();
+    auto* lineEdit = new QLineEdit();
     QObject::connect(lineEdit,SIGNAL(editingFinished()),signalHandler(),SLOT(onEditingFinished()));
     QObject::connect(lineEdit,SIGNAL(returnPressed()),signalHandler(),SLOT(onEditingFinished()));
     lineEdit->setText(itemName);
@@ -150,7 +172,11 @@ void DestinationPortItem::editingFinished()
     lineEditWidget->setVisible(false);
 
     QFontMetrics fontMetric(font);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int textWidth = fontMetric.horizontalAdvance(itemName);
+#else
     int textWidth = fontMetric.width(itemName);
+#endif
 
     prepareGeometryChange();
     mainRect = QRectF(-((2*PORT_TEXT_WIDTH) + textWidth)/2,-15,(2*PORT_TEXT_WIDTH) + textWidth,30);
@@ -161,7 +187,7 @@ void DestinationPortItem::editingFinished()
     geo.setWidth(textWidth);
     lineEditWidget->setGeometry(geo);
     lineEditWidget->setPos(-textWidth/2,-lineEditWidget->geometry().height()/2);
-    signalHandler()->modified();
+    emit signalHandler()->modified();
 
     updateConnections();
     updateConnectionsTo(this->itemName);
@@ -221,7 +247,7 @@ QPointF DestinationPortItem::connectionPoint()
 void DestinationPortItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     if(moved && !nestedInApp){
-        sigHandler->modified();
+        emit sigHandler->modified();
         foreach (Arrow *arrow, arrows) {
             arrow->updateModel();
         }
@@ -259,4 +285,3 @@ void DestinationPortItem::setAvailable(bool available)
     portAvailable = available;
     update();
 }
-

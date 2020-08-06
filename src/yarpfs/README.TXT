@@ -1,6 +1,10 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# Copyright (C) 2007 Giacomo Spigler
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 This directory is NOT included in the main YARP build.
 
@@ -37,7 +41,7 @@ If you want to play with this here are some tips:
 + Change into the directory and look around: [as root] cd /mnt/yarp; ls
 
 + You should see a directory tree reflecting the ports that
-  exist in your YARP Network.  
+  exist in your YARP Network.
 
 + The "leaf" files called "rw" can be read from
   and written to, and the data comes from and goes to the port

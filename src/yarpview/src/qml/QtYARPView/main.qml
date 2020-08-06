@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 import QtQuick 2.0
@@ -64,13 +72,24 @@ ApplicationWindow {
             window.width = w
             window.height = h
         }
-        onSynch:{
+        onAutosize:{
+            if(menu !== undefined){
+                menu.enableAutosize(check)
+            }
+        }
+        onSynchRate:{
             if(menu !== undefined){
                 menu.enableSynch(check)
             }
         }
         onSetName:{
             statusBar.setName(name)
+        }
+        onSaveSetClosed:{
+            menu.saveSetChecked(check);
+        }
+        onSaveSingleClosed:{
+            menu.saveSingleChecked(check);
         }
     }
 
@@ -93,8 +112,12 @@ ApplicationWindow {
             vSurface.changeRefreshInterval()
         }
 
-        onSynchToDisplay:{
-            vSurface.synchToDisplay(checked)
+        onSynchDisplayPeriod:{
+            vSurface.synchDisplayPeriod(checked)
+        }
+
+        onSynchDisplaySize:{
+            vSurface.synchDisplaySize(checked)
         }
 
         onSaveSingleImage:{
@@ -105,12 +128,27 @@ ApplicationWindow {
             vSurface.saveSetImages(checked)
 
         }
+
+        onPickColor:{
+            vSurface.enableColorPicking(checked);
+            statusBar.setPixelValVisibility(checked);
+        }
+
         onAbout:{
             vSurface.about()
         }
 
         onQuit:{
             Qt.quit()
+        }
+    }
+
+    Connections{
+        target: statusBar
+
+        onHeightChanged:{
+            calc();
+            vSurface.setOriginalAspectRatio()
         }
     }
 }

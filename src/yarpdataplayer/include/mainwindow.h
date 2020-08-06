@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -21,9 +39,6 @@
 #include <yarp/os/RpcServer.h>
 #include "yarpdataplayer_IDL.h"
 #include "include/loadingwidget.h"
-
-using namespace std;
-using namespace yarp::os;
 
 class InitThread;
 
@@ -78,42 +93,46 @@ public:
     /**
      * function that that handles an IDL message - step
      */
-    bool step();
+    bool step() override;
     /**
      * function that handles an IDL message - setFrame
      */
-    bool setFrame(const std::string &name, const int frameNum);
+    bool setFrame(const std::string &name, const int frameNum) override;
     /**
      * function that handles an IDL message - getFrame
      */
-    int  getFrame(const std::string &name);
+    int  getFrame(const std::string &name) override;
     /**
      * function that handles an IDL message - load
      */
-    bool load(const std::string &path);
+    bool load(const std::string &path) override;
+    /**
+     * function that returns slider percentage
+     */
+    int  getSliderPercentage() override;
     /**
      * function that handles an IDL message - play
      */
-    bool play();
+    bool play() override;
     /**
      * function that handles an IDL message - pause
      */
-    bool pause();
+    bool pause() override;
     /**
      * function that handles an IDL message - stop
      */
-    bool stop();
+    bool stop() override;
     /**
      * function that handles an IDL message - quit
      */
-    bool quit();
+    bool quit() override;
 
 
 private:
     /**
      * function that setups the required actions
      */
-    void setupActions(void);
+    void setupActions();
     /**
      * function that setups the required signals
      */
@@ -129,11 +148,11 @@ private:
     /**
      * function that closes the module from the gui
      */
-    bool safeExit(void);
+    bool safeExit();
     /**
      * function that closes the module from the terminal
      */
-    bool cmdSafeExit(void);
+    bool cmdSafeExit();
 
     QTreeWidgetItem *getRowByPart(QString szName);
 
@@ -159,17 +178,14 @@ protected:
      */
     void stepFromCommand(yarp::os::Bottle &reply);
 
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 
 private:
     Ui::MainWindow              *ui;
     QString                     moduleName;
     bool                        add_prefix; //indicates if ports have to be opened with /<moduleName> as prefix
     yarp::os::RpcServer         rpcPort;
-    std::vector<std::string>    partsName;
-    std::vector<std::string>    partsFullPath;
-    std::vector<std::string>    partsInfoPath;
-    std::vector<std::string>    partsLogPath;
+    std::vector<RowInfo>        rowInfoVec;
     int                         subDirCnt;
     std::vector<std::string>    dataType;
 
@@ -207,10 +223,10 @@ signals:
     void internalPlay();
     void internalPause();
     void internalStop();
-    void internalStep(Bottle *reply);
+    void internalStep(yarp::os::Bottle *reply);
     void internalSetFrame(const std::string &name, const int frameNum);
     void internalGetFrame(const std::string &name, int *frame);
-
+    void internalGetSliderPercentage(int * percentage);
 
 private slots:
     void onInternalQuit();
@@ -240,9 +256,10 @@ private slots:
     void onInternalPlay();
     void onInternalPause();
     void onInternalStop();
-    void onInternalStep(Bottle *reply);
+    void onInternalStep(yarp::os::Bottle *reply);
     void onInternalSetFrame(const std::string &name, const int frameNum);
     void onInternalGetFrame(const std::string &name, int *frame);
+    void onInternalGetSliderPercentage(int *frame);
 
 };
 
@@ -252,29 +269,22 @@ class InitThread : public QThread
     Q_OBJECT
 
 public:
-    InitThread(Utilities *utilities, QString newPath,
-               std::vector<std::string>    *partsName,
-               std::vector<std::string>    *partsFullPath,
-               std::vector<std::string>    *partsInfoPath,
-               std::vector<std::string>    *partsLogPath,
+    InitThread(Utilities *utilities,
+               QString newPath,
+               std::vector<RowInfo>& rowInfoVec,
                QObject *parent = 0);
 
 protected:
-    void run();
+    void run() override;
 
 private:
     Utilities *utilities;
     QString newPath;
     QMainWindow *mainWindow;
-    std::vector<std::string>    *partsName;
-    std::vector<std::string>    *partsFullPath;
-    std::vector<std::string>    *partsInfoPath;
-    std::vector<std::string>    *partsLogPath;
-
+    std::vector<RowInfo>        rowInfoVec;
 signals:
     void initDone(int subDirCount);
 };
 
 
 #endif // MAINWINDOW_H
-

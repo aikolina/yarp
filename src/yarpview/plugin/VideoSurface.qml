@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 import robotology.yarp.view 1.0
@@ -29,11 +37,14 @@ Rectangle {
     property int menuHeight: 0
     property string name: "yarpview"
     property string version: "2.0"
+    property bool showPixelCol: false
 
     signal changeWindowSize(int w, int h)
-    signal synch(bool check);
-    signal setName(string name)
-
+    signal synchRate(bool check);
+    signal autosize(bool check);
+    signal setName(string name);
+    signal saveSetClosed(bool check);
+    signal saveSingleClosed(bool check);
 
     /*********Connections*********/
     Connections{
@@ -43,6 +54,8 @@ Rectangle {
                 dataArea.avgFps = avg
                 dataArea.minFps = min
                 dataArea.maxFps = max
+                dataArea.portSizeX = yarpViewCore.videoProducer.frameWidth
+                dataArea.portSizeY = yarpViewCore.videoProducer.frameHeight
             }
         }
         onSendDisplayFps:{
@@ -50,15 +63,34 @@ Rectangle {
                 dataArea.displayAvgFps = avg
                 dataArea.displayMinFps = min
                 dataArea.displayMaxFps= max
+                dataArea.displaySizeX = width
+                dataArea.displaySizeY = height
             }
         }
 
-        onSynch:{
-            synch(check);
+        onSynchRate:{
+            synchRate(check);
+        }
+
+        onAutosize:{
+            autosize(check);
         }
 
         onSetName:{
             setName(name)
+        }
+
+        onWidthChanged:{
+            //console.log("onWidthChanged")
+        }
+
+        onHeightChanged:{
+            //console.log("onHeightChanged")
+        }
+
+        onSizeChanged:{
+            //console.log("onSizeChanged")
+            setOriginalSize()
         }
     }
 
@@ -105,6 +137,11 @@ Rectangle {
     /******************************/
 
     /********Functions************/
+    function enableColorPicking(flag){
+        coordsMouseArea.hoverEnabled = flag;
+        maincontainer.showPixelCol = flag;
+    }
+
     function parseParameters(params){
         var ret = yarpViewCore.parseParameters(params)
         return ret
@@ -164,8 +201,12 @@ Rectangle {
         setIntervalDlg.visibility = Window.Windowed
     }
 
-    function synchToDisplay(checked){
-        yarpViewCore.synchToDisplay(checked)
+    function synchDisplayPeriod(checked){
+        yarpViewCore.synchDisplayPeriod(checked)
+    }
+
+    function synchDisplaySize(checked){
+        yarpViewCore.synchDisplaySize(checked)
     }
 
     function saveSingleImage(checked){
@@ -203,29 +244,121 @@ Rectangle {
         MouseArea{
             anchors.fill: parent
             id: coordsMouseArea
+            property var clickX
+            property var clickY
+            property var startclickX
+            property var startclickY
+            property var lastclickX
+            property var lastclickY
+            property var currX
+            property var currY
+            property bool pressing: false
 
-            onClicked: {
-                var x = mouse.x
-                var y = mouse.y
+            /*! \brief Converts a pair of mouse XY coordinates to video frame coordinates
+             *  \param x Integer: The mouse X coordinate
+             *  \param y Integer: The mouse Y coordinate
+             *  \return toReturn Dictionary: It contains the X and Y values of the newly computed video frame coordinates
+             */
+            function coordsConverter(x,y){
 
                 var frameW = yarpViewCore.videoProducer.frameWidth;
-                var frameH = yarpViewCore.videoProducer.frameHeight
+                var frameH = yarpViewCore.videoProducer.frameHeight;
 
-                var w = mainVideoOutput.width
-                var h = mainVideoOutput.height
+                var w = mainVideoOutput.width;
+                var h = mainVideoOutput.height;
 
-                var ratioW = w/frameW
-                var ratioH = h/frameH
+                var ratioW = w/frameW;
+                var ratioH = h/frameH;
 
-                var clickX = x/ratioW
-                var clickY = y/ratioH
+                var toReturn = {"x":0,"y":0};
+                toReturn["x"] = Math.round(x/ratioW);
+                toReturn["y"] = Math.round(y/ratioH);
 
-                yarpViewCore.clickCoords(clickX,clickY)
+                return toReturn;
+            }
 
+            onClicked: {
+                startclickX = mouse.x
+                startclickY = mouse.y
+                var clickCoords = coordsConverter(mouse.x,mouse.y);
+
+                clickX = clickCoords["x"];
+                clickY = clickCoords["y"];
+
+                yarpViewCore.clickCoords_2(clickX,clickY)
+            }
+
+            onPressed: {
+                startclickX = mouse.x
+                startclickY = mouse.y
+                startclickX = mouse.x
+                startclickY = mouse.y
+                var clickCoords = coordsConverter(mouse.x,mouse.y);
+
+                clickX = clickCoords["x"];
+                clickY = clickCoords["y"];
+            }
+
+            onPressAndHold: {
+                pressing = true;
+                canvasOverlay.requestPaint()
+            }
+
+            onReleased: {
+                if (pressing)
+                {
+                    pressing = false;
+                    var clickCoords = coordsConverter(mouse.x,mouse.y);
+
+                    lastclickX = clickCoords["x"];
+                    lastclickY = clickCoords["y"];
+
+                    yarpViewCore.clickCoords_4(clickX,clickY,lastclickX,lastclickY);
+                }
+                canvasOverlay.requestPaint();
+            }
+
+            onPositionChanged:
+            {
+                if(maincontainer.showPixelCol){
+                    var coords = coordsConverter(mouse.x,mouse.y);
+                    dataArea.pixelXStr = ""+coords["x"];
+                    dataArea.pixelYStr = ""+coords["y"];
+                    dataArea.setPixelVal(yarpViewCore.getPixelAsStr(coords["x"],coords["y"]));
+                }
+                if(pressed){
+                    currX=mouse.x;
+                    currY=mouse.y;
+                    canvasOverlay.requestPaint()
+                }
+            }
+
+            Canvas
+            {
+                id:canvasOverlay
+                width: parent.width
+                height: parent.height
+                anchors.fill: parent
+                visible: true
+
+                onPaint:
+                {
+                    var ctx = canvasOverlay.getContext("2d")
+                    ctx.clearRect(0, 0, canvasOverlay.width, canvasOverlay.height);
+                    if (coordsMouseArea.pressing)
+                    {
+                        ctx.lineWidth = 1
+                        ctx.strokeStyle = "red"
+                        ctx.beginPath()
+                        ctx.moveTo(coordsMouseArea.startclickX,coordsMouseArea.startclickY)
+                        ctx.lineTo(coordsMouseArea.currX,coordsMouseArea.currY)
+                        ctx.closePath()
+                        ctx.stroke()
+                    }
+                }
             }
         }
     }
-
 
 
 
@@ -241,6 +374,10 @@ Rectangle {
         signal saveFrameSet()
         signal stopSavingFrameSet()
         signal setFileName(url fileName)
+
+        onClosing: {
+            saveSetClosed(false);
+        }
 
         function save(){
             saveFrameSet()
@@ -327,6 +464,10 @@ Rectangle {
 
         signal saveFrame()
         signal setFileName(url fileName)
+
+        onClosing: {
+            saveSingleClosed(false);
+        }
 
         function save(){
             saveFrame()
@@ -565,7 +706,7 @@ Rectangle {
                 anchors.rightMargin: 10
                 anchors.bottomMargin: 10
 
-                text: "Released under the terms of the LGPLv2.1 or later, see LGPL.TXT " +
+                text: "Released under the terms of the LGPLv2.1 or later, see LICENSE " +
                 "The complete license description is contained in the " +
                 "COPYING file included in this distribution." +
                 "Please refer to this file for complete " +

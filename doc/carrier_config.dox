@@ -1,13 +1,7 @@
-/*
- * Copyright (C) 2010 RobotCub Consortium
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- *
- */
-
 /**
- * @page carrier_config Configuring YARP Connections
+\page carrier_config Configuring YARP Connections
 
-@author Paul Fitzpatrick
+\tableofcontents
 
 Every YARP connection has a specific type of carrier associated
 with it.  This corresponds roughly to the "transport" used to
@@ -236,7 +230,7 @@ streams).  See \ref yarp_http_recv_images.
 yarp connect /src /dest mjpeg
 \endverbatim
 
-To compile this carrier, turn on CREATE_OPTIONAL_CARRIERS and then
+To compile this carrier, turn on YARP_COMPILE_CARRIER_PLUGINS and then
 ENABLE_yarpcar_mjpeg_carrier in CMake.  There will be an extra CMake
 option called MJPEG_AUTOCOMPRESS.  If turned on, this carrier will
 deliver images of standard YARP image format to ports.  If turned
@@ -307,7 +301,7 @@ For example, suppose port /grabber is streaming bayer images.
 For concreteness, here's a test program to do that (back.ppm is
 an arbitrary test image in PPM format):
 \verbatim
-  yarpdev --device test_grabber --src back.ppm --bayer --name /grabber
+  yarpdev --device fakeFrameGrabber --src back.ppm --bayer --name /grabber
 \endverbatim
 Suppose we start an image viewer and look at the stream from
 /grabber, using (for example) udp:
@@ -349,5 +343,4 @@ specified using the "method" carrier modifier:
 Available methods: bilinear, hqlinear, downsample, vng, ahd, nearest,
 simple.
 
-*
 */

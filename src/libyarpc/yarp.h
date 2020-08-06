@@ -1,16 +1,20 @@
 /*
- * Copyright (C) 2008, 2009 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
+ */
+
+/*
  * This is a plain C interface to YARP.  It is as yet incomplete.
- *
  */
 
 #ifndef YET_ANOTHER_ROBOT_PLATFORM_CVERSION_INC
 #define YET_ANOTHER_ROBOT_PLATFORM_CVERSION_INC
 
-#ifndef WIN32
+#if !defined(_WIN32)
 #define YARP_DECLARE(return_type) return_type
 #else
 #ifdef yarpc_EXPORTS
@@ -27,14 +31,14 @@ extern "C" {
     /**
      *
      * Plain C network structure.  This structure represents the
-     * overall YARP network.  
+     * overall YARP network.
      *
      */
     typedef struct yarpNetworkStruct {
         void *implementation;
     } yarpNetwork;
     typedef yarpNetwork *yarpNetworkPtr;
-    
+
     /**
      *
      * Plain C port structure.  This structure represents individual
@@ -45,7 +49,7 @@ extern "C" {
         void *implementation;
     } yarpPort;
     typedef yarpPort *yarpPortPtr;
-    
+
     /**
      *
      * Plain C contact structure.  This structure represents how to
@@ -106,7 +110,7 @@ extern "C" {
     typedef struct yarpPortableStruct {
         void *client;            // user pointer, will be untouched
         void *implementation;    // private
-        void *adaptor;           // private 
+        void *adaptor;           // private
     } yarpPortable;
     typedef yarpPortable *yarpPortablePtr;
 
@@ -119,7 +123,7 @@ extern "C" {
         void *implementation;
     } yarpString;
     typedef yarpString *yarpStringPtr;
-    
+
     /**
      *
      * Plain C thread callback structure.
@@ -148,7 +152,7 @@ extern "C" {
         yarpThreadCallbacksPtr callbacks;
     } yarpThread;
     typedef yarpThread *yarpThreadPtr;
-    
+
     /**
      *
      * Plain C semaphore structure.  This structure represents semaphores.
@@ -158,7 +162,7 @@ extern "C" {
         void *implementation;
     } yarpSemaphore;
     typedef yarpSemaphore *yarpSemaphorePtr;
-    
+
     /**
      *
      * Plain C bottle structure.  This structure represents YARP bottles.
@@ -168,18 +172,18 @@ extern "C" {
      */
     typedef yarpPortable yarpBottle;
     typedef yarpBottle *yarpBottlePtr;
-    
+
 
     YARP_DECLARE(yarpNetworkPtr) yarpNetworkCreate();
     YARP_DECLARE(void) yarpNetworkFree(yarpNetworkPtr network);
     YARP_DECLARE(yarpNetworkPtr) yarpNetworkGet();
     YARP_DECLARE(int) yarpNetworkSetLocalMode(yarpNetworkPtr network,
                                               int isLocal);
-    YARP_DECLARE(int) yarpNetworkConnect(yarpNetworkPtr network, 
+    YARP_DECLARE(int) yarpNetworkConnect(yarpNetworkPtr network,
                                          const char *src,
                                          const char *dest,
                                          const char *carrier);
-    YARP_DECLARE(int) yarpNetworkDisconnect(yarpNetworkPtr network, 
+    YARP_DECLARE(int) yarpNetworkDisconnect(yarpNetworkPtr network,
                                             const char *src,
                                             const char *dest);
 
@@ -194,11 +198,11 @@ extern "C" {
     YARP_DECLARE(int) yarpPortEnableBackgroundWrite(yarpPortPtr port,
                                                     int writeInBackgroundFlag);
     YARP_DECLARE(int) yarpPortWrite(yarpPortPtr port, yarpPortablePtr msg);
-    YARP_DECLARE(int) yarpPortRead(yarpPortPtr port, 
+    YARP_DECLARE(int) yarpPortRead(yarpPortPtr port,
                                    yarpPortablePtr msg,
                                    int willReply);
     YARP_DECLARE(int) yarpPortReply(yarpPortPtr port, yarpPortablePtr msg);
-    YARP_DECLARE(int) yarpPortWriteWithReply(yarpPortPtr port, 
+    YARP_DECLARE(int) yarpPortWriteWithReply(yarpPortPtr port,
                                              yarpPortablePtr msg,
                                              yarpPortablePtr reply);
     YARP_DECLARE(yarpContactPtr) yarpContactCreate();
@@ -211,13 +215,13 @@ extern "C" {
     YARP_DECLARE(int) yarpReaderExpectText(yarpReaderPtr reader,
                                            yarpStringPtr str,
                                            char terminal);
-    YARP_DECLARE(int) yarpReaderExpectInt(yarpReaderPtr reader, int *data);
+    YARP_DECLARE(int) yarpReaderExpectInt32(yarpReaderPtr reader, int *data);
     YARP_DECLARE(int) yarpReaderExpectDouble(yarpReaderPtr reader, double *data);
     YARP_DECLARE(int) yarpReaderIsTextMode(yarpReaderPtr reader);
 
-    YARP_DECLARE(int) yarpWriterAppendInt(yarpWriterPtr c, int data);
+    YARP_DECLARE(int) yarpWriterAppendInt32(yarpWriterPtr c, int data);
 
-    YARP_DECLARE(int) yarpPortableInit(yarpPortablePtr portable, 
+    YARP_DECLARE(int) yarpPortableInit(yarpPortablePtr portable,
                                        yarpPortableCallbacksPtr callbacks);
 
     YARP_DECLARE(int) yarpPortableFini(yarpPortablePtr portable);
@@ -260,7 +264,7 @@ extern "C" {
 
     YARP_DECLARE(int) yarpBottleInit(yarpBottlePtr bottle);
     YARP_DECLARE(int) yarpBottleFini(yarpBottlePtr bottle);
-    YARP_DECLARE(void) yarpBottleAddInt(yarpBottlePtr bottle, int x);
+    YARP_DECLARE(void) yarpBottleAddInt32(yarpBottlePtr bottle, int x);
     YARP_DECLARE(void) yarpBottleAddDouble(yarpBottlePtr bottle, double x);
     YARP_DECLARE(void) yarpBottleAddString(yarpBottlePtr bottle, const char *x);
     YARP_DECLARE(int) yarpBottleWrite(yarpBottlePtr bottle, yarpWriterPtr connection);
@@ -273,5 +277,3 @@ extern "C" {
 #endif
 
 #endif
-
-

@@ -1,28 +1,46 @@
 /*
-* Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
-* Author: Marco Randazzo <marco.randazzo@iit.it>
-* CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-*/
-
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef RPLIDAR_H
 #define RPLIDAR_H
 
-#include <string>
 
-#include <yarp/os/RateThread.h>
+#include <yarp/os/LogComponent.h>
+#include <yarp/os/PeriodicThread.h>
 #include <yarp/os/Semaphore.h>
 #include <yarp/dev/ControlBoardInterfaces.h>
 #include <yarp/dev/IRangefinder2D.h>
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/sig/Vector.h>
-#include <yarp/dev/SerialInterfaces.h>
+#include <yarp/dev/ISerialDevice.h>
+
+#include <mutex>
+#include <string>
 #include <vector>
 
 using namespace yarp::os;
 using namespace yarp::dev;
 
 typedef unsigned char byte;
+
+
+YARP_DECLARE_LOG_COMPONENT(RPLIDAR)
+
 
 class rpLidarCircularBuffer
 {
@@ -53,8 +71,8 @@ public:
         end = (end + 1) % maxsize;
         if (end == start)
         {
-            yError("rpLidar buffer overrun!");
-            start = (start + 1) % maxsize; // full, overwrite 
+            yCError(RPLIDAR, "rpLidar buffer overrun!");
+            start = (start + 1) % maxsize; // full, overwrite
             return false;
         }
         return true;
@@ -85,7 +103,7 @@ public:
     {
         if (end == start)
         {
-            yError("rpLidar buffer underrun!");
+            yCError(RPLIDAR, "rpLidar buffer underrun!");
             return false;
         }
         *elem = elems[start];
@@ -159,13 +177,13 @@ struct Range_t
 
 //---------------------------------------------------------------------------------------------------------------
 
-class RpLidar : public RateThread, public yarp::dev::IRangefinder2D, public DeviceDriver
+class RpLidar : public PeriodicThread, public yarp::dev::IRangefinder2D, public DeviceDriver
 {
 protected:
     PolyDriver driver;
     ISerialDevice *pSerial;
 
-    yarp::os::Mutex mutex;
+    std::mutex mutex;
     rpLidarCircularBuffer * buffer;
 
     int sensorsNum;
@@ -186,7 +204,18 @@ protected:
     yarp::sig::Vector laser_data;
 
 public:
-    RpLidar(int period = 10) : RateThread(period)
+    RpLidar(double period = 0.01) : PeriodicThread(period),
+        pSerial(nullptr),
+        sensorsNum(0),
+        min_angle(0.0),
+        max_angle(0.0),
+        min_distance(0.0),
+        max_distance(0.0),
+        resolution(0.0),
+        clip_max_enable(false),
+        clip_min_enable(false),
+        do_not_clip_infinity_enable(false),
+        device_status(Device_status::DEVICE_OK_STANBY)
     {
         buffer = new rpLidarCircularBuffer(20000);
     }
@@ -201,26 +230,26 @@ public:
         }
     }
 
-    virtual bool open(yarp::os::Searchable& config);
-    virtual bool close();
-    virtual bool threadInit();
-    virtual void threadRelease();
-    virtual void run();
+    bool open(yarp::os::Searchable& config) override;
+    bool close() override;
+    bool threadInit() override;
+    void threadRelease() override;
+    void run() override;
 
 public:
     //IRangefinder2D interface
-    virtual bool getRawData(yarp::sig::Vector &data);
-    virtual bool getLaserMeasurement(std::vector<LaserMeasurementData> &data);
-    virtual bool getDeviceStatus     (Device_status &status);
-    virtual bool getDeviceInfo       (yarp::os::ConstString &device_info);
-    virtual bool getDistanceRange    (double& min, double& max);
-    virtual bool setDistanceRange    (double min, double max);
-    virtual bool getScanLimits        (double& min, double& max);
-    virtual bool setScanLimits        (double min, double max);
-    virtual bool getHorizontalResolution      (double& step);
-    virtual bool setHorizontalResolution      (double step);
-    virtual bool getScanRate         (double& rate);
-    virtual bool setScanRate         (double rate);
+    bool getRawData(yarp::sig::Vector &data) override;
+    bool getLaserMeasurement(std::vector<LaserMeasurementData> &data) override;
+    bool getDeviceStatus     (Device_status &status) override;
+    bool getDeviceInfo       (std::string &device_info) override;
+    bool getDistanceRange    (double& min, double& max) override;
+    bool setDistanceRange    (double min, double max) override;
+    bool getScanLimits        (double& min, double& max) override;
+    bool setScanLimits        (double min, double max) override;
+    bool getHorizontalResolution      (double& step) override;
+    bool setHorizontalResolution      (double step) override;
+    bool getScanRate         (double& rate) override;
+    bool setScanRate         (double rate) override;
 
 private:
     bool  HW_getHealth();

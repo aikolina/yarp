@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 /**
@@ -21,14 +24,12 @@
 #include "Player.h"
 
 #include <yarp/os/all.h>
+#include <mutex>
 #include <string>
 
 using namespace yarp::os;
 
-typedef std::string String;
-
-
-Semaphore clientMutex(1);
+std::mutex clientMutex;
 static int clientCount = 0;
 
 
@@ -37,17 +38,17 @@ public:
     int id;
     bool loggedOn;
     Player player;
-    String result;
+    std::string result;
     ConnectionWriter *writer;
     Replier& broadcaster;
 
     ClientService(Replier& broadcaster) : broadcaster(broadcaster) {
         loggedOn=false;
-        clientMutex.wait();
+        clientMutex.lock();
         clientCount++;
         printf("Connection created, client #%d\n", clientCount);
         id = clientCount;
-        clientMutex.post();
+        clientMutex.unlock();
         player.setReplier(this);
         writer = NULL;
     }
@@ -55,19 +56,19 @@ public:
     virtual ~ClientService() {
         player.setReplier(NULL);
         player.shutdown();
-        clientMutex.wait();
+        clientMutex.lock();
         printf("Connection shut down for %d\n", id);
         clientCount--;
-        clientMutex.post();
+        clientMutex.unlock();
     }
 
     virtual bool read(ConnectionReader& connection) {
         result = "";
-        printf("Reading something from <%s>\n", 
+        printf("Reading something from <%s>\n",
                connection.getRemoteContact().getName().c_str());
         if (!loggedOn) {
             printf("Completing login...\n");
-            String cmd = "connect ";
+            std::string cmd = "connect ";
             cmd += connection.getRemoteContact().getName().c_str();
             player.apply(cmd.c_str());
             loggedOn = true;
@@ -77,8 +78,8 @@ public:
         writer = connection.getWriter();
         if (writer!=NULL) {
             // just send the same thing back
-            ConstString str = receive.get(0).asString();
-            String ask = str.c_str();
+            std::string str = receive.get(0).asString();
+            std::string ask = str.c_str();
             for (int i=1; i<receive.size(); i++) {
                 ask += " ";
                 ask += receive.get(i).asString().c_str();
@@ -95,7 +96,7 @@ public:
         if (result.length()>0 && loggedOn) {
             //if (reply.size()>0) {
             if (writer->isTextMode()) {
-                writer->appendString(result.c_str());
+                writer->appendText(result.c_str());
             } else {
                 Bottle reply;
                 reply.fromString(result.c_str());
@@ -148,7 +149,7 @@ public:
         man.setReaderCreator(*this);
         man.open(Contact("/game", "...", "...", 8080));
         Contact where = man.where();
-        printf("Game reachable at ip %s port %d (registered with yarp as %s)\n", 
+        printf("Game reachable at ip %s port %d (registered with yarp as %s)\n",
                where.getHost().c_str(),
                where.getPort(),
                where.getName().c_str());
@@ -178,7 +179,6 @@ int main() {
     //Network::setLocalMode(true);
     ClientFactory factory;
     Game::getGame().main();
-  
+
     return 0;
 }
-

@@ -1,18 +1,19 @@
-# Copyright: (C) 2010 RobotCub Consortium
-# Authors: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-if (CREATE_DEVICE_LIBRARY_MODULES)
+add_executable(yarphear)
+target_sources(yarphear PRIVATE yarphear.cpp)
+target_link_libraries(yarphear PRIVATE YARP::YARP_os
+                                       YARP::YARP_sig
+                                       YARP::YARP_dev
+                                       YARP::YARP_init)
 
-  get_property(YARP_TREE_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_TREE_INCLUDE_DIRS})
-  include_directories(${ACE_INCLUDE_DIRS})
-  add_executable(yarphear yarphear.cpp)
-  target_link_libraries(yarphear YARP_OS YARP_sig YARP_dev YARP_init)
-  target_link_libraries(yarphear ${ACE_LIBRARIES})
+install(TARGETS yarphear
+        COMPONENT utilities
+        DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-  install(TARGETS yarphear
-          COMPONENT utilities
-          DESTINATION ${CMAKE_INSTALL_BINDIR})
-
-endif(CREATE_DEVICE_LIBRARY_MODULES)
+set_property(TARGET yarphear PROPERTY FOLDER "Command Line Tools")

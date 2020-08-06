@@ -1,8 +1,11 @@
 #!/usr/bin/python
 
-# Copyright: (C) 2010 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 import socket, re, sys
 
@@ -31,7 +34,7 @@ def send_message(addr,message): # send a message and expect a reply
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(addr)
     sock.send('CONNACK extern\n')
-    get_text(sock) 
+    get_text(sock)
     sock.send('d\n%s\n' % message)
     result = get_text(sock)
     sock.close()
@@ -40,7 +43,7 @@ def send_message(addr,message): # send a message and expect a reply
 def read_loop(addr):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(addr)
-    sock.send('CONNECT extern\nr\n') 
+    sock.send('CONNECT extern\nr\n')
     while True:
         data = sock.recv(1024)
         if not data: break

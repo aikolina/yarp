@@ -1,15 +1,18 @@
-# Copyright: (C) 2012 IITRBCS
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-# Make sure that YARP_DIR is set in your environment to wherever you 
+# Make sure that YARP_DIR is set in your environment to wherever you
 # compiled YARP.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
 
-find_package(YARP REQUIRED)
+find_package(YARP COMPONENTS os name REQUIRED)
 
-include_directories(${YARP_INCLUDE_DIRS})
-add_executable(nameserver_proxy main.cpp)
-target_link_libraries(nameserver_proxy ${YARP_LIBRARIES})
-
+add_executable(nameserver_proxy)
+target_sources(nameserver_proxy PRIVATE main.cpp)
+target_link_libraries(nameserver_proxy YARP::YARP_os
+                                       YARP::YARP_name
+                                       YARP::YARP_init)

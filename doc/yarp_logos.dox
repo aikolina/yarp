@@ -1,11 +1,6 @@
-/*
- * Copyright (C) 2010 RobotCub Consortium
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- */
-
 /**
 
-@page yarp_logos YARP Logos
+\page yarp_logos YARP Logos
 
 @image html yarp-logo.png "yarp-logo.png"
 @image html yarp-logo-name.png "yarp-logo-name.png"

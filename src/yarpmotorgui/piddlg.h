@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- *         Francesco Nori <francesco.nori@iit.it>
- *         Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #ifndef PIDDLG_H
 #define PIDDLG_H
@@ -16,6 +25,8 @@
 #include <QItemDelegate>
 #include <QModelIndex>
 #include <QLineEdit>
+#include <QIntValidator>
+#include <QDoubleValidator>
 #include <vector>
 
 #include <yarp/dev/ControlBoardInterfaces.h>
@@ -33,7 +44,7 @@ class PidDlg : public QDialog
     Q_OBJECT
 
 public:
-    explicit PidDlg(QString partname, int jointIndex,QWidget *parent = 0);
+    explicit PidDlg(QString partname, int jointIndex, QString jointName, QWidget *parent = 0);
     ~PidDlg();
 
     void initPosition(Pid myPid);
@@ -43,7 +54,7 @@ public:
     void initStiffness(double curStiffVal, double minStiff, double maxStiff,
                        double curDampVal, double minDamp, double maxDamp,
                        double curForceVal, double minForce, double maxForce);
-    void initOpenLoop(double openLoopVal, double pwm);
+    void initPWM(double pwmVal, double pwm);
     void initRemoteVariables(IRemoteVariables* iVar);
 
 
@@ -52,11 +63,13 @@ signals:
     void sendPositionPid(int jointIndex, Pid pid);
     void sendVelocityPid(int jointIndex, Pid pid);
     void sendTorquePid(int jointIndex,Pid,MotorTorqueParameters newTorqueParam);
-    void sendOpenLoop(int jointIndex,int openLoopVal);
+    void sendPWM(int jointIndex,double dutyVal);
+    void sendCurrent(int jointIndex,int currentVal);
     void sendCurrentPid(int jointIndex, Pid pid);
     void sendSingleRemoteVariable(std::string key, yarp::os::Bottle val);
     void refreshPids(int jointIndex);
     void updateAllRemoteVariables();
+    void dumpRemoteVariables();
 
 private:
     Ui::PidDlg *ui;
@@ -68,14 +81,14 @@ private slots:
     void onSend();
     void onCancel();
     void onSendRemoteVariable();
-
+    void onDumpRemoteVariables();
 };
 
 class TableIntDelegate : public QItemDelegate
 {
 public:
     QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem & option,
-                      const QModelIndex & index) const
+                      const QModelIndex & index) const override
     {
         Q_UNUSED(option);
         Q_UNUSED(index);
@@ -91,7 +104,7 @@ class TableDoubleDelegate : public QItemDelegate
 {
 public:
     QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem & option,
-                      const QModelIndex & index) const
+                      const QModelIndex & index) const override
     {
         Q_UNUSED(option);
         Q_UNUSED(index);
@@ -107,7 +120,7 @@ class TableGenericDelegate : public QItemDelegate
 {
 public:
     QWidget* createEditor(QWidget *parent, const QStyleOptionViewItem & option,
-        const QModelIndex & index) const
+        const QModelIndex & index) const override
     {
         Q_UNUSED(option);
         Q_UNUSED(index);

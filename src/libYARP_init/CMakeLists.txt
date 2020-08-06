@@ -1,47 +1,24 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Paul Fitzpatrick, Giorgio Metta, Lorenzo Natale
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 project(YARP_init)
 
-get_property(YARP_TREE_INCLUDE_DIRS GLOBAL PROPERTY YARP_TREE_INCLUDE_DIRS)
-get_property(YARP_TREE_LIBRARIES GLOBAL PROPERTY YARP_LIBS)
-include_directories(${YARP_TREE_INCLUDE_DIRS})
+add_subdirectory(src)
 
-set(YARP_init_HDRS)
-set(YARP_init_IMPL_HDRS)
-set(YARP_init_SRCS src/CustomInit.cpp)
-
-source_group("Source Files" FILES ${YARP_init_SRCS})
-source_group("Header Files" FILES ${YARP_init_HDRS})
-source_group("Implementation Header Files" FILES ${YARP_init_IMPL_HDRS})
-
-add_library(YARP_init ${YARP_init_SRCS} ${YARP_init_HDRS})
-target_link_libraries(YARP_init LINK_PRIVATE YARP_OS)
-
-if(YARP_LINK_PLUGINS)
-    if(CREATE_OPTIONAL_CARRIERS)
-        set_property(SOURCE src/CustomInit.cpp
-                     APPEND PROPERTY COMPILE_DEFINITIONS
-                     PLUGIN_INIT_FUNCTION=add_yarpcar_plugins)
-        target_link_libraries(YARP_init LINK_PRIVATE yarpcar)
-    endif()
-
-    if(CREATE_DEVICE_LIBRARY_MODULES)
-        set_property(SOURCE src/CustomInit.cpp
-                     APPEND PROPERTY COMPILE_DEFINITIONS
-                     PLUGIN_INIT_FUNCTION2=add_yarpmod_plugins)
-        target_link_libraries(YARP_init LINK_PRIVATE yarpmod)
-        target_link_libraries(YARP_init LINK_PRIVATE YARP_dev)
-    endif()
+include(YarpInstallBasicPackageFiles)
+yarp_install_basic_package_files(YARP_os
+                                 DEPENDENCIES ${YARP_os_PUBLIC_DEPS} ${YARP_init_PUBLIC_DEPS}
+                                 PRIVATE_DEPENDENCIES ${YARP_os_PRIVATE_DEPS} ${YARP_init_PRIVATE_DEPS}
+                                 STATIC_CONFIG_TEMPLATE "${CMAKE_CURRENT_LIST_DIR}/YARP_osConfigStatic.cmake.in"
+                                 INCLUDE_CONTENT "
+if(NOT YARP_NO_DEPRECATED AND NOT TARGET YARP::YARP_OS)
+  add_library(YARP::YARP_OS INTERFACE IMPORTED)
+  set_target_properties(YARP::YARP_OS PROPERTIES
+    INTERFACE_LINK_LIBRARIES \"YARP::YARP_os\"
+    INTERFACE_COMPILE_DEFINITIONS USING_DEPRECATED_UPPERCASE_YARP_OS_TARGET
+  )
 endif()
-
-install(TARGETS YARP_init
-        EXPORT YARP
-        COMPONENT runtime
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-
-set_property(GLOBAL APPEND PROPERTY YARP_LIBS YARP_init)
-set_property(TARGET YARP_init PROPERTY INCLUDE_DIRS ${YARP_TREE_INCLUDE_DIRS})
+")

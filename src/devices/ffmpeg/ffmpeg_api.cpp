@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2008 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "ffmpeg_api.h"
@@ -11,23 +13,19 @@
 int stable_img_convert (AVPicture *dst, int dst_pix_fmt,
                         const AVPicture *src, int src_pix_fmt,
                         int src_width, int src_height) {
-  static struct SwsContext *img_convert_ctx = NULL;
-  if (img_convert_ctx==NULL) {
+  static struct SwsContext *img_convert_ctx = nullptr;
+  if (img_convert_ctx==nullptr) {
       //printf("Looking for a context\n");
       img_convert_ctx = sws_getContext(src_width, src_height,
                                        (AVPixelFormat)src_pix_fmt,
                                        src_width, src_height,
                                        (AVPixelFormat)dst_pix_fmt,
-#ifdef SWS_BILINEAR
                                        SWS_BILINEAR,
-#else
-                                       0,
-#endif
-                                       NULL, NULL, NULL);
+                                       nullptr, nullptr, nullptr);
 
       //printf("Done looking for a context\n");
   }
-  if (img_convert_ctx!=NULL) {
+  if (img_convert_ctx!=nullptr) {
       /*
       printf("software scale: %ld %ld/%ld %d/%d %d\n",
              (long int)img_convert_ctx,

@@ -1,7 +1,19 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Authors: Lorenzo Natale
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This program is free software; you can redistribute it and/or modify it under
+ * the terms of the GNU General Public License as published by the Free Software
+ * Foundation; either version 2 of the License, or (at your option) any later
+ * version.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+ * details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
 #include <stdio.h>
@@ -18,8 +30,10 @@
 
 #include <yarp/sig/Matrix.h>
 #include <yarp/sig/Vector.h>
+#include <yarp/gsl/Gsl.h>
 
 using namespace yarp::sig;
+using namespace yarp::gsl;
 
 int main(int argc, const char **argv)
 {
@@ -29,8 +43,8 @@ int main(int argc, const char **argv)
     v2=1;
 
     double r;
-    gsl_blas_ddot((gsl_vector *)(v1.getGslVector()), 
-                  (gsl_vector *)(v2.getGslVector()), &r);
+    gsl_blas_ddot((gsl_vector *)GslVector(v1).getGslVector(),
+                  (gsl_vector *)GslVector(v2).getGslVector(), &r);
 
     printf("Res vector: %lf\n", r);
 
@@ -49,15 +63,14 @@ int main(int argc, const char **argv)
     //gsl_matrix_view A2 = gsl_matrix_view_array(m2.data(), 3, 2);
     //gsl_matrix_view A3 = gsl_matrix_view_array(m3.data(), 2, 2);
 
-    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 
-        1.0, 
-        (const gsl_matrix *) m1.getGslMatrix(), 
-        (const gsl_matrix *) m2.getGslMatrix(),
-        0.0, 
-        (gsl_matrix *) m3.getGslMatrix());
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans,
+        1.0,
+        (const gsl_matrix *) GslMatrix(m1).getGslMatrix(),
+        (const gsl_matrix *) GslMatrix(m2).getGslMatrix(),
+        0.0,
+        (gsl_matrix *)GslMatrix(m3).getGslMatrix());
 
     printf("Result: (%s)", m3.toString().c_str());
 
-    return 0; 
+    return 0;
 }
-

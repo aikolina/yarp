@@ -1,11 +1,10 @@
-# Copyright (C) 2014  iCub Facility, Istituto Italiano di Tecnologia
-# Author: Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-
-get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-include_directories(${YARP_OS_INCLUDE_DIRS}
-                    ${QCustomPlot_INCLUDE_DIRS})
+include_directories(SYSTEM ${QCustomPlot_INCLUDE_DIRS})
 
 set(QtYARPScopePlugin_SRCS portreader.cpp
                            simpleloader.cpp
@@ -30,23 +29,32 @@ set(QtYARPScopePlugin_QML_FILES YARPScopeAbout.qml
 
 qt5_add_resources(QtYARPScopePlugin_QRC_GEN_SRCS ${QtYARPScopePlugin_QRC_FILES})
 
-source_group("Source Files" FILES ${QtYARPScopePlugin_SRCS})
-source_group("Header Files" FILES ${QtYARPScopePlugin_HDRS})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+             PREFIX "Source Files"
+             FILES ${QtYARPScopePlugin_SRCS})
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+             PREFIX "Header Files"
+             FILES ${QtYARPScopePlugin_HDRS})
 source_group("Resources Files" FILES ${QtYARPScopePlugin_QRC_FILES})
 source_group("QML Files" FILES ${QtYARPScopePlugin_QML_FILES})
 source_group("Generated Files" FILES ${QtYARPScopePlugin_QRC_GEN_SRCS})
 
-add_library(QtYARPScopePlugin MODULE ${QtYARPScopePlugin_SRCS}
-                                     ${QtYARPScopePlugin_HDRS}
-                                     ${QtYARPScopePlugin_QRC_GEN_SRCS})
-target_link_libraries(QtYARPScopePlugin YARP_OS
-                                        YARP_init
-                                        ${QCustomPlot_LIBRARIES})
-qtyarp_use_modules(QtYARPScopePlugin Widgets
-                                     Qml
-                                     Quick
-                                     Xml
-                                     PrintSupport)
+add_library(QtYARPScopePlugin MODULE)
+
+target_sources(QtYARPScopePlugin PRIVATE ${QtYARPScopePlugin_SRCS}
+                                         ${QtYARPScopePlugin_HDRS}
+                                         ${QtYARPScopePlugin_QRC_FILES}
+                                         ${QtYARPScopePlugin_QRC_GEN_SRCS}
+                                         ${QtYARPScopePlugin_QML_FILES})
+
+target_link_libraries(QtYARPScopePlugin PRIVATE YARP::YARP_os
+                                                YARP::YARP_init
+                                                ${QCustomPlot_LIBRARIES}
+                                                Qt5::Widgets
+                                                Qt5::Qml
+                                                Qt5::Quick
+                                                Qt5::Xml
+                                                Qt5::PrintSupport)
 
 qtyarp_qml_plugin(QtYARPScopePlugin "${QtYARPScopePlugin_QMLDIR}")
 
@@ -57,3 +65,5 @@ install(TARGETS QtYARPScopePlugin
         ARCHIVE DESTINATION "${CMAKE_INSTALL_QMLDIR}/${QtYARPScopePlugin_QMLDIR}")
 
 install(FILES qmldir DESTINATION "${CMAKE_INSTALL_QMLDIR}/${QtYARPScopePlugin_QMLDIR}")
+
+set_property(TARGET QtYARPScopePlugin PROPERTY FOLDER "Plugins/QML")

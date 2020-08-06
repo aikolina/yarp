@@ -1,11 +1,13 @@
 /*
- * Copyright (C) 2008, 2009 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "yarp.h"
 #include "yarpimpl.h"
@@ -117,7 +119,7 @@ YARP_DEFINE(int) yarpPortEnableBackgroundWrite(yarpPortPtr port,
      * will be called.
      *
      */
-YARP_DEFINE(int) yarpPortWrite(yarpPortPtr port, 
+YARP_DEFINE(int) yarpPortWrite(yarpPortPtr port,
                                yarpPortablePtr msg) {
     YARP_OK(port);
     Portable *amsg = MAKE_PORTABLE(msg);
@@ -135,7 +137,7 @@ YARP_DEFINE(int) yarpPortWrite(yarpPortPtr port,
      * before any other port methods.
      *
      */
-YARP_DEFINE(int) yarpPortRead(yarpPortPtr port, 
+YARP_DEFINE(int) yarpPortRead(yarpPortPtr port,
                               yarpPortablePtr msg,
                               int willReply) {
     YARP_OK(port);
@@ -150,7 +152,7 @@ YARP_DEFINE(int) yarpPortRead(yarpPortPtr port,
      * Give a reply to a previously read message.
      *
      */
-YARP_DEFINE(int) yarpPortReply(yarpPortPtr port, 
+YARP_DEFINE(int) yarpPortReply(yarpPortPtr port,
                                yarpPortablePtr msg) {
     YARP_OK(port);
     Portable *amsg = MAKE_PORTABLE(msg);
@@ -164,7 +166,7 @@ YARP_DEFINE(int) yarpPortReply(yarpPortPtr port,
      * Write a message to a port, then wait for a reply.
      *
      */
-YARP_DEFINE(int) yarpPortWriteWithReply(yarpPortPtr port, 
+YARP_DEFINE(int) yarpPortWriteWithReply(yarpPortPtr port,
                                         yarpPortablePtr msg,
                                         yarpPortablePtr reply) {
     YARP_OK(port);
@@ -174,5 +176,3 @@ YARP_DEFINE(int) yarpPortWriteWithReply(yarpPortPtr port,
     YARP_OK0(areply);
     return YARP_PORT(port).write(*amsg,*areply)?0:-1;
 }
-
-

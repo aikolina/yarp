@@ -1,10 +1,16 @@
 #!/bin/bash
 
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
+
 killall yarp yarpdev
 killall -9 yarp yarpdev
 sleep 2
 
-yarpdev --device test_grabber --framerate 0.5 --width 4 --height 4 --name /src &
+yarpdev --device fakeFrameGrabber --framerate 0.5 --width 4 --height 4 --name /src &
 yarp wait /src
 sleep 2
 
@@ -51,4 +57,3 @@ echo "================================================="
 
 killall yarp yarpdev
 killall -9 yarp yarpdev
-

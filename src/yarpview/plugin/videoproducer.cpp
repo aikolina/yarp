@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "videoproducer.h"
@@ -14,14 +22,17 @@
 VideoProducer::VideoProducer(QObject *parent) :
     QObject(parent)
 {
-    m_format = NULL;
-    m_surface = NULL;
+    m_format = nullptr;
+    m_surface = nullptr;
+    m_frame = nullptr;
 }
 
 VideoProducer::~VideoProducer()
 {
-    if(m_format){
+    if(m_format)
+    {
         delete m_format;
+        m_format = nullptr;
     }
 }
 
@@ -79,25 +90,30 @@ void VideoProducer::onNewVideoContentReceived(QVideoFrame *frame)
 {
     if (m_surface){
         if(m_surface->isActive() && (m_format->frameWidth() != frame->size().width() ||
-                                     m_format->frameHeight() != frame->size().height())){
+                                     m_format->frameHeight() != frame->size().height()))
+        {
             m_surface->stop();
             delete m_format;
-            m_format = NULL;
+            m_format = nullptr;
         }
 
-        if(!m_surface->isActive()){
+        if (!m_surface->isActive())
+        {
             QSize s = frame->size();
             QVideoFrame::PixelFormat f = frame->pixelFormat();
-            m_format = new QVideoSurfaceFormat(s,f);
-            
+            m_format = new QVideoSurfaceFormat(s, f);
 
             bool b = m_surface->start(*m_format);
-            if(b){
-                qDebug("Surface STARTED! Dimensions: %dx%d -- PixelFormat: %d",s.width(),s.height(),(int)f);
-            }else{
+            if (b)
+            {
+                qDebug("Surface STARTED! Dimensions: %dx%d -- PixelFormat: %d", s.width(), s.height(), (int)f);
+            }
+            else
+            {
                 qDebug("Surface START ERROR");
                 delete m_format;
             }
+            emit resizeWindowRequest();
         }
     }
 
@@ -106,6 +122,37 @@ void VideoProducer::onNewVideoContentReceived(QVideoFrame *frame)
         if (!b) {
             qWarning("Surface PRESENT ERROR");
         }
+        else{
+            mutex.lock();
+            if(m_frame != nullptr){
+                delete m_frame;
+            }
+            m_frame = new QVideoFrame(*frame);
+            mutex.unlock();
+        }
     }
 
+}
+
+/*! \brief Pics the rgb value of the pixel specified by x and y and return it as a string
+ *  \param x Integer: The x coordinate of the pixel
+ *  \param y Integer: The y coordinate of the pixel
+ *  \return rgbHex QString: The hexadecimal string containing the pixel color value
+ */
+QString VideoProducer::getPixelAsStr(int x, int y){
+    mutex.lock();
+    if (m_frame == nullptr || x>=m_frame->size().width() || y>=m_frame->size().height() || x<0 || y<0){
+        mutex.unlock();
+        return QString("Invalid");
+    }
+    m_frame->map( QAbstractVideoBuffer::ReadOnly );
+    QImage image(m_frame->bits(), m_frame->width(),
+                 m_frame->height(), m_frame->bytesPerLine(),
+                 QImage::Format_RGB32);
+    mutex.unlock();
+    QRgb pixelVal = image.pixel(x,y);
+    QString rgbHex("#");
+    rgbHex += QString::number(pixelVal,16);
+
+    return rgbHex;
 }

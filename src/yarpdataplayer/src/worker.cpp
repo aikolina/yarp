@@ -1,50 +1,67 @@
 /*
- * Copyright (C) 2011 Department of Robotics Brain and Cognitive Sciences - Istituto Italiano di Tecnologia
- * Author: Vadim Tikhanoff
- * email:  vadim.tikhanoff@iit.it
- * Permission is granted to copy, distribute, and/or modify this program
- * under the terms of the GNU General Public License, version 2 or any
- * later version published by the Free Software Foundation.
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * A copy of the license can be found at
- * http://www.robotcub.org/icub/license/gpl.txt
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
- * Public License for more details
-*/
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
-#if defined(WIN32)
+#if defined(_WIN32)
     #pragma warning (disable : 4099)
     #pragma warning (disable : 4250)
     #pragma warning (disable : 4520)
 #endif
 
-#include "yarp/os/Stamp.h"
+#include <memory>
+#include <yarp/os/LogStream.h>
 #include "include/worker.h"
 #include "include/mainwindow.h"
 #include "include/log.h"
+#if CV_MAJOR_VERSION >= 3
+#include <opencv2/imgcodecs/imgcodecs.hpp>
+#endif
+
+//ROS messages
+#include <yarp/rosmsg/sensor_msgs/LaserScan.h>
+#include <yarp/rosmsg/nav_msgs/Odometry.h>
+#include <yarp/rosmsg/tf/tfMessage.h>
+#include <yarp/rosmsg/tf2_msgs/TFMessage.h>
+#include <yarp/rosmsg/geometry_msgs/Pose.h>
+#include <yarp/rosmsg/geometry_msgs/Pose2D.h>
+
 
 using namespace yarp::sig;
 using namespace yarp::sig::file;
 using namespace yarp::os;
+using namespace std;
 
 #ifdef HAS_OPENCV
   using namespace cv;
 #endif
 
 /**********************************************************/
-WorkerClass::WorkerClass(int part, int numThreads)
-{
-    this->part = part;
-    utilities = NULL;
-    this->numThreads = numThreads;
-    initTime = 0.0;
-    frameRate = 0.0;
-    isActive = true;
-    startTime = 0.0;
-}
+WorkerClass::WorkerClass(int part, int numThreads) :
+    utilities(nullptr),
+    part(part),
+    percentage(0),
+    numThreads(numThreads),
+    currFrame(0),
+    isActive(true),
+    frameRate(0.0),
+    initTime(0.0),
+    virtualTime(0.0),
+    startTime(0.0)
+{}
 
 /**********************************************************/
 bool WorkerClass::init()
@@ -53,13 +70,13 @@ bool WorkerClass::init()
     initTime = 0.0;
     frameRate = 0.0;
     utilities->partDetails[part].hasNotified = false;
-    
+
     #ifdef HAS_OPENCV
         yInfo("USING OPENCV FOR SENDING THE IMAGES\n");
     #else
         yInfo("USING YARP IMAGE FOR SENDING THE IMAGES\n");
     #endif
-    
+
     return true;
 }
 
@@ -95,37 +112,45 @@ void WorkerClass::run()
     } else {
         double t = Time::now();
         frameRate = t-initTime;
-        
+
         //LOG("initTime %lf t= %lf frameRate %lf\n", initTime, t, frameRate);
         initTime = t;
     }
-    
+
     if (isActive)
     {
-        Bottle tmp;
-        if (utilities->withExtraColumn){
-            tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().tail();
-        } else {
-            tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail();
+        int ret=-1;
+        if (strcmp (utilities->partDetails[part].type.c_str(),"Image:ppm") == 0 ||
+            strcmp (utilities->partDetails[part].type.c_str(),"Image") == 0)  {
+            ret = sendImages(part, frame);
+        }
+        else if (strcmp(utilities->partDetails[part].type.c_str(), "Bottle") == 0)  {
+            ret = sendBottle(part, frame);
+            // the above line can be safely replaced with sendGenericData<Bottle>.
+            // I kept it for no particular reason, thinking that maybe it could be convenient (later)
+            // to process Bottles in a different way.
+        }
+        else if (strcmp(utilities->partDetails[part].type.c_str(), "sensor_msgs/LaserScan") == 0)  {
+            ret = sendGenericData<yarp::rosmsg::sensor_msgs::LaserScan>(part, frame);
+        }
+        else if (strcmp(utilities->partDetails[part].type.c_str(), "nav_msgs/Odometry") == 0) {
+            ret = sendGenericData<yarp::rosmsg::nav_msgs::Odometry>(part, frame);
+        }
+        else if (strcmp(utilities->partDetails[part].type.c_str(), "tf2_msgs/tf") == 0) {
+            ret = sendGenericData<yarp::rosmsg::tf2_msgs::TFMessage>(part, frame);
+        }
+        else if (strcmp(utilities->partDetails[part].type.c_str(), "geometry_msgs/Pose") == 0) {
+            ret = sendGenericData<yarp::rosmsg::geometry_msgs::Pose>(part, frame);
+        }
+        else if (strcmp(utilities->partDetails[part].type.c_str(), "geometry_msgs/Pose2D") == 0) {
+            ret = sendGenericData<yarp::rosmsg::geometry_msgs::Pose2D>(part, frame);
+        }
+        else  {
+            LOG("Unknown data type: %s", utilities->partDetails[part].type.c_str());
         }
 
-        if (strcmp (utilities->partDetails[part].type.c_str(),"Bottle") == 0){
-
-            Bottle& outBot = utilities->partDetails[part].bottlePort.prepare();
-            outBot = tmp;
-
-            //propagate timestamp
-            Stamp ts(frame,utilities->partDetails[part].timestamp[frame]);
-            utilities->partDetails[part].bottlePort.setEnvelope(ts);
-
-            if (utilities->sendStrict){
-                utilities->partDetails[part].bottlePort.writeStrict();
-            } else {
-                utilities->partDetails[part].bottlePort.write();
-            }
-        }
-        if (strcmp (utilities->partDetails[part].type.c_str(),"Image:ppm") == 0 || strcmp (utilities->partDetails[part].type.c_str(),"Image") == 0){
-            sendImages(part, frame);
+        if (ret==-1)  {
+            LOG("Failed to send data: %s", utilities->partDetails[part].type.c_str());
         }
     }
     utilities->partDetails[part].sent++;
@@ -139,7 +164,6 @@ double WorkerClass::getFrameRate()
     return frameRate;
 }
 
-
 /**********************************************************/
 double WorkerClass::getTimeTaken()
 {
@@ -147,139 +171,140 @@ double WorkerClass::getTimeTaken()
 }
 
 /**********************************************************/
+int WorkerClass::sendBottle(int part, int frame)
+{
+    Bottle tmp;
+    if (utilities->withExtraColumn) {
+        tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().tail();
+    }
+    else {
+        tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail();
+    }
+
+    yarp::os::BufferedPort<Bottle>* the_port = dynamic_cast<yarp::os::BufferedPort<yarp::os::Bottle>*> (utilities->partDetails[part].outputPort);
+    if (the_port == nullptr)
+    {  LOG_ERROR("dynamic_cast failed"); return -1;}
+
+    Bottle& outBot = the_port->prepare();
+    outBot = tmp;
+
+    //propagate timestamp
+    Stamp ts(frame, utilities->partDetails[part].timestamp[frame]);
+    the_port->setEnvelope(ts);
+
+    if (utilities->sendStrict) {
+        the_port->writeStrict();
+    }
+    else {
+        the_port->write();
+    }
+    return 0;
+}
+
+/**********************************************************/
 int WorkerClass::sendImages(int part, int frame)
 {
     string tmpPath = utilities->partDetails[part].path;
     string tmpName, tmp;
-    if (utilities->withExtraColumn){
-        tmpName = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().get(1).asString().c_str();
-        tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().tail().tail().toString().c_str();
+    bool fileValid = false;
+    if (utilities->withExtraColumn) {
+        tmpName = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().get(1).asString();
+        tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().tail().tail().toString();
     } else {
-        tmpName = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().get(0).asString().c_str();
-        tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().tail().toString().c_str();
+        tmpName = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().get(0).asString();
+        tmp = utilities->partDetails[part].bot.get(frame).asList()->tail().tail().tail().toString();
     }
 
-#ifndef HAS_OPENCV
     int code = 0;
-#endif
-
-    if (tmp.size()>0)
-    {
-        tmp.erase (tmp.begin());
-        tmp.erase (tmp.end()-1);
-#ifndef HAS_OPENCV
+    if (tmp.size()>0) {
+        tmp.erase(tmp.begin());
+        tmp.erase(tmp.end()-1);
         code = Vocab::encode(tmp);
-#endif
     }
 
     tmpPath = tmpPath + tmpName;
+    unique_ptr<Image> img_yarp = nullptr;
 
 #ifdef HAS_OPENCV
-    IplImage* img = NULL;
+    cv::Mat cv_img;
+    if (code==VOCAB_PIXEL_MONO_FLOAT) {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelFloat>);
+        fileValid = read(*static_cast<ImageOf<PixelFloat>*>(img_yarp.get()),tmpPath);
+    }
+    else {
+#if CV_MAJOR_VERSION >= 3
+        cv_img = cv::imread(tmpPath, cv::ImreadModes::IMREAD_UNCHANGED);
 #else
-    Image* img;
-
-    if (code==VOCAB_PIXEL_RGB)
-        img = new ImageOf<PixelRgb>;
-    else if (code==VOCAB_PIXEL_BGR)
-        img = new ImageOf<PixelBgr>;
-    else if (code==VOCAB_PIXEL_RGBA)
-        img = new ImageOf<PixelRgba>;
-    else if (code==VOCAB_PIXEL_MONO_FLOAT)
-        img = new ImageOf<PixelFloat>;
-    else if (code==VOCAB_PIXEL_MONO)
-        img = new ImageOf<PixelMono>;
-    else
-        img = new ImageOf<PixelRgb>; // use PixelRgb as default
-
+        cv_img = cv::imread(tmpPath, CV_LOAD_IMAGE_UNCHANGED);
 #endif
-
-#ifdef HAS_OPENCV
-    img = cvLoadImage( tmpPath.c_str(), CV_LOAD_IMAGE_UNCHANGED );
-#endif
-
-#ifdef HAS_OPENCV
-    if ( !img )
-    {
-        LOG_ERROR("Cannot load file %s !\n", tmpPath.c_str() );
-        return 1;
-    } else {
-        Image &temp = utilities->partDetails[part].imagePort.prepare();
-       
-        static IplImage *test = NULL;
-        if (test !=NULL)
-            cvReleaseImage(&test);
-
-        test = cvCloneImage(img);
-        temp.wrapIplImage(test);
-        
-#else
-    bool fileValid = true;
-
-    if (code==VOCAB_PIXEL_RGB)
-    {
-        img = new ImageOf<PixelRgb>;
-        if ( !read(*static_cast<ImageOf<PixelRgb>*> (img),tmpPath.c_str()) )
-            fileValid = false;
-    }
-    else if (code==VOCAB_PIXEL_BGR)
-    {
-        img = new ImageOf<PixelBgr>;
-        if ( !read(*static_cast<ImageOf<PixelBgr>*> (img),tmpPath.c_str()) )
-            fileValid = false;
-    }
-    else if (code==VOCAB_PIXEL_RGBA)
-    {
-        img = new ImageOf<PixelRgba>;
-        if ( !read(*static_cast<ImageOf<PixelRgba>*> (img),tmpPath.c_str()) )
-            fileValid = false;
-    }
-    else if (code==VOCAB_PIXEL_MONO_FLOAT)
-    {
-        img = new ImageOf<PixelFloat>;
-        if ( !read(*static_cast<ImageOf<PixelFloat>*> (img),tmpPath.c_str()) )
-            fileValid = false;
-    }
-    else if (code==VOCAB_PIXEL_MONO)
-    {
-        img = new ImageOf<PixelMono>;
-        if ( !read(*static_cast<ImageOf<PixelMono>*> (img),tmpPath.c_str()) )
-            fileValid = false;
-    }
-    else
-    {
-        img = new ImageOf<PixelRgb>;
-        if ( !read(*static_cast<ImageOf<PixelRgb>*> (img),tmpPath.c_str()) )
-            fileValid = false;
-    }
-
-    if (!fileValid)
-    {
-        LOG_ERROR("Cannot load file %s !\n", tmpPath.c_str() );
-        return 1;
-    }
-    else
-    {
-        Image &temp = utilities->partDetails[part].imagePort.prepare();
-        temp = *img;
-
-#endif
-        //propagate timestamp
-        Stamp ts(frame,utilities->partDetails[part].timestamp[frame]);
-        utilities->partDetails[part].imagePort.setEnvelope(ts);
-
-        if (utilities->sendStrict){
-            utilities->partDetails[part].imagePort.writeStrict();
-        } else {
-            utilities->partDetails[part].imagePort.write();
+        if ( cv_img.data != nullptr ) {
+            if (code==VOCAB_PIXEL_RGB)
+            {
+                img_yarp = unique_ptr<Image>(new ImageOf<PixelRgb>);
+                *img_yarp = yarp::cv::fromCvMat<PixelRgb>(cv_img);
+            }
+            else if (code==VOCAB_PIXEL_BGR)
+            {
+                img_yarp = unique_ptr<Image>(new ImageOf<PixelBgr>);
+                *img_yarp = yarp::cv::fromCvMat<PixelBgr>(cv_img);
+            }
+            else if (code==VOCAB_PIXEL_RGBA)
+            {
+                img_yarp = unique_ptr<Image>(new ImageOf<PixelRgba>);
+                *img_yarp = yarp::cv::fromCvMat<PixelRgba>(cv_img);
+            }
+            else if (code==VOCAB_PIXEL_MONO){
+                img_yarp = unique_ptr<Image>(new ImageOf<PixelMono>);
+                *img_yarp = yarp::cv::fromCvMat<PixelMono>(cv_img);
+            }
+            else
+            {
+                img_yarp = unique_ptr<Image>(new ImageOf<PixelRgb>);
+                *img_yarp = yarp::cv::fromCvMat<PixelRgb>(cv_img);
+            }
+            fileValid = true;
         }
-
-#ifdef HAS_OPENCV
-        cvReleaseImage(&img);
+    }
 #else
-        delete img;
+    if (code==VOCAB_PIXEL_RGB) {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelRgb>);
+        fileValid = read(*static_cast<ImageOf<PixelRgb>*>(img_yarp.get()),tmpPath.c_str());
+    } else if (code==VOCAB_PIXEL_BGR) {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelBgr>);
+        fileValid = read(*static_cast<ImageOf<PixelBgr>*>(img_yarp.get()),tmpPath.c_str());
+    } else if (code==VOCAB_PIXEL_RGBA) {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelRgba>);
+        fileValid = read(*static_cast<ImageOf<PixelRgba>*>(img_yarp.get()),tmpPath.c_str());
+    } else if (code==VOCAB_PIXEL_MONO_FLOAT) {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelFloat>);
+        fileValid = read(*static_cast<ImageOf<PixelFloat>*>(img_yarp.get()),tmpPath.c_str());
+    } else if (code==VOCAB_PIXEL_MONO) {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelMono>);
+        fileValid = read(*static_cast<ImageOf<PixelMono>*>(img_yarp.get()),tmpPath.c_str());
+    } else {
+        img_yarp = unique_ptr<Image>(new ImageOf<PixelRgb>);
+        fileValid = read(*static_cast<ImageOf<PixelRgb>*>(img_yarp.get()),tmpPath.c_str());
+    }
 #endif
-        
+    if (!fileValid) {
+        LOG_ERROR("Cannot load file %s !\n", tmpPath.c_str() );
+        return 1;
+    }
+    else
+    {
+        yarp::os::BufferedPort<yarp::sig::Image>* the_port = dynamic_cast<yarp::os::BufferedPort<yarp::sig::Image>*> (utilities->partDetails[part].outputPort);
+        if (the_port == nullptr) { yFatal() << "dynamic_cast failed"; }
+
+        the_port->prepare()=*img_yarp;
+
+        Stamp ts(frame,utilities->partDetails[part].timestamp[frame]);
+        the_port->setEnvelope(ts);
+
+        if (utilities->sendStrict) {
+            the_port->writeStrict();
+        } else {
+            the_port->write();
+        }
     }
 
     return 0;
@@ -291,17 +316,18 @@ void WorkerClass::setManager(Utilities *utilities)
 }
 
 /**********************************************************/
-MasterThread::MasterThread(Utilities *utilities, int numPart, QMainWindow *gui, QObject *parent) : QObject(parent), RateThread (2)
-{
-    //stepfromCmd = false;
-    this->wnd = gui;
-    this->numPart = numPart;
-    this->utilities = utilities;
-    //guiUpdate = new UpdateGui( this->utilities, this->numPart, this->wnd );
-    timePassed = 0.0;
-    virtualTime = 0.0;
-    initTime = 0;
-}
+MasterThread::MasterThread(Utilities *utilities, int numPart, QMainWindow *gui, QObject *parent) :
+    QObject(parent),
+    PeriodicThread (0.002),
+    utilities(utilities),
+    numPart(numPart),
+    numThreads(0),
+    timePassed(0.0),
+    initTime(0),
+    virtualTime(0.0),
+    stepfromCmd(false),
+    wnd(gui)
+{}
 
 /**********************************************************/
 bool MasterThread::threadInit()
@@ -314,8 +340,32 @@ bool MasterThread::threadInit()
 
     //virtualTime = utilities->partDetails[0].timestamp[ utilities->partDetails[0].currFrame ];
     virtualTime = utilities->minTimeStamp;
-    
+
+    LOG("virtual time is %lf\n", virtualTime);
+
+    initialize();
+
     return true;
+}
+
+/**********************************************************/
+void MasterThread::initialize()
+{
+    lastUpdate = std::chrono::high_resolution_clock::now();
+    dtSeconds = 0.f;
+    fps = 0.f;
+}
+
+/**********************************************************/
+void MasterThread::tick()
+{
+    Moment now = std::chrono::high_resolution_clock::now();
+
+    const unsigned diff = std::chrono::duration_cast<std::chrono::microseconds>(now - lastUpdate).count();
+    lastUpdate = now;
+
+    dtSeconds = diff / (1000.f * 1000.f); // micro-seconds -> seconds
+    fps = 1.f / dtSeconds;
 }
 
 /**********************************************************/
@@ -352,13 +402,13 @@ void MasterThread::stepFromCmd()
 /**********************************************************/
 void MasterThread::runNormally()
 {
-    int static tmp = 0;
+
     for (int i=0; i < numPart; i++){
         bool isActive  = ((MainWindow*)wnd)->getPartActivation(utilities->partDetails[i].name.c_str());
         if ( utilities->partDetails[i].currFrame <= utilities->partDetails[i].maxFrame ){
             if ( virtualTime >= utilities->partDetails[i].timestamp[ utilities->partDetails[i].currFrame ] ){
                 if ( initTime > 300){
-                    utilities->updateGuiThread();
+                    emit utilities->updateGuiThread();
                     initTime = 0;
                 }
                 if (!utilities->partDetails[i].hasNotified){
@@ -372,7 +422,7 @@ void MasterThread::runNormally()
                 utilities->partDetails[i].worker->init();
             } else {
                 if ( !utilities->partDetails[i].hasNotified ) {
-                    LOG("partID: %d has finished \n",i);
+                    LOG("partID: %d has finished \n", i);
                     utilities->partDetails[i].hasNotified = true;
                 }
 
@@ -385,24 +435,19 @@ void MasterThread::runNormally()
                     if (stopAll == numPart){
                         LOG("All parts have Finished!\n");
                         if (utilities->partDetails[i].currFrame > 1)
-                            utilities->updateGuiThread();
+                            emit utilities->updateGuiThread();
                         utilities->stopAtEnd();
                     }
                 }
             }
         }
     }
-    
-    this->setRate( (int) (2 / utilities->speed) );
-    for (int i=0; i < numPart; i++){
-       // virtualTime += utilities->partDetails[i].worker->getFrameRate()/4.16;//0.0024;
-    }
-    
-    virtualTime += 0.0024;//utilities->partDetails[i].worker->getFrameRate()/4.16;//0.0024;
-    
+
+    virtualTime += diff_seconds() * utilities->speed;
+
+    tick();
+
     initTime++;
-    
-    tmp++;
 }
 
 /**********************************************************/
@@ -431,7 +476,7 @@ void MasterThread::forward(int steps)
 {
     int selectedFrame = 0;
     for (int i=0; i < numPart; i++){
-        selectedFrame = (int)( (utilities->partDetails[i].maxFrame * steps) /100 );
+        selectedFrame = (int)( (utilities->partDetails[i].maxFrame * steps) / 100 );
         if ( utilities->partDetails[i].currFrame < utilities->partDetails[i].maxFrame - selectedFrame){
             utilities->partDetails[i].currFrame += selectedFrame;
             if (i == 0){
@@ -463,13 +508,16 @@ void MasterThread::backward(int steps)
 /**********************************************************/
 void MasterThread::pause()
 {
+    pauseStart = yarp::os::Time::now();
     this->suspend();
 }
 
 /**********************************************************/
 void MasterThread::resume()
 {
-    RateThread::resume();
+    pauseEnd = yarp::os::Time::now();
+    virtualTime -= pauseEnd - pauseStart;
+    PeriodicThread::resume();
 }
 
 /**********************************************************/
@@ -477,7 +525,3 @@ void MasterThread::threadRelease()
 {
 
 }
-
-
-
-

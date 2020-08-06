@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- *         Francesco Nori <francesco.nori@iit.it>
- *         Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #include "sequencewindow.h"
 #include "ui_sequencewindow.h"
@@ -85,10 +94,10 @@ SequenceWindow::SequenceWindow(QString partName, int count,QWidget *parent) :
         ss << "0";
         ss1 << "10";
     }
-    QTreeWidgetItem *itemPos = new QTreeWidgetItem(ss);
+    auto* itemPos = new QTreeWidgetItem(ss);
     ui->treePositions->addTopLevelItem(itemPos);
 
-    QTreeWidgetItem *itemSpeed = new QTreeWidgetItem(ss1);
+    auto* itemSpeed = new QTreeWidgetItem(ss1);
     ui->treeSpeed->addTopLevelItem(itemSpeed);
 }
 
@@ -162,7 +171,7 @@ void SequenceWindow::onDoubleClickPositions(QTreeWidgetItem *item,int column)
     }
 
 
-    itemDoubleClicked(item->text(0).toInt());
+    emit itemDoubleClicked(item->text(0).toInt());
 
     if(item != ui->treePositions->topLevelItem(ui->treePositions->topLevelItemCount()-1)){
         return;
@@ -179,11 +188,11 @@ void SequenceWindow::onDoubleClickPositions(QTreeWidgetItem *item,int column)
     for(int i=0; i<jointCount;i++){
         ss << "0";
     }
-    QTreeWidgetItem *newItem = new QTreeWidgetItem(ss);
+    auto* newItem = new QTreeWidgetItem(ss);
     item->setFlags(newItem->flags() & ~Qt::ItemIsEditable);
     ui->treePositions->addTopLevelItem(newItem);
 
-    QTreeWidgetItem *newItem1 = new QTreeWidgetItem(ss1);
+    auto* newItem1 = new QTreeWidgetItem(ss1);
     ui->treeSpeed->addTopLevelItem(newItem1);
 
 
@@ -204,7 +213,7 @@ void SequenceWindow::onReceiveValues(int sequenceNum, QList<double> values,QList
 
 bool SequenceWindow::checkAndGo()
 {
-    if(ui->treePositions->currentItem() == NULL){
+    if(ui->treePositions->currentItem() == nullptr){
         return false;
     }
     int index = ui->treePositions->currentIndex().row();
@@ -224,7 +233,7 @@ void SequenceWindow::onGo()
 
     SequenceItem sequenceItem;
 
-    if(ui->treePositions->currentItem() != NULL){
+    if(ui->treePositions->currentItem() != nullptr){
         int index = ui->treePositions->currentIndex().row();
         timing = ui->treePositions->topLevelItem(index)->text(1).toDouble();
 
@@ -241,12 +250,12 @@ void SequenceWindow::onGo()
         }
     }
 
-    goToPosition(sequenceItem);
+    emit goToPosition(sequenceItem);
 }
 
 void SequenceWindow::onRunTime()
 {
-    runTime(getValuesFromList());
+    emit runTime(getValuesFromList());
 }
 
 bool SequenceWindow::checkAndCycleTimeSeq()
@@ -268,7 +277,7 @@ bool SequenceWindow::checkAndCycleTimeSeq()
     if(count <= 1){
         return false;
     }
-    cycleTime(seq);
+    emit cycleTime(seq);
     return true;
 }
 
@@ -291,7 +300,7 @@ bool SequenceWindow::checkAndCycleSeq()
     if(count <= 1){
         return false;
     }
-    cycle(seq);
+    emit cycle(seq);
     return true;
 }
 
@@ -314,7 +323,7 @@ bool SequenceWindow::checkAndRun()
     if(count <= 1){
         return false;
     }
-    run(seq);
+    emit run(seq);
     return true;
 
 }
@@ -338,34 +347,34 @@ bool SequenceWindow::checkAndRunTime()
     if(count <= 1){
         return false;
     }
-    runTime(seq);
+    emit runTime(seq);
     return true;
 
 }
 
 void SequenceWindow::onCycle()
 {
-    cycle(getValuesFromList());
+    emit cycle(getValuesFromList());
 }
 
 void SequenceWindow::onStopSequence()
 {
-    stopSequence();
+    emit stopSequence();
 }
 
 void SequenceWindow::onCycleTime()
 {
-    cycleTime(getValuesFromList());
+    emit cycleTime(getValuesFromList());
 }
 
 void SequenceWindow::onOpen()
 {
-    openSequence();
+    emit openSequence();
 }
 
 void SequenceWindow::save(QString global_filename)
 {
-    saveSequence(getValuesFromList(),global_filename);
+    emit saveSequence(getValuesFromList(),global_filename);
 }
 
 
@@ -401,11 +410,11 @@ void SequenceWindow::loadSequence(QList<SequenceItem> sequence)
             ss1.append(QString("%1").arg(seq.getSpeeds().at(i)));
         }
 
-        QTreeWidgetItem *newItem = new QTreeWidgetItem(ss);
+        auto* newItem = new QTreeWidgetItem(ss);
         ui->treePositions->addTopLevelItem(newItem);
 
 
-        QTreeWidgetItem *newItem1 = new QTreeWidgetItem(ss1);
+        auto* newItem1 = new QTreeWidgetItem(ss1);
         ui->treeSpeed->addTopLevelItem(newItem1);
 
         ss.clear();
@@ -479,12 +488,12 @@ void SequenceWindow::onStoppedSequence()
 
     if(prevCurrentIndex >=0){
         for(int i=0;i<ui->treePositions->columnCount();i++){
-            ui->treePositions->topLevelItem(prevCurrentIndex)->setBackgroundColor(i,QColor(0,0,0,0));
+            ui->treePositions->topLevelItem(prevCurrentIndex)->setBackground(i,QColor(0,0,0,0));
         }
         ui->treePositions->topLevelItem(prevCurrentIndex)->setIcon(0,QIcon());
 
         for(int i=0;i<ui->treeSpeed->columnCount();i++){
-            ui->treeSpeed->topLevelItem(prevCurrentIndex)->setBackgroundColor(i,QColor(0,0,0,0));
+            ui->treeSpeed->topLevelItem(prevCurrentIndex)->setBackground(i,QColor(0,0,0,0));
         }
         ui->treeSpeed->topLevelItem(prevCurrentIndex)->setIcon(0,QIcon());
 
@@ -497,25 +506,25 @@ void SequenceWindow::onSetCurrentSequenceIndex(int index)
 {
     if(prevCurrentIndex >=0){
         for(int i=0;i<ui->treePositions->columnCount();i++){
-            ui->treePositions->topLevelItem(prevCurrentIndex)->setBackgroundColor(i,QColor(0,0,0,0));
+            ui->treePositions->topLevelItem(prevCurrentIndex)->setBackground(i,QColor(0,0,0,0));
         }
         ui->treePositions->topLevelItem(prevCurrentIndex)->setIcon(0,QIcon());
 
         for(int i=0;i<ui->treeSpeed->columnCount();i++){
-            ui->treeSpeed->topLevelItem(prevCurrentIndex)->setBackgroundColor(i,QColor(0,0,0,0));
+            ui->treeSpeed->topLevelItem(prevCurrentIndex)->setBackground(i,QColor(0,0,0,0));
         }
         ui->treeSpeed->topLevelItem(prevCurrentIndex)->setIcon(0,QIcon());
 
 
     }
     for(int i=0;i<ui->treePositions->columnCount();i++){
-        ui->treePositions->topLevelItem(index)->setBackgroundColor(i,QColor(0,255,0,120));
+        ui->treePositions->topLevelItem(index)->setBackground(i,QColor(0,255,0,120));
 
     }
     ui->treePositions->topLevelItem(index)->setIcon(0,QIcon(":/play.svg"));
 
     for(int i=0;i<ui->treeSpeed->columnCount();i++){
-        ui->treeSpeed->topLevelItem(index)->setBackgroundColor(i,QColor(0,255,0,120));
+        ui->treeSpeed->topLevelItem(index)->setBackground(i,QColor(0,255,0,120));
 
     }
     ui->treeSpeed->topLevelItem(index)->setIcon(0,QIcon(":/play.svg"));
@@ -547,7 +556,7 @@ void SequenceTreeWidget::dropEvent(QDropEvent *event)
 
     insertTopLevelItem(index ,it);
 
-    moveItem(index,dragIndex);
+    emit moveItem(index,dragIndex);
 
 
     // Re-Assign sequential id
@@ -581,7 +590,7 @@ void SequenceTreeWidget::onContextMenuRequested(QPoint point)
     if (ret == clipboardAction)
     {
         QClipboard  *clipboard = QApplication::clipboard();
-       
+
         QString selected_test;
 
         for (int i = 2; i<columnCount(); i++)
@@ -615,7 +624,7 @@ void SequenceTreeWidget::onContextMenuRequested(QPoint point)
         int index = indexOfTopLevelItem(deleteItems.at(0));
         delete takeTopLevelItem(index);
 
-        deletedItem(index);
+        emit deletedItem(index);
         // Re-Assign sequential id
         for(int i=0;i<topLevelItemCount();i++){
             topLevelItem(i)->setText(0,QString("%1").arg(i));

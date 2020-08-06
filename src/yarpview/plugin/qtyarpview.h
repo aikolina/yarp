@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
+
 
 #ifndef QTYARPVIEW_H
 #define QTYARPVIEW_H
@@ -14,7 +23,7 @@
 #include <QQuickItem>
 #include "videoproducer.h"
 
-//#include <yarp/os/impl/PlatformStdio.h>
+//#include <cstdio>
 #include <yarp/os/Property.h>
 #include <yarp/os/Network.h>
 #include <yarp/os/BufferedPort.h>
@@ -30,26 +39,27 @@
 */
 struct mOptions
 {
-    unsigned int	refreshTime;
-    char			portName[256];
-    char			networkName[256];
-    int				windWidth;
-    int				windHeight;
-    int				posX;
-    int				posY;
-    char			fileName[256];
-    int				saveOnExit;
-    char			outPortName[256];
-    char			outNetworkName[256];
-    int				outputEnabled;
-    bool            synch;
+    unsigned int    m_refreshTime;
+    char            m_portName[256];
+    char            m_networkName[256];
+    int             m_windWidth;
+    int             m_windHeight;
+    int             m_posX;
+    int             m_posY;
+    char            m_fileName[256];
+    int             m_saveOnExit;
+    char            m_outPortName[256];
+    char            m_outNetworkName[256];
+    int             m_outputEnabled;
+    bool            m_synchRate;
+    bool            m_autosize;
 };
 typedef struct mOptions pgmOptions;
 
 /*! \class QtYARPView
     \brief The plugin Core class
 
-    this is the plugin core class wich acts as bridge between the QML and c++.
+    this is the plugin core class which acts as bridge between the QML and c++.
     in the C++ code is implemented the backend logic, instead in the QML is
     implemented the Visual part.
 */
@@ -70,7 +80,8 @@ public:
     ~QtYARPView();
 
     Q_INVOKABLE void freeze(bool check);
-    Q_INVOKABLE void synchToDisplay(bool check);
+    Q_INVOKABLE void synchDisplayPeriod(bool check);
+    Q_INVOKABLE void synchDisplaySize(bool check);
     Q_INVOKABLE void changeRefreshInterval(int);
     Q_INVOKABLE void saveFrame();
     Q_INVOKABLE void setFileName(QUrl url);
@@ -78,7 +89,10 @@ public:
     Q_INVOKABLE void startDumpFrames();
     Q_INVOKABLE void stopDumpFrames();
     Q_INVOKABLE bool parseParameters(QStringList);
-    Q_INVOKABLE void clickCoords(int x, int y);
+    Q_INVOKABLE void clickCoords_2(int x, int y);
+    Q_INVOKABLE void clickCoords_4(int start_x, int start_y, int end_x, int end_y);
+
+    Q_INVOKABLE QString getPixelAsStr(int x, int y);
 
     QObject *getVideoProducer();
     int posX();
@@ -99,8 +113,11 @@ private:
     void periodToFreq(double avT, double mT, double MT, double &avH, double &mH, double &MH);
 
 private:
-    SignalHandler sigHandler;
     VideoProducer videoProducer;
+
+    // This Network yarp must be placed before any other yarp dependent member
+    yarp::os::Network yarp;
+    SignalHandler sigHandler;
 #ifdef YARP_LITTLE_ENDIAN
     yarp::os::BufferedPort<yarp::sig::ImageOf<yarp::sig::PixelBgra> > *ptr_inputPort;
 #else
@@ -109,7 +126,6 @@ private:
     yarp::os::BufferedPort<yarp::os::Bottle> *_pOutPort;
     InputCallback *ptr_portCallback;
     pgmOptions _options;
-    yarp::os::Network yarp;
 
 signals:
     void refreshIntervalChanged();
@@ -118,13 +134,15 @@ signals:
     void posYChanged();
     void widthChanged();
     void heightChanged();
+    void sizeChanged();
     void sendPortFps(QString avg, QString min, QString max);
     void sendDisplayFps(QString avg, QString min, QString max);
-    void synch(bool check);
+    void synchRate(bool check);
+    void autosize(bool check);
     void setName(QString name);
 private slots:
     void onSendFps(double portAvg, double portMin, double portMax, double dispAvg, double dispMin, double dispMax);
+    void onWindowSizeChangeRequested();
 };
 
 #endif // QTYARPVIEW_H
-

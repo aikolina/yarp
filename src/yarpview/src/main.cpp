@@ -1,16 +1,26 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include <QtGui/QGuiApplication>
 #include "qtquick2applicationviewer.h"
 #include "config.h"
+
+#include <csignal>
 
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
@@ -18,6 +28,13 @@
 #include <QQmlContext>
 #include <QVariant>
 #include <QDir>
+#include <QtGlobal>
+
+void catchSignals(int sig) {
+    // blocking and not aysnc-signal-safe func are valid
+    printf("\nYarpview killed by signal(%d).\n", sig);
+    QCoreApplication::quit();
+}
 
 /*! \brief Main method for the YARPView container.
  *
@@ -51,8 +68,21 @@ int main(int argc, char *argv[])
         }
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#else
     qputenv("QT_DEVICE_PIXEL_RATIO", QByteArray("auto"));
+#endif
     QApplication app(argc, argv);
+    // add SIGINT and SIGTERM handler
+    std::signal(SIGINT, catchSignals);
+    std::signal(SIGTERM, catchSignals);
+
+#if !defined(_WIN32)
+    std::signal(SIGQUIT, catchSignals);
+    std::signal(SIGHUP, catchSignals);
+#endif
+
     QVariant retVal;
 
     // De-comment this to trace all imports
@@ -83,7 +113,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    QQuickWindow *window = qobject_cast<QQuickWindow *>(topLevel);
+    auto* window = qobject_cast<QQuickWindow *>(topLevel);
     if (minimal)
     {
         window->setFlags(Qt::FramelessWindowHint);
@@ -94,7 +124,7 @@ int main(int argc, char *argv[])
     }
 
     // Call the parseParameters of the qml object called YARPVideoSurface
-    QObject *yarpVideoSurface = topLevel->findChild<QObject*>("YARPVideoSurface");
+    auto* yarpVideoSurface = topLevel->findChild<QObject*>("YARPVideoSurface");
     QMetaObject::invokeMethod(yarpVideoSurface,"parseParameters",
                               Qt::DirectConnection,
                               Q_RETURN_ARG(QVariant, retVal),
@@ -109,4 +139,3 @@ int main(int argc, char *argv[])
 
     return (app.exec()!=0?1:0);
 }
-

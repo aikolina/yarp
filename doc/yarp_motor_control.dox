@@ -1,15 +1,14 @@
-#ifndef _YARP2_USERDOC_
-#define _YARP2_USERDOC_
-
 /**
- * @page yarp_motor_control The YARP motor control interfaces
+\page yarp_motor_control The YARP motor control interfaces
+
+\tableofcontents
 
 When controlling a robot you typically use one of the interfaces from
 the ControlBoardInterfaces.h header file. These are meant to abstract
 a great deal of details but not all of it since we want to retain the
 possibility of efficient and specialized motor control code.
 
-@section yarp_motorcontrol_base Motor control.
+\section yarp_motorcontrol_base Motor control.
 
 We take an example of a motor control device since this is simpler to
 explain than a general controller. The approach itself is
@@ -145,5 +144,3 @@ controller memory). As a last operation before close(), disable the
 amplifiers so that it becomes safe again to move the robot.
 
 */
-
-#endif

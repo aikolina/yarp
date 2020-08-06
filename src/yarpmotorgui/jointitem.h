@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- *         Francesco Nori <francesco.nori@iit.it>
- *         Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #ifndef JOINTITEM_H
 #define JOINTITEM_H
@@ -34,7 +43,7 @@ class JointItem : public QWidget
     Q_OBJECT
 
     public:
-    enum JointState {Idle = 0,Position,PositionDirect,Mixed,Velocity,Torque,OpenLoop,
+    enum JointState {Idle = 0,Position,PositionDirect,Mixed,Velocity,Torque,Pwm,Current,
                      Disconnected, HwFault, Calibrating, CalibDone, NotConfigured, Configured,Unknown, StateStarting} ;
     enum JointInteraction {Stiff, Compliant, InteractionStarting} ;
     explicit JointItem(int index, QWidget *parent = 0);
@@ -42,21 +51,26 @@ class JointItem : public QWidget
     void setJointInteraction(JointInteraction interaction);
     void setJointState(JointState);
     void setPosition(double val);
-    void setTorque(double val);
-    void setRefTorque(double val);
-    void setRefVelocitySpeed(double val);
-    void setRefTrajectorySpeed(double val);
-    void setRefTrajectoryPosition(double val);
+    void setTorque(double meas);
+    void setRefTorque(double ref);
+    void setRefVelocitySpeed(double ref);
+    void setRefTrajectorySpeed(double ref);
+    void setRefTrajectoryPosition(double ref);
     void setSpeed(double val);
-    void setMotorPosition(double val);
-    void setOpenLoop(double val);
+    void setMotorPosition(double meas);
+    void setDutyCycles(double duty);
+    void setRefPWM(double ref);
+    void setCurrent(double meas);
+    void setRefCurrent(double ref);
     void updateMotionDone(bool done);
     void setJointName(QString name);
+    QString getJointName();
     int getJointIndex();
     void setPositionRange(double min, double max);
     void setVelocityRange(double min, double max);
     void setTrajectoryVelocityRange(double max);
-    void setOpenLoopRange(double min, double max);
+    void setPWMRange(double min, double max);
+    void setCurrentRange(double min, double max);
     void setTorqueRange(double max);
     double getTrajectoryPositionValue();
     double getTrajectoryVelocityValue();
@@ -66,12 +80,15 @@ class JointItem : public QWidget
 
     void setSpeedVisible(bool);
     void setMotorPositionVisible(bool);
+    void setDutyVisible(bool);
+    void setCurrentsVisible(bool);
     void setUnits(yarp::dev::JointTypeEnum t);
     void viewPositionTarget(bool);
     void enableControlVelocity(bool control);
     void enableControlMixed(bool control);
     void enableControlPositionDirect(bool control);
-    void enableControlOpenloop(bool control);
+    void enableControlPWM(bool control);
+    void enableControlCurrent(bool control);
     void sequenceActivated();
     void sequenceStopped();
 
@@ -84,13 +101,16 @@ class JointItem : public QWidget
     void enableTorqueSliderDoubleAuto();
     void enableTorqueSliderDoubleValue(double value);
     void disableTorqueSliderDouble();
+    void enableCurrentSliderDoubleAuto();
+    void enableCurrentSliderDoubleValue(double value);
+    void disableCurrentSliderDouble();
     void enableTrajectoryVelocitySliderDoubleAuto();
     void enableTrajectoryVelocitySliderDoubleValue(double value);
     void disableTrajectoryVelocitySliderDouble();
     void resetTarget();
 
 protected:
-    bool eventFilter(QObject *obj, QEvent *event);
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
     void enableAll();
@@ -101,7 +121,8 @@ private:
     void updateSliderPosition                (SliderWithTarget *slider, double val);
     void updateSliderVelocity                (double val);
     void updateSliderTrajectoryVelocity      (double val);
-    void updateSliderOpenloop                (double val);
+    void updateSliderPWM                     (double val);
+    void updateSliderCurrent                 (double val);
     void updateSliderTorque                  (double val);
 
     void updateTrajectoryPositionTarget      (double val);
@@ -120,19 +141,17 @@ private:
     bool sliderTrajectoryVelocityPressed;
     bool sliderTrajectoryPositionPressed;
     bool sliderTorquePressed;
-    bool sliderOpenloopPressed;
+    bool sliderPWMPressed;
+    bool sliderCurrentPressed;
     bool motionDone;
-    QString movingSliderStyle;
     bool enableCalib;
     bool joint_speedVisible;
     bool joint_motorPositionVisible;
+    bool joint_currentVisible;
+    bool joint_dutyVisible;
     QTimer velocityTimer;
     double lastVelocity;
     bool velocityModeEnabled;
-    bool positionSliderStepIsAuto;
-    bool velocitySliderStepIsAuto;
-    bool torqueSliderStepIsAuto;
-    bool trajectoryVelocitySliderStepIsAuto;
 
     int     IDLE;
     int     POSITION;
@@ -140,25 +159,16 @@ private:
     int     MIXED;
     int     VELOCITY;
     int     TORQUE;
-    int     OPENLOOP;
+    int     PWM;
+    int     CURRENT;
 
     int shiftPositions;
-
-//    QColor idleColor;
-//    QColor positionColor;
-//    QColor positionDirectColor;
-//    QColor mixedColor;
-//    QColor velocityColor;
-//    QColor torqueColor;
-//    QColor openLoopColor;
-//    QColor errorColor;
-//    QColor disconnectColor;
-//    QColor hwFaultColor;
-//    QColor calibratingColor;
 
     JointState internalState;
     JointInteraction internalInteraction;
 
+    double max_current;
+    double min_current;
     double max_torque;
     double min_torque;
     double max_position;
@@ -171,7 +181,8 @@ private:
 
     double ref_speed;
     double ref_torque;
-    double ref_openloop;
+    double ref_pwm;
+    double ref_current;
     double ref_trajectory_velocity;
 
 
@@ -198,8 +209,11 @@ private slots:
     void onSliderTorquePressed();
     void onSliderTorqueReleased();
 
-    void onSliderOpenloopPressed();
-    void onSliderOpenloopReleased();
+    void onSliderCurrentPressed();
+    void onSliderCurrentReleased();
+
+    void onSliderPWMPressed();
+    void onSliderPWMReleased();
 
     void onSliderVelocityReleased();
     void onSliderVelocityPressed();
@@ -227,7 +241,8 @@ signals:
     void sliderDirectPositionCommand(double val, int jointIndex);
     void sliderTrajectoryVelocityCommand(double val, int jointIndex);
     void sliderTorqueCommand(double val, int jointIndex);
-    void sliderOpenloopCommand(double val, int jointIndex);
+    void sliderPWMCommand(double val, int jointIndex);
+    void sliderCurrentCommand(double val, int jointIndex);
     void sliderVelocityCommand(double val, int jointIndex);
 };
 
@@ -238,7 +253,7 @@ class WheelEventFilter : public QObject
 
 
 protected:
-    bool eventFilter(QObject *obj, QEvent *event);
+    bool eventFilter(QObject *obj, QEvent *event) override;
 };
 
 

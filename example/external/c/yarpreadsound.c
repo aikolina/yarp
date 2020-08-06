@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "yarpmin.h"
@@ -44,7 +47,7 @@ int main(int argc, char *argv[]) {
             // YARP sound format is just like images (see yarpreadimage)
             // EXCEPT:
             //   There is an extra header, declaring the image and a
-            //   small extra Bottle holding sound details like the 
+            //   small extra Bottle holding sound details like the
             //   sampling frequency.
 
             unsigned char preheader[4*2]; // declares header and footer
@@ -58,7 +61,7 @@ int main(int argc, char *argv[]) {
             }
 
             // get image header, see YARPImagePortContentHeader
-            // class in src/libYARP_sig/src/Image.cpp
+            // class in src/libYARP_sig/src/yarp/sig/Image.cpp
             int i;
             res = yarp_receive_binary(con,(char*)header,sizeof(header));
             if (res<0) {

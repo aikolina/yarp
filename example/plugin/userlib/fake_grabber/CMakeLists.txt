@@ -1,8 +1,12 @@
-# Copyright: (C) 2010 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+find_package(YARP COMPONENTS os dev REQUIRED)
 
 # Declare a device called "fake_grabber", with C++ type
 # "FakeFrameGrabber" defined in FakeFrameGrabber.h.  This code sets
@@ -13,19 +17,21 @@ yarp_prepare_plugin(fake_grabber
                     CATEGORY device
                     TYPE FakeFrameGrabber
                     INCLUDE FakeFrameGrabber.h
-                    EXTRA_CONFIG WRAPPER=grabber)
+                    EXTRA_CONFIG WRAPPER=grabberDual)
 
 if(NOT SKIP_fake_grabber)
-  # Find any libraries needed - just YARP for this example
-  find_package(YARP REQUIRED)
-  include_directories(${YARP_INCLUDE_DIRS})
-  # ... find and use other needed libraries ...
-  yarp_add_plugin(fake_grabber FakeFrameGrabber.cpp FakeFrameGrabber.h)
-  target_link_libraries(fake_grabber ${YARP_LIBRARIES})
+  yarp_add_plugin(fake_grabber)
+
+  target_sources(fake_grabber PRIVATE FakeFrameGrabber.cpp
+                                      FakeFrameGrabber.h)
+  target_link_libraries(fake_grabber PRIVATE ${YARP_LIBRARIES})
 
   option(COMPILE_TEST "Compile fake grabber test")
   if(COMPILE_TEST)
-    add_executable(test_fake_grabber test_fake_grabber.cpp)
-    target_link_libraries(test_fake_grabber fake_grabber)
+    add_executable(test_fake_grabber)
+    target_sources(test_fake_grabber PRIVATE test_fake_grabber.cpp
+                                             FakeFrameGrabber.cpp
+                                             FakeFrameGrabber.h)
+    target_link_libraries(test_fake_grabber PRIVATE ${YARP_LIBRARIES})
   endif()
 endif()

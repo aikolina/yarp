@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <string.h>
@@ -38,12 +41,12 @@ void Player::apply(int argc, const char *argv[]) {
                 int at = 0;
                 for (int i=-1; i<argc; i++) {
                     const char *txt = NULL;
-                    if (i==-1) { 
+                    if (i==-1) {
                         txt = prefix;
-                    } else if (i==0) { 
-                        txt = getName(); 
-                    } else { 
-                        txt = argv[i]; 
+                    } else if (i==0) {
+                        txt = getName();
+                    } else {
+                        txt = argv[i];
                     }
                     if (i>=0) {
                         if (at<sizeof(buf)-2) {
@@ -192,7 +195,7 @@ void Player::apply(const char *command) {
                     at++;
                 }
                 sub_at = 0;
-            } 
+            }
         }
     }
     for (int i=0; i<MAX_ARG_CT; i++) {
@@ -208,9 +211,9 @@ void Player::apply(const char *command) {
 
 void Player::move(int dx, int dy) {
     Thing& thing = login.getThing();
-    if (!thing.isAlive()) { 
+    if (!thing.isAlive()) {
         send("error [dead] \"you are dead\"");
-        return; 
+        return;
     }
     send("ack [move] \"move requested\"");
     if (dx>1) dx = 1;
@@ -225,15 +228,15 @@ void Player::move(int dx, int dy) {
 
 void Player::fire(int tx, int ty) {
     Thing& thing = login.getThing();
-    if (!thing.isAlive()) { 
+    if (!thing.isAlive()) {
         send("error [dead] \"you are dead\"");
-        return; 
+        return;
     }
 
     send("ack [fire] \"fire requested\"");
 
-	// fire (-1, 5); target, at most
-	// client (x,y)  beginning
+    // fire (-1, 5); target, at most
+    // client (x,y)  beginning
 
     Game& game = Game::getGame();
     ID x = thing.getX();
@@ -246,15 +249,15 @@ void Player::fire(int tx, int ty) {
     for(int i=1; i<=fr; i++) {
         //send("Fire loop");
 
-        ID nid = game.getCell(ID(x.asInt() + i*tx),ID(y.asInt() + i*ty));
-        game.setTransient(ID(x.asInt() + i*tx),ID(y.asInt() + i*ty),1,0.5);
-        long int myid = nid.asInt();
+        ID nid = game.getCell(ID(x.asInt32() + i*tx),ID(y.asInt32() + i*ty));
+        game.setTransient(ID(x.asInt32() + i*tx),ID(y.asInt32() + i*ty),1,0.5);
+        long int myid = nid.asInt32();
 
         if (myid != 0) {
             if(myid >= 100) {
                 Thing& other = game.getThing(myid);
                 other.setLife(other.getLife() - 1000);
-	  
+
                 if(other.getLife() <= 0)  other.setLifetime(0);
             }
             break;  // something hit
@@ -276,7 +279,7 @@ void Player::look() {
     y = thing.getY();
     char buf[256], buf_bar[256];
     int dx = 10, dy = 5;
- 
+
     int at = 0;
     buf_bar[at] = ' ';
     at++;
@@ -288,7 +291,7 @@ void Player::look() {
     at++;
     buf_bar[at] = '\"';
     at++;
-    for (long int xx=x.asInt()-dx; xx<=x.asInt()+dx+2; xx++) {
+    for (long int xx=x.asInt32()-dx; xx<=x.asInt32()+dx+2; xx++) {
         buf_bar[at] = ':';
         at++;
     }
@@ -300,7 +303,7 @@ void Player::look() {
     at++;
     buf_bar[at] = '\0';
 
-    for (long int yy=y.asInt()-dy; yy<=y.asInt()+dy; yy++) {
+    for (long int yy=y.asInt32()-dy; yy<=y.asInt32()+dy; yy++) {
         at = 0;
         buf[at] = ' ';
         at++;
@@ -314,30 +317,30 @@ void Player::look() {
         at++;
         buf[at] = ':';
         at++;
-        for (long int xx=x.asInt()-dx; xx<=x.asInt()+dx; xx++) {
+        for (long int xx=x.asInt32()-dx; xx<=x.asInt32()+dx; xx++) {
             char ch = ' ';
             ID nid = game.getCell(ID(xx),ID(yy));
-            long int x = nid.asInt();
+            long int x = nid.asInt32();
             if (x!=0) {
                 if (x>=100) {
                     if(!game.getThing(nid).isAlive()) {
-                        if (x==login.getID().asInt()) {
+                        if (x==login.getID().asInt32()) {
                             ch = '%';
                         } else {
                             ch = '*';
                         }
-                    } else if (x==login.getID().asInt()) {
-                        ch = 'Q';  // me 
+                    } else if (x==login.getID().asInt32()) {
+                        ch = 'Q';  // me
                     } else if(game.getThing(nid).isBullet()) {
                         ch = '.';
                     } else {
                         ch = 'O';  // another one
                     }
                 } else if(x == 1)  {
-                    ch = '#';	// piece of wall
+                    ch = '#';    // piece of wall
                 }
                 else if(x == 2) {
-                    ch = 'o';	// a bullet
+                    ch = 'o';    // a bullet
                 }
             }
             if (ch==' ') {
@@ -359,20 +362,20 @@ void Player::look() {
     send(buf_bar);
 
     send("  (players ");
-    sprintf(buf,"    (%s (location %d %d) (life %d))", 
+    sprintf(buf,"    (%s (location %d %d) (life %d))",
             login.getThing().getName(),
-            thing.getX().asInt(),
-            thing.getY().asInt(),
+            thing.getX().asInt32(),
+            thing.getY().asInt32(),
             login.getThing().getLife()/1000);
     send(buf);
 
-    for (long int yy=y.asInt()-dy; yy<=y.asInt()+dy; yy++) {
-        for (long int xx=x.asInt()-dx; xx<=x.asInt()+dx; xx++) {
+    for (long int yy=y.asInt32()-dy; yy<=y.asInt32()+dy; yy++) {
+        for (long int xx=x.asInt32()-dx; xx<=x.asInt32()+dx; xx++) {
             ID nid = game.getCell(ID(xx),ID(yy));
-            long int x = nid.asInt();
-            if (x>=100 && x!=login.getID().asInt()) {
+            long int x = nid.asInt32();
+            if (x>=100 && x!=login.getID().asInt32()) {
                 char buf[1000];
-                sprintf(buf,"    (%s (location %d %d) (life %d))", 
+                sprintf(buf,"    (%s (location %d %d) (life %d))",
                         game.getThing(nid).getName(),
                         xx,yy,
                         game.getThing(nid).getLife()/1000);
@@ -390,5 +393,3 @@ void Player::shutdown() {
     login.shutdown();
     id = -1;
 }
-
-

@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef SIGNALHANDLER_H
@@ -22,7 +30,7 @@
 
     This class is used to unlock the backend thread from the GUI thread. It is mainly used for
     receive the frame from the callback and then redirect the signal to its own thread
-    using a conenction in Qt::QueuedConnection modality
+    using a connection in Qt::QueuedConnection modality
 */
 class SignalHandler : public QObject
 {
@@ -32,7 +40,8 @@ public:
     ~SignalHandler();
 
     void sendVideoFrame(QVideoFrame);
-    void synchToDisplay(bool check);
+    void synchDisplayPeriod(bool check);
+    void synchDisplaySize(bool check);
     void changeRefreshInterval(int ineterval);
     void freeze(bool check);
     void saveCurrentFrame();
@@ -40,6 +49,7 @@ public:
     void setFileNames(QUrl url);
     void startDumpFrames();
     void stopDumpFrames();
+    bool getAutosizeMode();
 
 private:
     void saveFrame(QImage);
@@ -66,10 +76,11 @@ private:
     FpsStats displayFps;
     QString fileName;
     QString fileNames;
-    bool saveSetFrameMode;
-    bool saveCurrentFrameMode;
-    bool freezeMode;
-    bool synchMode;
+    bool b_saveSetFrameMode;
+    bool b_saveCurrentFrameMode;
+    bool b_freezeMode;
+    bool b_synchRateMode;
+    bool b_autosizeMode;
     QVideoFrame frame;
     QMutex mutex;
     QTimer timer;

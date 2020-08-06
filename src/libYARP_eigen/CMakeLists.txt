@@ -1,15 +1,14 @@
-# Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-# Author: Silvio Traversaro
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 project(YARP_eigen)
 
-set(YARP_eigen_HDRS include/yarp/eigen/Eigen.h)
+add_subdirectory(src)
 
-source_group("Header Files" FILES ${YARP_eigen_HDRS})
-
-set_property(GLOBAL APPEND PROPERTY YARP_TREE_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/include")
-
-# When we support CMake 3.0 as the minimum required, we can make this an INTERFACE library
-# For now we just install the headers in a specific location
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/yarp/eigen DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/yarp)
+include(YarpInstallBasicPackageFiles)
+yarp_install_basic_package_files(YARP_eigen
+                                 DEPENDENCIES ${YARP_eigen_PUBLIC_DEPS}
+                                 PRIVATE_DEPENDENCIES ${YARP_eigen_PRIVATE_DEPS})

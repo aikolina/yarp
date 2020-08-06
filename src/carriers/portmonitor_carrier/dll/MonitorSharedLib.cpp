@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2014 iCub Facility
- * Authors: Ali Paikan
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <yarp/os/Network.h>
@@ -18,7 +19,7 @@ using namespace std;
 
 
 class MonitorSelector : public YarpPluginSelector {
-    virtual bool select(Searchable& options) {
+    bool select(Searchable& options) override {
         return options.check("type",Value("none")).asString() == "portmonitor";
     }
 };
@@ -26,9 +27,8 @@ class MonitorSelector : public YarpPluginSelector {
 /**
  * Class MonitorSharedLib
  */
-MonitorSharedLib::MonitorSharedLib(void)
+MonitorSharedLib::MonitorSharedLib()
 {
-    settings.setVerboseMode(true);
 }
 
 MonitorSharedLib::~MonitorSharedLib()
@@ -44,7 +44,6 @@ bool MonitorSharedLib::load(const yarp::os::Property& options)
     selector.scan();
 
     settings.setPluginName(options.find("filename").asString());
-    settings.setVerboseMode(true);
     if (!settings.setSelector(selector)) {
         return false;
     }
@@ -93,13 +92,13 @@ yarp::os::Things& MonitorSharedLib::updateReply(Things &thing)
 }
 
 
-bool MonitorSharedLib::peerTrigged(void)
+bool MonitorSharedLib::peerTrigged()
 {
     monitor->trig();
     return true;
 }
 
-bool MonitorSharedLib::canAccept(void)
+bool MonitorSharedLib::canAccept()
 {
     if(constraint == "")
         return true;

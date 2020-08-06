@@ -1,9 +1,27 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "moduleitem.h"
 #include <QGraphicsDropShadowEffect>
 #include <QDebug>
 #include <QCursor>
 #include <QGraphicsScene>
-#include "math.h"
+#include <cmath>
 
 #define TRIANGLEH   (double)((double)PORT_LINE_WIDTH * (double)sqrt(3.0) ) / 2.0
 
@@ -68,7 +86,11 @@ void ModuleItem::init()
 
 
     QFontMetrics fontMetric(font);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int textWidth = fontMetric.horizontalAdvance(itemName);
+#else
     int textWidth = fontMetric.width(itemName);
+#endif
     int mod = textWidth % 16;
     textWidth+=mod;
 
@@ -127,7 +149,7 @@ void ModuleItem::init()
 
 
     if(!nestedInApp){
-        QGraphicsDropShadowEffect *effect = new QGraphicsDropShadowEffect();
+        auto* effect = new QGraphicsDropShadowEffect();
         effect->setColor(QColor(80,80,80,80));
         effect->setBlurRadius(5);
         setGraphicsEffect(effect);
@@ -157,7 +179,7 @@ ModuleItem::~ModuleItem()
     if(manager && editingMode){
         Application* mainApplication = manager->getKnowledgeBase()->getApplication();
         manager->getKnowledgeBase()->removeIModuleFromApplication(mainApplication,module->getLabel());
-        module = NULL;
+        module = nullptr;
     }
 
 }
@@ -333,8 +355,8 @@ void ModuleItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 
     if(moved && editingMode && !nestedInApp){
         //updateGraphicModel();
-        signalHandler()->modified();
-        signalHandler()->moved();
+        emit signalHandler()->modified();
+        emit signalHandler()->moved();
     }
     pressed = false;
     moved = false;
@@ -371,7 +393,7 @@ QVariant ModuleItem::itemChange(GraphicsItemChange change, const QVariant &value
     if (change == QGraphicsItem::ItemSelectedHasChanged) {
         //bool selected = value.toBool();
         if(!externalSelection){
-            sigHandler->moduleSelected(this);
+            emit sigHandler->moduleSelected(this);
         }
         externalSelection = false;
     }
@@ -455,6 +477,7 @@ void ModuleItem::portMoved(PortItem *port,QGraphicsSceneMouseEvent *e)
 PortItem::PortItem(InputData *node, BuilderItem *parent) : BuilderItem(parent)
 {
     triangleH = (PORT_LINE_WIDTH/2)* sqrt(3.0);
+    outData = nullptr;
     inData = node;
     portAvailable = unknown;
 
@@ -485,7 +508,7 @@ PortItem::PortItem(InputData *node, BuilderItem *parent) : BuilderItem(parent)
     this->nestedInApp = parent->nestedInApp;
     portType = INPUT_PORT;
 
-    sigHandler = NULL;
+    sigHandler = nullptr;
     pressed = false;
     moved = false;
     hovered =false;
@@ -504,6 +527,7 @@ PortItem::PortItem(OutputData* node, BuilderItem *parent) : BuilderItem(parent)
 {
     triangleH = (PORT_LINE_WIDTH/2)* sqrt(3.0);
     outData = node;
+    inData = nullptr;
     portAvailable = unknown;
     setAcceptHoverEvents(true);
     setFlag(ItemSendsGeometryChanges,true);
@@ -518,14 +542,13 @@ PortItem::PortItem(OutputData* node, BuilderItem *parent) : BuilderItem(parent)
             polygon << QPointF(-triangleH/2, -PORT_LINE_WIDTH/2) << QPointF(-triangleH/2, PORT_LINE_WIDTH/2) <<
                        QPointF(0, PORT_LINE_WIDTH/2) << QPointF(triangleH/2, 0) << QPointF(0, -PORT_LINE_WIDTH/2);
             boundingR = QRectF(-triangleH/2, -PORT_LINE_WIDTH/2,triangleH,PORT_LINE_WIDTH);
+            break;
         case SERVICE_PORT:
-        boundingR = QRectF(-PORT_LINE_WIDTH/2, -PORT_LINE_WIDTH/2,PORT_LINE_WIDTH,PORT_LINE_WIDTH);
+            boundingR = QRectF(-PORT_LINE_WIDTH/2, -PORT_LINE_WIDTH/2,PORT_LINE_WIDTH,PORT_LINE_WIDTH);
             break;
         default:
             break;
     }
-
-
 
     this->itemName = node->getPort();
     setToolTip(itemName);
@@ -533,7 +556,7 @@ PortItem::PortItem(OutputData* node, BuilderItem *parent) : BuilderItem(parent)
     this->nestedInApp = parent->nestedInApp;
     portType = OUTPUT_PORT;
 
-    sigHandler = NULL;
+    sigHandler = nullptr;
     pressed = false;
     moved = false;
     hovered =false;
@@ -644,26 +667,26 @@ QPointF PortItem::connectionPoint()
 
         switch (inData->getPortType()) {
         case SERVICE_PORT:
-            return QPointF(-PORT_LINE_WIDTH/2,0);
+            return {-PORT_LINE_WIDTH/2,0};
             break;
         case EVENT_PORT:
-            return QPointF(0,0);
+            return {0,0};
             break;
         default:
-            return QPointF(-triangleH/2, - 0);
+            return {-triangleH/2, - 0};
         }
 
     case OUTPUT_PORT:
         switch (outData->getPortType()) {
         case SERVICE_PORT:
-            return QPointF(-PORT_LINE_WIDTH/2,0);
+            return {-PORT_LINE_WIDTH/2,0};
             break;
         default:
-            return QPointF(triangleH/2, - 0);
+            return {triangleH/2, - 0};
         }
 
     }
-    return QPointF(0,0);
+    return {0,0};
 }
 
 int PortItem::getPortType()

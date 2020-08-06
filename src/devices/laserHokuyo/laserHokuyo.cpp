@@ -1,26 +1,34 @@
 /*
- * Copyright (C) 2010 Marco Randazzo
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-// ********************************************************
-// *** THIS FILE IS CURRENTLY UNDER DEVELOPMENT / DEBUG ***
-// ********************************************************
+#define _USE_MATH_DEFINES
 
-#include <laserHokuyo.h>
+#include "laserHokuyo.h"
 
 #include <yarp/os/Time.h>
 #include <yarp/os/Log.h>
 #include <yarp/os/LogStream.h>
-#include <iostream>
-#include <string.h>
-#include <stdlib.h>
-#include <limits>
-#define _USE_MATH_DEFINES
-#include <math.h>
 
-//#define LASER_DEBUG
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <limits>
 
 #ifndef DEG2RAD
 #define DEG2RAD M_PI/180.0
@@ -28,99 +36,92 @@
 
 using namespace std;
 
+namespace {
+YARP_LOG_COMPONENT(LASERHOKUYO, "yarp.devices.laserHokuyo")
+}
+
 bool laserHokuyo::open(yarp::os::Searchable& config)
 {
     internal_status = HOKUYO_STATUS_NOT_READY;
     info = "Hokuyo Laser";
     device_status = DEVICE_OK_STANBY;
 
-#ifdef LASER_DEBUG
-    yDebug("%s\n", config.toString().c_str());
-#endif
+    yCTrace(LASERHOKUYO, "%s", config.toString().c_str());
 
     bool br = config.check("GENERAL");
     if (br == false)
     {
-        yError("cannot read 'GENERAL' section");
+        yCError(LASERHOKUYO, "cannot read 'GENERAL' section");
         return false;
     }
     yarp::os::Searchable& general_config = config.findGroup("GENERAL");
 
     //list of mandatory options
     //TODO change comments
-    period = general_config.check("Period", Value(50), "Period of the sampling thread").asInt();
+    period = general_config.check("Period", Value(50), "Period of the sampling thread").asInt32() / 1000.0;
 
-    if (general_config.check("max_angle") == false) { yError() << "Missing max_angle param"; return false; }
-    if (general_config.check("min_angle") == false) { yError() << "Missing min_angle param"; return false; }
-    max_angle = general_config.find("max_angle").asDouble();
-    min_angle = general_config.find("min_angle").asDouble();
+    if (general_config.check("max_angle") == false) { yCError(LASERHOKUYO) << "Missing max_angle param"; return false; }
+    if (general_config.check("min_angle") == false) { yCError(LASERHOKUYO) << "Missing min_angle param"; return false; }
+    max_angle = general_config.find("max_angle").asFloat64();
+    min_angle = general_config.find("min_angle").asFloat64();
 
-    start_position = general_config.check("Start_Position", Value(0), "Start position").asInt();
-    end_position = general_config.check("End_Position", Value(1080), "End Position").asInt();
+    start_position = general_config.check("Start_Position", Value(0), "Start position").asInt32();
+    end_position = general_config.check("End_Position", Value(1080), "End Position").asInt32();
 
-    error_codes = general_config.check("Convert_Error_Codes", Value(0), "Substitute error codes with legal measurments").asInt();
-    yarp::os::ConstString s = general_config.check("Laser_Mode", Value("GD"), "Laser Mode (GD/MD").asString();
+    error_codes = general_config.check("Convert_Error_Codes", Value(0), "Substitute error codes with legal measurments").asInt32();
+    std::string s = general_config.check("Laser_Mode", Value("GD"), "Laser Mode (GD/MD").asString();
 
     if (general_config.check("Measurement_Units"))
     {
-        yError() << "Deprecated parameter 'Measurement_Units'. Please Remove it from the configuration file.";
+        yCError(LASERHOKUYO) << "Deprecated parameter 'Measurement_Units'. Please Remove it from the configuration file.";
     }
 
     if (error_codes==1)
     {
-        yInfo("'error_codes' option enabled. Invalid samples will be substituted with out-of-range measurements.");
+        yCInfo(LASERHOKUYO, "'error_codes' option enabled. Invalid samples will be substituted with out-of-range measurements.");
     }
     if (s=="GD")
     {
         laser_mode = GD_MODE;
-        yInfo("Using GD mode (single acquisition)");
+        yCInfo(LASERHOKUYO, "Using GD mode (single acquisition)");
     }
     else if (s=="MD")
     {
         laser_mode = MD_MODE;
-        yInfo("Using MD mode (continuous acquisition)");
+        yCInfo(LASERHOKUYO, "Using MD mode (continuous acquisition)");
     }
     else
     {
         laser_mode = GD_MODE;
-        yError("Laser_mode not found. Using GD mode (single acquisition)");
+        yCError(LASERHOKUYO, "Laser_mode not found. Using GD mode (single acquisition)");
     }
+    setPeriod(period);
 
-    bool ok = general_config.check("Serial_Configuration");
-    if (!ok)
+    bool br2 = config.check("SERIAL_PORT_CONFIGURATION");
+    if (br2 == false)
     {
-        yError("Cannot find configuration file for serial port communication!");
+        yCError(LASERHOKUYO, "cannot read 'SERIAL_PORT_CONFIGURATION' section");
         return false;
     }
-    yarp::os::ConstString serial_filename = general_config.find("Serial_Configuration").asString();
-
-    //string st = config.toString();
-    setRate(period);
-
+    yarp::os::Searchable& serial_config = config.findGroup("SERIAL_PORT_CONFIGURATION");
+    string ss = serial_config.toString();
     Property prop;
-
+    prop.fromString(ss);
     prop.put("device", "serialport");
-    ok = prop.fromConfigFile(serial_filename.c_str(),config,false);
-    if (!ok)
-    {
-        yError("Unable to read from serial port configuration file");
-        return false;
-    }
-
-    pSerial=0;
 
     driver.open(prop);
     if (!driver.isValid())
     {
-        yError("Error opening PolyDriver check parameters");
+        yCError(LASERHOKUYO, "Error opening PolyDriver check parameters");
         return false;
     }
 
+    pSerial=nullptr;
     driver.view(pSerial);
 
     if (!pSerial)
     {
-        yError("Error opening serial driver. Device not available");
+        yCError(LASERHOKUYO, "Error opening serial driver. Device not available");
         return false;
     }
 
@@ -131,16 +132,16 @@ bool laserHokuyo::open(yarp::os::Searchable& config)
     // *** Check if the URG device is present ***
     b.addString("SCIP2.0\n");
     pSerial->send(b);
-    yarp::os::Time::delay(0.040);
+    yarp::os::SystemClock::delaySystem(0.040);
     pSerial->receive(b_ans);
     if (b_ans.size()>0)
     {
-        yInfo("URG device successfully initialized.\n");
-        yDebug("%s\n", b_ans.get(0).asString().c_str());
+        yCInfo(LASERHOKUYO, "URG device successfully initialized.");
+        yCDebug(LASERHOKUYO, "%s", b_ans.get(0).asString().c_str());
     }
     else
     {
-        yError("Error: URG device not found.\n");
+        yCError(LASERHOKUYO, "Error: URG device not found.");
         //return false;
     }
     b.clear();
@@ -149,37 +150,37 @@ bool laserHokuyo::open(yarp::os::Searchable& config)
     // *** Change the baud rate to 115200 ***
     /*b.addString("SS01152001\n");
     pSerial->send(b);
-    yarp::os::Time::delay(0.040);
+    yarp::os::SystemClock::delaySystem(0.040);
     pSerial->receive(b_ans);
     ans = b_ans.get(0).asString();
-    yDebug("%s\n",ans.c_str());
+    yCDebug(LASERHOKUYO, "%s",ans.c_str());
     b.clear();
     b_ans.clear();*/
 
     // *** Read the firmware version parameters ***
     b.addString("VV\n");
     pSerial->send(b);
-    yarp::os::Time::delay(0.040);
+    yarp::os::SystemClock::delaySystem(0.040);
     pSerial->receive(b_ans);
     ans = b_ans.get(0).asString();
-    yDebug("%s\n",ans.c_str());
+    yCDebug(LASERHOKUYO, "%s",ans.c_str());
     b.clear();
     b_ans.clear();
 
     // *** Read the sensor specifications ***
     b.addString("II\n");
     pSerial->send(b);
-    yarp::os::Time::delay(0.040);
+    yarp::os::SystemClock::delaySystem(0.040);
     pSerial->receive(b_ans);
     ans = b_ans.get(0).asString();
-    yDebug("%s\n", ans.c_str());
+    yCDebug(LASERHOKUYO, "%s", ans.c_str());
     b.clear();
     b_ans.clear();
 
     // *** Read the URG configuration parameters ***
     b.addString("PP\n");
     pSerial->send(b);
-    yarp::os::Time::delay(0.040);
+    yarp::os::SystemClock::delaySystem(0.040);
     pSerial->receive(b_ans);
     /*
     syntax of the answer:
@@ -193,7 +194,7 @@ bool laserHokuyo::open(yarp::os::Searchable& config)
     SCAN ... Standard angular velocity
     */
     ans = b_ans.get(0).asString();
-    yDebug( "%s\n", ans.c_str());
+    yCDebug(LASERHOKUYO,  "%s", ans.c_str());
     //parsing the answer
     size_t found;
     found = ans.find("MODL");
@@ -218,7 +219,7 @@ bool laserHokuyo::open(yarp::os::Searchable& config)
     // *** Turns on the Laser ***
     b.addString("BM\n");
     pSerial->send(b);
-    yarp::os::Time::delay(0.040);
+    yarp::os::SystemClock::delaySystem(0.040);
     pSerial->receive(b_ans);
     // @@@TODO: Check the answer
     b.clear();
@@ -234,7 +235,7 @@ bool laserHokuyo::open(yarp::os::Searchable& config)
     {
         // *** Starts endless acquisition mode***
         char message [255];
-        sprintf (message,"MD%04d%04d%02d%01d%02d\n",start_position,end_position,1,1,0);
+        std::snprintf(message, 255, "MD%04d%04d%02d%01d%02d\n",start_position,end_position,1,1,0);
         b.addString(message);
         pSerial->send(b);
         b.clear();
@@ -245,21 +246,19 @@ bool laserHokuyo::open(yarp::os::Searchable& config)
     {
         // *** Starts one single acquisition ***
         char message [255];
-        sprintf (message,"GD%04d%04d%02d\n",start_position,end_position,1);
+        std::snprintf(message, 255, "GD%04d%04d%02d\n",start_position,end_position,1);
         b.addString(message);
         pSerial->send(b);
         b.clear();
         b_ans.clear();
     }
 
-    Time::turboBoost();
-    RateThread::start();
-    return true;
+    return PeriodicThread::start();
 }
 
 bool laserHokuyo::close()
 {
-    RateThread::stop();
+    PeriodicThread::stop();
 
     Bottle b;
     Bottle b_ans;
@@ -280,7 +279,7 @@ bool laserHokuyo::close()
 
 bool laserHokuyo::getDistanceRange(double& min, double& max)
 {
-    //should return range 0.1-30m (or 100, 30000mm depending on the measurment units)
+    //should return range 0.1-30m (or 100, 30000mm depending on the measurement units)
     min = 0.1;
     max = 30;
     return true;
@@ -288,7 +287,7 @@ bool laserHokuyo::getDistanceRange(double& min, double& max)
 
 bool laserHokuyo::setDistanceRange(double min, double max)
 {
-    yError("setDistanceRange NOT YET IMPLEMENTED");
+    yCError(LASERHOKUYO, "setDistanceRange NOT YET IMPLEMENTED");
     return false;
 }
 
@@ -302,7 +301,7 @@ bool laserHokuyo::getScanLimits(double& min, double& max)
 
 bool laserHokuyo::setScanLimits(double min, double max)
 {
-    yError("setScanLimits NOT YET IMPLEMENTED");
+    yCError(LASERHOKUYO, "setScanLimits NOT YET IMPLEMENTED");
     return false;
 }
 
@@ -314,7 +313,7 @@ bool laserHokuyo::getHorizontalResolution(double& step)
 
 bool laserHokuyo::setHorizontalResolution(double step)
 {
-    yError("setHorizontalResolution NOT YET IMPLEMENTED");
+    yCError(LASERHOKUYO, "setHorizontalResolution NOT YET IMPLEMENTED");
     return false;
 }
 
@@ -326,7 +325,7 @@ bool laserHokuyo::getScanRate(double& rate)
 
 bool laserHokuyo::setScanRate(double rate)
 {
-    yError("setScanRate NOT YET IMPLEMENTED");
+    yCError(LASERHOKUYO, "setScanRate NOT YET IMPLEMENTED");
     return false;
 }
 
@@ -334,16 +333,13 @@ bool laserHokuyo::getRawData(yarp::sig::Vector &out)
 {
     if (internal_status != HOKUYO_STATUS_NOT_READY)
     {
-        mutex.wait();
-#ifdef LASER_DEBUG
-        //yDebug("data: %s\n", laser_data.toString().c_str());
-#endif
+        mutex.lock();
+        yCTrace(LASERHOKUYO, "data: %s", laser_data.toString().c_str());
         out = laser_data;
-        mutex.post();
+        mutex.unlock();
         device_status = yarp::dev::IRangefinder2D::DEVICE_OK_IN_USE;
         return true;
     }
-
     device_status = yarp::dev::IRangefinder2D::DEVICE_GENERAL_ERROR;
     return false;
 }
@@ -352,20 +348,24 @@ bool laserHokuyo::getLaserMeasurement(std::vector<LaserMeasurementData> &data)
 {
     if (internal_status != HOKUYO_STATUS_NOT_READY)
     {
-        mutex.wait();
-#ifdef LASER_DEBUG
-        //yDebug("data: %s\n", laser_data.toString().c_str());
-#endif
+        mutex.lock();
+        yCTrace(LASERHOKUYO, "data: %s", laser_data.toString().c_str());
         size_t size = laser_data.size();
         data.resize(size);
-        if (max_angle < min_angle) { yError() << "getLaserMeasurement failed"; return false; }
+        if (max_angle < min_angle)
+        {
+            yCError(LASERHOKUYO) << "getLaserMeasurement failed";
+            mutex.unlock();
+            return false;
+        }
+
         double laser_angle_of_view = max_angle - min_angle;
         for (size_t i = 0; i < size; i++)
         {
             double angle = (i / double(size)*laser_angle_of_view + min_angle)* DEG2RAD;
             data[i].set_polar(laser_data[i], angle);
         }
-        mutex.post();
+        mutex.unlock();
         device_status = yarp::dev::IRangefinder2D::DEVICE_OK_IN_USE;
         return true;
     }
@@ -375,19 +375,16 @@ bool laserHokuyo::getLaserMeasurement(std::vector<LaserMeasurementData> &data)
 }
 bool laserHokuyo::getDeviceStatus(Device_status &status)
 {
-    mutex.wait();
+    mutex.lock();
     status = device_status;
-    mutex.post();
+    mutex.unlock();
     return true;
 }
 
 bool laserHokuyo::threadInit()
 {
-#ifdef LASER_DEBUG
-    yDebug("laserHokuyo:: thread initialising...\n");
-    yDebug("... done!\n");
-#endif
-
+    yCTrace(LASERHOKUYO, "laserHokuyo:: thread initialising...");
+    yCTrace(LASERHOKUYO, "... done!");
     return true;
 }
 
@@ -454,9 +451,7 @@ int laserHokuyo::readData(const Laser_mode_type laser_mode, const char* text_dat
         if ((laser_mode == MD_MODE && (text_data[0] != 'M' || text_data[1] != 'D')) ||
             (laser_mode == GD_MODE && (text_data[0] != 'G' || text_data[1] != 'D')))
             {
-                #ifdef LASER_DEBUG
-                yDebug("Invalid answer to a MD command: %s\n", text_data);
-                #endif
+                yCTrace(LASERHOKUYO, "Invalid answer to a MD command: %s", text_data);
                 return HOKUYO_STATUS_ERROR_INVALID_COMMAND;
             }
             else
@@ -469,9 +464,7 @@ int laserHokuyo::readData(const Laser_mode_type laser_mode, const char* text_dat
         if ((laser_mode == MD_MODE && (text_data[0] != '9' || text_data[1] != '9' || text_data[2] != 'b' )) ||
             (laser_mode == GD_MODE && (text_data[0] != '0' || text_data[1] != '0' || text_data[2] != 'P' )))
             {
-                #ifdef LASER_DEBUG
-                yDebug("Invalid sensor status: %s\n", text_data);
-                #endif
+                yCTrace(LASERHOKUYO, "Invalid sensor status: %s", text_data);
                 return HOKUYO_STATUS_ERROR_BUSY;
             }
             else
@@ -484,9 +477,7 @@ int laserHokuyo::readData(const Laser_mode_type laser_mode, const char* text_dat
         char expected_checksum = text_data[text_data_len - 2];
         if (calculateCheckSum(text_data, text_data_len - 2, expected_checksum) < 0)
         {
-            #ifdef LASER_DEBUG
-            yDebug("Cheksum error, line: %d: %s\n", current_line, text_data);
-            #endif
+            yCTrace(LASERHOKUYO, "Checksum error, line: %d: %s", current_line, text_data);
             return HOKUYO_STATUS_ERROR_INVALID_CHECKSUM;
         }
     }
@@ -511,21 +502,17 @@ int laserHokuyo::readData(const Laser_mode_type laser_mode, const char* text_dat
 
 void laserHokuyo::run()
 {
-    mutex.wait();
-
     //send the GD command: get one single measurement, D precision
     Bottle b;
     Bottle b_ans;
-    const int buffer_size = 128;
+    constexpr int buffer_size = 128;
     char command [buffer_size];
     char answer  [buffer_size];
-#ifdef LASER_DEBUG
     static double old;
-#endif
     yarp::sig::Vector data_vector;
 
     string data_text;
-    double t1 = yarp::os::Time::now();
+    double t1 = yarp::os::SystemClock::nowSystem();
     double t2 = 0;
     bool timeout = false;
     bool rx_completed = false;
@@ -534,7 +521,6 @@ void laserHokuyo::run()
     double maxtime=1;
     do
     {
-        //yDebug ("1status: %d!\n",internal_status);
         int answer_len = pSerial->receiveLine(answer, buffer_size);
         internal_status = readData(laser_mode, answer,answer_len,current_line,data_vector);
         if (internal_status <  0 && internal_status != HOKUYO_STATUS_ERROR_NOTHING_RECEIVED)
@@ -549,53 +535,50 @@ void laserHokuyo::run()
         {
             rx_completed = true;
         }
-        t2 = yarp::os::Time::now();
+        t2 = yarp::os::SystemClock::nowSystem();
         if (t2-t1>maxtime) timeout = true;
     }
     while (rx_completed == false && timeout == false && error == false);
 
     if (timeout)
     {
-        yError ("laserHokuyo Timeout!");
+        yCError(LASERHOKUYO, "laserHokuyo Timeout!");
     }
     if (error)
     {
-        yError("laserHokuyo Communication Error, internal status=%d",internal_status);
+        yCError(LASERHOKUYO, "laserHokuyo Communication Error, internal status=%d",internal_status);
     }
-
-    #ifdef LASER_DEBUG
-    yDebug ("time: %.3f %.3f\n",t2-t1, t2-old);
+    yCTrace(LASERHOKUYO, "time: %.3f %.3f",t2-t1, t2-old);
     old = t2;
-    #endif
+
+    mutex.lock();
 
     if (rx_completed)
     {
         laser_data=data_vector;
     }
+    mutex.unlock();
 
     if (laser_mode==GD_MODE)
     {
-        sprintf (command,"GD%04d%04d%02d\n",start_position,end_position,1);
+        std::snprintf(command, buffer_size, "GD%04d%04d%02d\n",start_position,end_position,1);
         b.addString(command);
         pSerial->send(b);
     }
 
-    //Time::delay (0.100);
-    mutex.post();
+    //SystemClock::delaySystem (0.100);
 }
 
 void laserHokuyo::threadRelease()
 {
-#ifdef LASER_DEBUG
-    yDebug("laserHokuyo Thread releasing...");
-    yDebug("... done.");
-#endif
+    yCTrace(LASERHOKUYO, "laserHokuyo Thread releasing...");
+    yCTrace(LASERHOKUYO, "... done.");
 }
 
-bool laserHokuyo::getDeviceInfo(yarp::os::ConstString &device_info)
+bool laserHokuyo::getDeviceInfo(std::string &device_info)
 {
-    this->mutex.wait();
+    this->mutex.lock();
     device_info = info;
-    this->mutex.post();
+    this->mutex.unlock();
     return true;
 }

@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <stdio.h>
@@ -33,16 +36,16 @@ int main() {
 
     printf("*** fakebot created\n");
 
-    PolyDriver dd2("test_grabber");
+    PolyDriver dd2("fakeFrameGrabber");
     if (!dd2.isValid()) {
-        printf("test_grabber not available\n");
+        printf("fakeFrameGrabber not available\n");
         exit(1);
     }
 
-  
+
     IFrameGrabberImage *grabber;
     dd2.view(grabber);
-  
+
     if (grabber!=NULL) {
         printf("*** It can supply images\n");
         ImageOf<PixelRgb> img;
@@ -57,15 +60,12 @@ int main() {
 
     IPidControl *pid;
     dd.view(pid);
-  
+
     if (pid!=NULL) {
         printf("*** It can do PID control\n");
     } else {
         printf("*** It can <<<<<NOT>>>>> do PID control\n");
     }
-  
+
     return 0;
 }
-
-
-

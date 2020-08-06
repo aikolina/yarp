@@ -1,18 +1,15 @@
-# Copyright (C) 2015  iCub Facility, Istituto Italiano di Tecnologia
-# Author: Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-if(CREATE_YARPBATTERYGUI)
+if(YARP_COMPILE_yarpbatterygui)
 
   include(YarpUseQt5)
-  include(YarpOSXUtilities)
+  include(YarpMacOSUtilities)
 
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_sig_INCLUDE_DIRS TARGET YARP_sig PROPERTY INCLUDE_DIRS)
-  get_property(YARP_dev_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_sig_INCLUDE_DIRS}
-                      ${YARP_dev_INCLUDE_DIRS})
+  add_executable(yarpbatterygui WIN32)
 
   set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
@@ -28,33 +25,39 @@ if(CREATE_YARPBATTERYGUI)
 
   qt5_wrap_ui(yarpbatterygui_UI_GEN_SRCS ${yarpbatterygui_UI_FILES})
 
-  source_group("Source Files" FILES ${yarpbatterygui_SRCS})
-  source_group("Header Files" FILES ${yarpbatterygui_HDRS})
+  source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+               PREFIX "Source Files"
+               FILES ${yarpbatterygui_SRCS})
+  source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+               PREFIX "Header Files"
+               FILES ${yarpbatterygui_HDRS})
   source_group("Resources Files" FILES ${yarpbatterygui_QRC_FILES})
   source_group("UI Files" FILES ${yarpbatterygui_UI_FILES})
   source_group("Generated Files" FILES ${yarpbatterygui_QRC_GEN_SRCS}
                                        ${yarpbatterygui_UI_GEN_SRCS})
 
-  add_executable(yarpbatterygui WIN32 ${yarpbatterygui_SRCS}
-                                      ${yarpbatterygui_HDRS}
-                                      ${yarpbatterygui_QRC_GEN_SRCS}
-                                      ${yarpbatterygui_UI_GEN_SRCS})
+  target_sources(yarpbatterygui PRIVATE ${yarpbatterygui_SRCS}
+                                        ${yarpbatterygui_HDRS}
+                                        ${yarpbatterygui_QRC_FILES}
+                                        ${yarpbatterygui_QRC_GEN_SRCS}
+                                        ${yarpbatterygui_UI_FILES}
+                                        ${yarpbatterygui_UI_GEN_SRCS})
 
-  target_link_libraries(yarpbatterygui YARP_OS
-                                       YARP_init
-                                       YARP_sig
-                                       YARP_dev)
-  qtyarp_use_modules(yarpbatterygui Widgets
-                                    Gui)
-  qtyarp_deprecate_with_cmake_version(2.8.11)
-  if(WIN32 AND CMAKE_VERSION VERSION_LESS 2.8.11)
-    target_link_libraries(yarpbatterygui Qt5::WinMain)
-  endif()
+  target_link_libraries(yarpbatterygui PRIVATE YARP::YARP_os
+                                               YARP::YARP_init
+                                               YARP::YARP_sig
+                                               YARP::YARP_dev
+                                               Qt5::Widgets
+                                               Qt5::Gui)
 
-  install(TARGETS yarpbatterygui COMPONENT utilities DESTINATION ${CMAKE_INSTALL_BINDIR})
+  install(TARGETS yarpbatterygui
+          COMPONENT utilities
+          DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-  yarp_osx_duplicate_and_add_bundle(TARGET yarpbatterygui
-                                    INSTALL_COMPONENT utilities
-                                    INSTALL_DESTINATION "${CMAKE_INSTALL_BINDIR}")
+  set_property(TARGET yarpbatterygui PROPERTY FOLDER "Graphical User Interfaces")
+
+  yarp_macos_duplicate_and_add_bundle(TARGET yarpbatterygui
+                                      INSTALL_COMPONENT utilities
+                                      INSTALL_DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 endif()

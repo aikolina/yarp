@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "yarpmin.h"
@@ -31,7 +34,7 @@
 #define safe_printf sprintf_s
 #else
 #define safe_printf snprintf
-#endif 
+#endif
 
 static int yarp_is_initialized = 0;
 static yarpAddress yarp_server;
@@ -62,6 +65,10 @@ int find_name_server(int verbose) {
 #else
     const char *sep = "/";
 #endif
+    // =================================================================
+    // WARNING: This code is deprecated and will no longer work,
+    //          see ResourceFinder documentation for paths searched
+    //          by YARP
     if (getenv("YARP_CONF")!=NULL) {
         safe_printf(path,sizeof(path),"%s",getenv("YARP_CONF"));
     } else if (getenv("HOMEDIR")!=NULL) {
@@ -77,6 +84,8 @@ int find_name_server(int verbose) {
         }
         return -1;
     }
+    // =================================================================
+
     if (verbose) {
         fprintf(stderr,"YARP config file should be present in %s\n", path);
     }
@@ -126,7 +135,7 @@ int find_name_server(int verbose) {
     safe_printf(full_server_filename,sizeof(full_server_filename),
                 "%s%s%s",path,sep,server_filename);
     if (verbose) {
-        fprintf(stderr,"Expect name server information in %s\n", 
+        fprintf(stderr,"Expect name server information in %s\n",
                 server_filename);
     }
     fin = fopen(full_server_filename,"r");
@@ -193,7 +202,7 @@ yarpAddressPtr yarp_init_with(const char *name_server_host,
     if(wsaRc=WSAStartup(0x0101, &wsaData)) {
         perror("WinSock init");
     }
-	if(wsaData.wVersion != 0x0101) {
+    if(wsaData.wVersion != 0x0101) {
         WSACleanup();
         perror("wsaData.wVersion");
     }
@@ -226,35 +235,35 @@ yarpConnection yarp_connect(yarpAddressPtr address) {
 #ifdef WIN32
     SOCKET sd;
 #else
-	int sd;
+    int sd;
 #endif
-	//struct sockaddr_in sin;
-	struct sockaddr_in pin;
-	struct hostent *hp;
+    //struct sockaddr_in sin;
+    struct sockaddr_in pin;
+    struct hostent *hp;
 
-	// get host information
-	if ((hp = gethostbyname(address->host)) == 0) {
-		perror("gethostbyname");
-		exit(1);
-	}
+    // get host information
+    if ((hp = gethostbyname(address->host)) == 0) {
+        perror("gethostbyname");
+        exit(1);
+    }
 
-	// set up socket structure
-	memset(&pin, 0, sizeof(pin));
-	pin.sin_family = AF_INET;
-	pin.sin_addr.s_addr = ((struct in_addr *)(hp->h_addr))->s_addr;
-	pin.sin_port = htons(address->port_number);
+    // set up socket structure
+    memset(&pin, 0, sizeof(pin));
+    pin.sin_family = AF_INET;
+    pin.sin_addr.s_addr = ((struct in_addr *)(hp->h_addr))->s_addr;
+    pin.sin_port = htons(address->port_number);
 
-	// get a socket
-	if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-		perror("socket");
-		exit(1);
-	}
+    // get a socket
+    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+    }
 
-	// connect to PORT on HOST
-	if (connect(sd,(struct sockaddr *)  &pin, sizeof(pin)) == -1) {
-		perror("connect");
-		exit(1);
-	}
+    // connect to PORT on HOST
+    if (connect(sd,(struct sockaddr *)  &pin, sizeof(pin)) == -1) {
+        perror("connect");
+        exit(1);
+    }
 
     return (long int) sd;
 }
@@ -286,11 +295,11 @@ int yarp_send(yarpConnection connection, const char *msg) {
 
 
 int yarp_send_binary(yarpConnection connection, const char *msg, int len) {
-	// send a message to the server PORT on machine HOST
-	if (send(SOCK_CAST(connection), msg, len, 0) == -1) {
-		perror("send");
-		exit(1);
-	}
+    // send a message to the server PORT on machine HOST
+    if (send(SOCK_CAST(connection), msg, len, 0) == -1) {
+        perror("send");
+        exit(1);
+    }
     return 0;
 }
 
@@ -301,7 +310,7 @@ int yarp_receive(yarpConnection connection, char *buf, int len) {
 }
 
 
-int yarp_receive_lines(yarpConnection connection, char *buf, int len, 
+int yarp_receive_lines(yarpConnection connection, char *buf, int len,
                        char **pending_buf, int *pending_len) {
     int i;
     int res = 0;
@@ -401,7 +410,7 @@ int yarp_parse_registration(yarpAddressPtr address, char *buf) {
             }
         }
     }
-    
+
     if (!(got_ip&&got_port_number)) {
         return -1;
     }
@@ -459,12 +468,12 @@ yarpConnection yarp_prepare_to_read_binary(yarpAddressPtr address) {
         exit(1);
     }
 
-    // Following tcp protocol documented at: 
+    // Following tcp protocol documented at:
     //   http://www.yarp.it/yarp_protocol.html
 
     // Send header to select connection type.
     // this header is for fast_tcp, so we don't have to deal with flow control
-    char hdr[8] = {'Y','A',0x64, 0x1E, 0, 0,'R','P'}; 
+    char hdr[8] = {'Y','A',0x64, 0x1E, 0, 0,'R','P'};
     yarp_send_binary(con,hdr,8);
 
     // Send name of our port - there is none, so send a name that
@@ -521,7 +530,7 @@ int yarp_receive_data_header(yarpConnection con) {
     int port_message_len = 0;
     for (i=0; i<blocks; i++) {
         yarp_receive_binary(con,(char *)load_len,4);
-        len += load_len[0] + (load_len[1]<<8) + (load_len[2]<<16) + 
+        len += load_len[0] + (load_len[1]<<8) + (load_len[2]<<16) +
             (load_len[3]<<24);
         if (i==0) {
             port_message_len = len;
@@ -534,7 +543,7 @@ int yarp_receive_data_header(yarpConnection con) {
             exit(1);
         }
     }
-    
+
     // extract the port header part
     char command_header[8];
     command_header[4] = '\0';
@@ -590,4 +599,3 @@ int yarp_write_int(char *buf, int len, int x) {
     ubuf[3] = (x>>24)&0xff;
     return 0;
 }
-

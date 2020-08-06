@@ -1,19 +1,20 @@
 /*
- * Copyright (C) 2011 Department of Robotics Brain and Cognitive Sciences - Istituto Italiano di Tecnologia
- * Author: Vadim Tikhanoff
- * email:  vadim.tikhanoff@iit.it
- * Permission is granted to copy, distribute, and/or modify this program
- * under the terms of the GNU General Public License, version 2 or any
- * later version published by the Free Software Foundation.
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * A copy of the license can be found at
- * http://www.robotcub.org/icub/license/gpl.txt
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
- * Public License for more details
-*/
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef UTILS_H
 #define UTILS_H
@@ -25,7 +26,7 @@
 #include <yarp/os/ResourceFinder.h>
 #include <yarp/sig/Vector.h>
 #include <yarp/os/BufferedPort.h>
-#include <yarp/os/Semaphore.h>
+#include <mutex>
 #include <yarp/sig/Image.h>
 #include <yarp/os/Network.h>
 #include <yarp/os/RpcClient.h>
@@ -36,24 +37,32 @@ class MasterThread;
 class QMainWindow;
 
 struct partsData
-    {
-        WorkerClass             *worker;                            //personal rate thread
-        yarp::os::Semaphore     mutex;                              //semaphore
-        std::string             name;                               //string containing the name of the part
-        std::string             infoFile;                           //string containing the path of the infoFile
-        std::string             logFile;                            //string containing the path of the logFile
-        std::string             path;                               //string containing the path of the part
-        std::string             type;                               //string containing the type of the data
-        int                     currFrame;                          //integer containing the current frame
-        int                     maxFrame;                           //integer containing the maxFrame
-        yarp::os::Bottle        bot;                                //yarp Bottle containing all the data
-        yarp::sig::Vector       timestamp;                          //yarp Vector containing all the timestamps
-        yarp::os::BufferedPort<yarp::os::Bottle>        bottlePort; //yarp port for sending bottles
-        yarp::os::BufferedPort<yarp::sig::Image>        imagePort;  //yarp port for sending images
-        std::string             portName;                           //the name of the port
-        int                     sent;                               //integer used for step from command
-        bool                    hasNotified;                        //boolean used for individual part notification that it has reached eof
-    };
+{
+    WorkerClass             *worker;                            //personal rate thread
+    std::mutex              mutex;                              //mutex
+    std::string             name;                               //string containing the name of the part
+    std::string             infoFile;                           //string containing the path of the infoFile
+    std::string             logFile;                            //string containing the path of the logFile
+    std::string             path;                               //string containing the path of the part
+    std::string             type;                               //string containing the type of the data
+    int                     currFrame;                          //integer containing the current frame
+    int                     maxFrame;                           //integer containing the maxFrame
+    yarp::os::Bottle        bot;                                //yarp Bottle containing all the data
+    yarp::sig::Vector       timestamp;                          //yarp Vector containing all the timestamps
+    yarp::os::Contactable*  outputPort;                         //yarp port for sending out data
+    std::string             portName;                           //the name of the port
+    int                     sent;                               //integer used for step from command
+    bool                    hasNotified;                        //boolean used for individual part notification that it has reached eof
+
+    partsData() { outputPort = nullptr; worker = nullptr;}
+};
+
+struct RowInfo {
+    std::string name;
+    std::string info;
+    std::string log;
+    std::string path;
+};
 
 /**********************************************************/
 class Utilities : public QObject
@@ -97,8 +106,7 @@ public:
     /**
     * function that returns a vector containing path directories - works in a recursive way
     */
-    int getRecSubDirList(std::string dir, std::vector<std::string> &names, std::vector<std::string> &info,
-                         std::vector<std::string> &logs, std::vector<std::string> &paths, int recursive);
+    int getRecSubDirList(const std::string& dir, std::vector<RowInfo>& rowInfoVec, int recursive);
     /**
     * function that checks validity of log files
     */
@@ -132,7 +140,7 @@ public:
     */
     void getMaxTimeStamp();
     /**
-     * function that gets the minimun timestamp of all parts
+     * function that gets the minimum timestamp of all parts
      */
     void getMinTimeStamp();
     /**

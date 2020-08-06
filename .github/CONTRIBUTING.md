@@ -1,4 +1,4 @@
-Contributing to YARP
+Contributing to YARP                                             {#contributing}
 ====================
 
 
@@ -12,12 +12,14 @@ Contributing to YARP
   - [CMake](#cmake)
   - [Git](#git)
 - [Workflow](#workflow)
-  - [Stable branch: `master`](#stable-branch-master)
-  - [Development branch: `devel`](#development-branch-devel)
+  - [Stable branches: `yarp-3.x`](#stable-branches-yarp-3x)
+      - [Work in progress PR](#work-in-progress-pr)
+  - [Development branch: `master`](#development-branch-master)
   - [Example](#example)
   - [Terminology](#terminology)
 - [Policies](#policies)
-  - [Deprecated features](#deprecated-features)
+  - [Deprecated Features](#deprecated-features)
+  - [`impl` Classes](#impl-classes)
   - [Supported Systems](#supported-systems)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -68,7 +70,6 @@ Example:
 * Lowercase commands, i.e. `if` instead of `IF`
 * No spaces between the command and the bracket, i.e. `if()` instead of `if ()`
 * Do not repeat the argument in the commands closing blocks, i.e. `if(FOO) ... else() ... endif()` instead of `if(FOO) ... else(FOO) ... endif(FOO)`
-* Do not use the new CMake comment style, as that is supported only starting from CMake 3.0
 * No white spaces at the end of the line
 * One EOL at the end of the file
 * All files should use UNIX end of lines
@@ -97,43 +98,44 @@ Example:
 Workflow
 --------
 
-### Stable branch: `master`
+### Stable branches: `yarp-3.x`
 
-The `master` branch is stable and **should not receive new features**.
+The `yarp-3.x` branch is stable and **should not receive new features**.
 Only **bug fixes** are accepted.
 
-This is the typical workflow to fix a bug in the master branch.
+This is the typical workflow to fix a bug in the yarp-3.x branches.
 
 * Identify a bug that does not require breaking changes of the API/ABI.
 * Open an issue on github.
-* Add some label (FIXME which label?).
+* Add some labels.
 * Assign the issue to yourself.
-* Create a new branch starting from the `master` branch:
+* Create a new branch starting from the `yarp-3.x` branch:
 
 ```
 git fetch origin
-git checkout -b <branch_name> origin/master
+git checkout -b <branch_name> origin/yarp-3.x
 ```
 
 * Fix the bug and make one or more commits.
 * [Push the branch on your fork and create a pull request](https://help.github.com/categories/collaborating-on-projects-using-pull-requests/).
 * Wait for someone else to review your fix and merge your pull request.
-* Your fix is now in the `master` branch, now you need to port it to the `devel`
-  branch.
+* Your fix is now in the `yarp-3.x` branch, now you need to port it to the newer
+  `yarp-3.x+1` branches (if any), and to the `master` branch.
   * Ensure that your branches are in sync with `origin`:
 
 ```
+git checkout yarp-3.x
+git pull --rebase origin yarp-3.x
 git checkout master
 git pull --rebase origin master
-git checkout devel
-git pull --rebase origin devel
 ```
 
-  * Merge master into devel and eventually fix the conflicts.
+  * Merge yarp-3.x into master and eventually fix the conflicts.
 
 ```
-git merge master
+git merge yarp-3.x
 ```
+
 ##### Work in progress PR
 As final note, in case you need to start a PR but you deem it still **work-in-progress**
 and don't want anyone to merge it by mistake, do the following:
@@ -144,49 +146,45 @@ Once you're happy about your work, just remove the `[WIP]` tag as well as the la
 and drop a message within the PR to notify the community that reviews are welcome
 and merging is now possible.
 
-### Development branch: `devel`
+### Development branch: `master`
 
 
-We use the branch `devel` to collect the ongoing work, which is given in terms
+We use the branch `master` to collect the ongoing work, which is given in terms
 of **new features** and **bug fixes**.
 
+When we start the development of a new feature release, the tweak number is
+bumped to 100. This number can be checked from CMake in downstream projects to
+ensure that the user has all the required features.
 When we introduce a new feature that will cause downstream projects to be aware
-of such update, we do increase the tweak number (always sticking to
-_odd numbers_).
-
-When we decide to publish these new features in a new software release (roughly
-each _3 months_), we merge the new modifications into `master`, doing:
-
-```sh
-git checkout master
-git merge --no-ff devel
-git push origin master
-```
-
+of such update, we do increase the tweak number.
 
 
 ### Example
 
 This is an example of workflow involving:
-* A bug fixed in the `bugfix_xxx` branch (gray) and later merged on the `master`
-  branch (blue).
-* A few stable tags in the `master` branch:
-  * **v2.3.64.5** is latest stable tag for the YARP 2.3.64 release series.
-  * **v2.3.66** is the first stable tag for the YARP 2.3.66 release series.
-  * **v2.3.66.1** is a stable tag (bug fixes only) for the YARP 2.3.66 release
-    series. **v2.3.66** and **v2.3.66.1** are compatible (both API and ABI).
-* The development of a new feature developed in the `feature_foo` branch (orange)
-  and later merged in the `devel` branch (purple).
-* Two fake development tag in the `devel` branch:
-  * **v2.3.67** that represents the beginning of the development of the next
-    stable release.
-  * **v2.3.67.1** that includes one new feature.
+* A security fix (turquoise branch) fixed in the `yarp-3.3` branch (gray) and
+  later merged on the `yarp-3.4` (blue) and `master` branches (green).
+* A bug fix (purple branch) (fixed in the `yarp-3.4` branch (gray) and later
+  merged on the `master` branch.
+* A new feature (orange branch) merged in the `devel` branch (purple).
+* A few tags:
+  * **v3.3.0** is the first tag (introducing new features) for the YARP 3.3 release series.
+  * **v3.3.1** is a stable tag (bug fixes only) for the YARP 3.3 release series.
+  * **v3.3.2** is the latest stable (bug fixes only) tag for the YARP 3.3 release series.
+  * **v3.4.0** is the first tag (introducing new features) for the YARP 3.4 release series.
+  * **v3.4.1** is the latest stable tag for the YARP 3.1 release series.
+* A few fake development tags in the `master` branch:
+  * **v3.3.100** that represents the beginning of the development of the next
+    YARP 3.4 release.
+  * **v3.4.100** that represents the beginning of the development of the next
+    YARP 3.5 release.
+  * **v3.4.101** that includes one new feature.
   These are not tagged for real in the repository, but represents the actual
   version number that other projects can check in order to require a specific
   feature and print an error that is easy to understand when that feature is not
-  available (i.e. in CMake `find_package(YARP 2.3.67.1 REQUIRED)`)
+  available (i.e. in CMake `find_package(YARP 3.4.101 REQUIRED)`)
 
-![YARP Workflow](workflow.png)
+![YARP Workflow](git-workflow.png)
 
 
 ### Terminology
@@ -194,17 +192,17 @@ This is an example of workflow involving:
 - **Downstream projects**: code repositories that depend on the project under
   subject.
 - **Versioning format**: the versioning system we adopt complies with the format
-  <**major**>.<**minor**>.<**patch**>.<**tweak**>.
-  Starting with YARP 2.3.66, the _patch_ version number is an _even_ number for
-  stable releases (tagged in `master`), and an _odd_ number for unstable releases
-  (tagged in `devel`).
+  <**major**>.<**minor**>.<**patch**>.
+  Starting with YARP 3.0.0, the _patch_ version number is a number lower than
+  100 for stable releases, and a number greater or equal than 100 for unstable
+  releases.
 
 
 
 Policies
 --------
 
-### Deprecated features
+### Deprecated Features
 
 Deprecated methods, features, classes, and tools are marked as deprecated
 instead of removed. This will generate a warning when using these from other
@@ -213,15 +211,26 @@ projects, or an error if YARP is built with `YARP_NO_DEPRECATED`
 No bugfixes or new features will be added to these, unless it is absolutely
 necessary for some reason.
 
-Deprecated features are definitely removed every 4 release series.
+Deprecated features are definitely removed in the following major release, with
+the exception of the features removed during the development between the last
+minor release and the new major release, that are kept until the following
+major release, in order to simplify as much as possible the migration.
+During this period, it is also allowed to do breaking changes that cannot be
+deprecated using the `YARP_DEPRECATED` methods.
+
+### `impl` Classes
+
+Classes in the "impl" namespace are not considered public. Their API is subject
+to changes, without deprecation, even in a minor release.
 
 
 ### Supported Systems
 
 * **Linux**: See [YARP Supported Distributions](http://wiki.icub.org/wiki/YARP_Supported_Distributions)
 * **Windows**:
-  * Visual Studio 10 2010 32 bit
-  * Visual Studio 11 2012 32/64 bit
-  * Visual Studio 12 2013 32/64 bit
-  * Visual Studio 14 2015 32/64 bit (work in progress)
-* **OSX** (FIXME)
+  * Visual Studio 15 2017 32/64 bit
+  * Visual Studio 16 2019 32/64 bit
+* **macOS**:
+  * 10.13 High Sierra
+  * 10.14 Mojave
+  * 10.15 Catalina

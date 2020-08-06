@@ -1,16 +1,26 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Authors: Marco Randazzo <marco.randazzo@iit.it>
- *          Francesco Nori <francesco.nori@iit.it>
- *          Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "partitem.h"
 #include "log.h"
 
-#include <yarp/os/all.h>
+#include <yarp/os/LogStream.h>
 #include <yarp/dev/Drivers.h>
 #include <yarp/dev/PolyDriver.h>
 
@@ -23,51 +33,57 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <cmath>
+#include <cstdio>
 
-PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *finder,
+PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder& _finder,
                    bool debug_param_enabled,
                    bool speedview_param_enabled,
-                   bool enable_calib_all, QWidget *parent) :   QWidget(parent)
+                   bool enable_calib_all, QWidget *parent) :
+    QWidget(parent),
+    m_node(nullptr),
+    m_sequenceWindow(nullptr),
+    m_partId(id),
+    m_mixedEnabled(false),
+    m_positionDirectEnabled(false),
+    m_pwmEnabled(false),
+    m_currentEnabled(false),
+    m_currentPidDlg(nullptr),
+    m_controlModes(nullptr),
+    m_refTrajectorySpeeds(nullptr),
+    m_refTrajectoryPositions(nullptr),
+    m_refTorques(nullptr),
+    m_refVelocitySpeeds(nullptr),
+    m_torques(nullptr),
+    m_positions(nullptr),
+    m_speeds(nullptr),
+    m_currents(nullptr),
+    m_motorPositions(nullptr),
+    m_dutyCycles(nullptr),
+    m_done(nullptr),
+    m_part_speedVisible(false),
+    m_part_motorPositionVisible(false),
+    m_part_dutyVisible(false),
+    m_part_currentVisible(false),
+    m_interactionModes(nullptr),
+    m_finder(&_finder),
+    m_iMot(nullptr),
+    m_iinfo(nullptr),
+    m_slow_k(0)
 {
-    layout = new FlowLayout();
-    setLayout(layout);
-    slow_k = 0;
-
-    partId = id;
-    this->finder = NULL;
-    node = NULL;
-    currentPidDlg = NULL;
-    sequenceWindow = NULL;
-    this->finder = finder;
-    this->partName = partName;
-    mixedEnabled = false;
-    positionDirectEnabled = false;
-    openloopEnabled = false;
-
-    controlModes = 0;
-    refTrajectorySpeeds = 0;
-    refTrajectoryPositions = 0;
-    refTorques = 0;
-    refVelocitySpeeds = 0;
-    torques = 0;
-    positions = 0;
-    speeds = 0;
-    motorPositions = 0;
-    done = 0;
-    interactionModes = 0;
-    part_motorPositionVisible = false;
-    part_speedVisible = false;
+    m_layout = new FlowLayout();
+    setLayout(m_layout);
 
     //PolyDriver *cartesiandd[MAX_NUMBER_ACTIVATED];
 
-    QString robotPartPort = QString("/%1/%2").arg(robotName).arg(partName);
-
-
-    QString robotPartDebugPort = QString("/%1/debug/%2").arg(robotName).arg(partName);
+    if (robotName.at(0) == '/') robotName.remove(0, 1);
+    if (partName.at(0) == '/')  partName.remove(0, 1);
+    m_robotPartPort = QString("/%1/%2").arg(robotName).arg(partName);
+    m_partName = partName;
+    m_robotName = robotName;
 
     //checking existence of the port
     int ind = 0;
-    QString portLocalName = QString("/%1/yarpmotorgui%2/%3").arg(robotName).arg(ind).arg(partName);
+    QString portLocalName = QString("/yarpmotorgui%1/%2").arg(ind).arg(m_robotPartPort);
 
 
     QString nameToCheck = portLocalName;
@@ -85,7 +101,7 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
     while(adr.isValid()){
         ind++;
 
-        portLocalName = QString("/%1/yarpmotorgui%2/%3").arg(robotName).arg(ind).arg(partName);;
+        portLocalName = QString("/yarpmotorgui%1/%2").arg(ind).arg(m_robotPartPort);
 
         nameToCheck = portLocalName;
         nameToCheck += "/rpc:o";
@@ -93,97 +109,65 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
         adr=Network::queryName(nameToCheck.toLatin1().data());
     }
 
-    interfaceError = false;
+    m_interfaceError = false;
 
     // Initializing the polydriver options and instantiating the polydrivers
-    partOptions.put(  "local", portLocalName.toLatin1().data());
-    partOptions.put( "device", "remote_controlboard");
-    partOptions.put( "remote", robotPartPort.toLatin1().data());
-    partOptions.put("carrier", "udp");
+    m_partOptions.put("local", portLocalName.toLatin1().data());
+    m_partOptions.put("device", "remote_controlboard");
+    m_partOptions.put("remote", m_robotPartPort.toLatin1().data());
+    m_partOptions.put("carrier", "udp");
 
-    partsdd = new PolyDriver();
+    m_partsdd = new PolyDriver();
 
     // Opening the drivers
-    interfaceError = !openPolyDrivers();
-    if (interfaceError==true)
+    m_interfaceError = !openPolyDrivers();
+    if (m_interfaceError == true)
     {
-        yError("Opening PolyDriver for part %s failed...", robotPartPort.toLatin1().data());
-        QMessageBox::critical(0,"Error opening a device", QString("Error while opening device for part ").append(robotPartPort.toLatin1().data()));
+        yError("Opening PolyDriver for part %s failed...", m_robotPartPort.toLatin1().data());
+        QMessageBox::critical(nullptr, "Error opening a device", QString("Error while opening device for part ").append(m_robotPartPort.toLatin1().data()));
     }
 
     /*********************************************************************/
     /**************** PartMover Content **********************************/
 
-    if (!finder->isNull()){
+    if (!m_finder->isNull()){
         yDebug("Setting a valid finder \n");
     }
 
     QString sequence_portname = QString("/yarpmotorgui/%1/sequence:o").arg(partName);
-    sequence_port.open(sequence_portname.toLatin1().data());
+    m_sequence_port.open(sequence_portname.toLatin1().data());
 
     initInterfaces();
     openInterfaces();
 
-    // COPY_STORED_POS=0;
-    // COPY_STORED_VEL=0;
-    // COPY_SEQUENCE=0;
-    // COPY_TIMING=0;
-
-    if (interfaceError == false)
+    if (m_interfaceError == false)
     {
-        // yDebug("Allocating memory \n");
-        // STORED_POS   = new double* [NUMBER_OF_STORED];
-        // STORED_VEL   = new double* [NUMBER_OF_STORED];
-        // CURRENT_POS_UPDATE = new bool [NUMBER_OF_STORED];
-
-        // int j,k;
-        // for (j = 0; j < NUMBER_OF_STORED; j++){
-        //     CURRENT_POS_UPDATE[j] = true;
-        //     STORED_POS[j] = new double [MAX_NUMBER_OF_JOINTS];
-        //     STORED_VEL[j] = new double [MAX_NUMBER_OF_JOINTS];
-        // }
-
-        // SEQUENCE     = new int [NUMBER_OF_STORED];
-        // INV_SEQUENCE = new int [NUMBER_OF_STORED];
-        // TIMING = new double    [NUMBER_OF_STORED];
-        // index  = new int [MAX_NUMBER_OF_JOINTS];
-        // SEQUENCE_ITERATOR = new int [0];
-        // timeout_seqeunce_id = new uint [0];
-        // entry_id = new uint [0];
-        // *entry_id = -1;
-        // timeout_seqeunce_rate = new uint [0];
-
-
-        // for (j = 0; j < NUMBER_OF_STORED; j++){
-        //     SEQUENCE[j] = -1;
-        //     TIMING[j] = -0.1;
-        // }
-
-        yarp::os::ConstString jointname;
-        //char buffer[40] = {'i', 'n', 'i', 't'};
-
+        int i = 0;
+        std::string jointname;
         int number_of_joints;
-        iPos->getAxes(&number_of_joints);
+        m_iPos->getAxes(&number_of_joints);
 
-        controlModes = new int[number_of_joints];
-        refTrajectorySpeeds = new double[number_of_joints];
-        refTrajectoryPositions = new double[number_of_joints];
-        refTorques = new double[number_of_joints];
-        refVelocitySpeeds = new double[number_of_joints];
-        torques = new double[number_of_joints];
-        positions = new double[number_of_joints];
-        speeds = new double[number_of_joints];
-        motorPositions = new double[number_of_joints];
-        done = new bool[number_of_joints];
-        interactionModes = new yarp::dev::InteractionModeEnum[number_of_joints];
+        m_controlModes = new int[number_of_joints]; //for (i = 0; i < number_of_joints; i++) m_controlModes = 0;
+        m_refTrajectorySpeeds = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_refTrajectorySpeeds[i] = std::nan("");
+        m_refTrajectoryPositions = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_refTrajectoryPositions[i] = std::nan("");
+        m_refTorques = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_refTorques[i] = std::nan("");
+        m_refVelocitySpeeds = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_refVelocitySpeeds[i] = std::nan("");
+        m_torques = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_torques[i] = std::nan("");
+        m_positions = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_positions[i] = std::nan("");
+        m_speeds = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_speeds[i] = std::nan("");
+        m_currents = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_currents[i] = std::nan("");
+        m_motorPositions = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_motorPositions[i] = std::nan("");
+        m_dutyCycles = new double[number_of_joints]; for (i = 0; i < number_of_joints; i++) m_dutyCycles[i] = std::nan("");
+        m_done = new bool[number_of_joints];
+        m_interactionModes = new yarp::dev::InteractionModeEnum[number_of_joints];
 
         bool ret = false;
-        Time::delay(0.050);
+        SystemClock::delaySystem(0.050);
         do {
-            ret = iencs->getEncoders(positions);
+            ret = m_iencs->getEncoders(m_positions);
             if (!ret) {
                 yError("%s iencs->getEncoders() failed, retrying...\n", partName.toLatin1().data());
-                Time::delay(0.050);
+                SystemClock::delaySystem(0.050);
             }
         } while (!ret);
 
@@ -193,16 +177,13 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
         double max_pos = 100;
         double min_vel = 0;
         double max_vel = 100;
+        double min_cur = -2.0;
+        double max_cur = +2.0;
         for (int k = 0; k<number_of_joints; k++)
         {
-            // //init stored
-            // for(j = 0; j < NUMBER_OF_STORED; j++){
-            //     STORED_POS[j][k] = 0.0;
-            // }
-
-            //index[k]=k;
-            bool bpl = iLim->getLimits(k, &min_pos, &max_pos);
-            bool bvl = iLim->getVelLimits(k, &min_vel, &max_vel);
+            bool bpl = m_iLim->getLimits(k, &min_pos, &max_pos);
+            bool bvl = m_iLim->getVelLimits(k, &min_vel, &max_vel);
+            bool bcr = m_iCur->getCurrentRange(k, &min_cur, &max_cur);
             if (bpl == false)
             {
                 yError() << "Error while getting position limits, part " << partName.toStdString() << " joint " << k;
@@ -211,31 +192,37 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
             {
                 yError() << "Error while getting velocity limits, part " << partName.toStdString() << " joint " << k;
             }
+            if (bcr == false || (min_cur == 0 && max_cur == 0))
+            {
+                yError() << "Error while getting current range, part " << partName.toStdString() << " joint " << k;
+            }
 
             QSettings settings("YARP", "yarpmotorgui");
             double max_slider_vel = settings.value("velocity_slider_limit", 100.0).toDouble();
             if (max_vel > max_slider_vel) max_vel = max_slider_vel;
 
-            iinfo->getAxisName(k, jointname);
+            m_iinfo->getAxisName(k, jointname);
             yarp::dev::JointTypeEnum jtype = yarp::dev::VOCAB_JOINTTYPE_REVOLUTE;
-            bool bjt = iinfo->getJointType(k, jtype);
+            m_iinfo->getJointType(k, jtype);
 
             Pid myPid(0,0,0,0,0,0);
-            yarp::os::Time::delay(0.005);
-            iPid->getPid(k, &myPid);
-            
-            JointItem *joint = new JointItem(k);
+            yarp::os::SystemClock::delaySystem(0.005);
+            m_iPid->getPid(VOCAB_PIDTYPE_POSITION, k, &myPid);
+
+            auto* joint = new JointItem(k);
             joint->setJointName(jointname.c_str());
-            joint->setOpenLoopRange(-myPid.max_output,myPid.max_output);
-            layout->addWidget(joint);
+            joint->setPWMRange(-100.0, 100.0);
+            joint->setCurrentRange(min_cur, max_cur);
+            m_layout->addWidget(joint);
             joint->setPositionRange(min_pos, max_pos);
             joint->setVelocityRange(min_vel, max_vel);
             joint->setTrajectoryVelocityRange(max_vel);
             joint->setTorqueRange(5.0);
             joint->setUnits(jtype);
-            joint->enableControlPositionDirect(positionDirectEnabled);
-            joint->enableControlMixed(mixedEnabled);
-            joint->enableControlOpenloop(openloopEnabled);
+            joint->enableControlPositionDirect(m_positionDirectEnabled);
+            joint->enableControlMixed(m_mixedEnabled);
+            joint->enableControlPWM(m_pwmEnabled);
+            joint->enableControlCurrent(m_currentEnabled);
 
             int val_pos_choice = settings.value("val_pos_choice", 0).toInt();
             int val_trq_choice = settings.value("val_trq_choice", 0).toInt();
@@ -246,6 +233,7 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
             onSetPosSliderOptionPI(val_pos_choice, val_pos_custom_step);
             onSetVelSliderOptionPI(val_vel_choice, val_vel_custom_step);
             onSetTrqSliderOptionPI(val_trq_choice, val_trq_custom_step);
+            onSetCurSliderOptionPI(val_trq_choice, val_trq_custom_step);
 
             joint->setEnabledOptions(debug_param_enabled,
                                      speedview_param_enabled,
@@ -259,7 +247,8 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
             connect(joint, SIGNAL(sliderMixedVelocityCommand(double, int)), this, SLOT(onSliderMixedVelocityCommand(double, int)));
             connect(joint, SIGNAL(sliderTorqueCommand(double, int)), this, SLOT(onSliderTorqueCommand(double, int)));
             connect(joint, SIGNAL(sliderDirectPositionCommand(double, int)), this, SLOT(onSliderDirectPositionCommand(double, int)));
-            connect(joint, SIGNAL(sliderOpenloopCommand(double, int)), this, SLOT(onSliderOpenloopCommand(double, int)));
+            connect(joint, SIGNAL(sliderPWMCommand(double, int)), this, SLOT(onSliderPWMCommand(double, int)));
+            connect(joint, SIGNAL(sliderCurrentCommand(double, int)), this, SLOT(onSliderCurrentCommand(double, int)));
             connect(joint, SIGNAL(sliderVelocityCommand(double, int)), this, SLOT(onSliderVelocityCommand(double, int)));
             connect(joint, SIGNAL(homeClicked(JointItem*)),this,SLOT(onHomeClicked(JointItem*)));
             connect(joint, SIGNAL(idleClicked(JointItem*)),this,SLOT(onIdleClicked(JointItem*)));
@@ -272,45 +261,45 @@ PartItem::PartItem(QString robotName, int id, QString partName, ResourceFinder *
     /*********************************************************************/
     /*********************************************************************/
 
-    cycleTimer.setSingleShot(true);
-    cycleTimer.setTimerType(Qt::PreciseTimer);
-    connect(&cycleTimer,SIGNAL(timeout()),this,SLOT(onCycleTimerTimeout()),Qt::QueuedConnection);
+    m_cycleTimer.setSingleShot(true);
+    m_cycleTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_cycleTimer, SIGNAL(timeout()), this, SLOT(onCycleTimerTimeout()), Qt::QueuedConnection);
 
-    cycleTimeTimer.setSingleShot(true);
-    cycleTimeTimer.setTimerType(Qt::PreciseTimer);
-    connect(&cycleTimeTimer,SIGNAL(timeout()),this,SLOT(onCycleTimeTimerTimeout()),Qt::QueuedConnection);
+    m_cycleTimeTimer.setSingleShot(true);
+    m_cycleTimeTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_cycleTimeTimer, SIGNAL(timeout()), this, SLOT(onCycleTimeTimerTimeout()), Qt::QueuedConnection);
 
 
-    runTimeTimer.setSingleShot(true);
-    runTimeTimer.setTimerType(Qt::PreciseTimer);
-    connect(&runTimeTimer,SIGNAL(timeout()),this,SLOT(onRunTimerTimeout()),Qt::QueuedConnection);
+    m_runTimeTimer.setSingleShot(true);
+    m_runTimeTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_runTimeTimer, SIGNAL(timeout()), this, SLOT(onRunTimerTimeout()), Qt::QueuedConnection);
 
-    runTimer.setSingleShot(true);
-    runTimer.setTimerType(Qt::PreciseTimer);
-    connect(&runTimer,SIGNAL(timeout()),this,SLOT(onRunTimeout()),Qt::QueuedConnection);
+    m_runTimer.setSingleShot(true);
+    m_runTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_runTimer, SIGNAL(timeout()), this, SLOT(onRunTimeout()), Qt::QueuedConnection);
 }
 
 PartItem::~PartItem()
 {
-    disconnect(&runTimer,SIGNAL(timeout()),this,SLOT(onRunTimeout()));
-    runTimer.stop();
+    disconnect(&m_runTimer, SIGNAL(timeout()), this, SLOT(onRunTimeout()));
+    m_runTimer.stop();
 
-    disconnect(&runTimeTimer,SIGNAL(timeout()),this,SLOT(onRunTimerTimeout()));
-    runTimeTimer.stop();
+    disconnect(&m_runTimeTimer, SIGNAL(timeout()), this, SLOT(onRunTimerTimeout()));
+    m_runTimeTimer.stop();
 
-    disconnect(&cycleTimer,SIGNAL(timeout()),this,SLOT(onCycleTimerTimeout()));
-    cycleTimer.stop();
+    disconnect(&m_cycleTimer, SIGNAL(timeout()), this, SLOT(onCycleTimerTimeout()));
+    m_cycleTimer.stop();
 
-    disconnect(&cycleTimeTimer,SIGNAL(timeout()),this,SLOT(onCycleTimeTimerTimeout()));
-    cycleTimeTimer.stop();
+    disconnect(&m_cycleTimeTimer, SIGNAL(timeout()), this, SLOT(onCycleTimeTimerTimeout()));
+    m_cycleTimeTimer.stop();
 
-    if(sequenceWindow){
-        sequenceWindow->hide();
-        delete sequenceWindow;
+    if (m_sequenceWindow){
+        m_sequenceWindow->hide();
+        delete m_sequenceWindow;
     }
 
-    for(int i=0;i<layout->count();i++){
-        JointItem *joint = (JointItem *)layout->itemAt(i)->widget();
+    for (int i = 0; i<m_layout->count(); i++){
+        auto* joint = (JointItem *)m_layout->itemAt(i)->widget();
         if(joint){
             disconnect(joint,SIGNAL(changeMode(int,JointItem*)), this, SLOT(onJointChangeMode(int,JointItem*)));
             disconnect(joint,SIGNAL(changeInteraction(int,JointItem*)), this, SLOT(onJointInteraction(int,JointItem*)));
@@ -323,26 +312,28 @@ PartItem::~PartItem()
         }
     }
 
-    if(partsdd){
-        partsdd->close();
+    if (m_partsdd){
+        m_partsdd->close();
     }
 
-    if (controlModes) { delete[] controlModes; controlModes = 0; }
-    if (refTrajectorySpeeds) { delete[] refTrajectorySpeeds; refTrajectorySpeeds = 0; }
-    if (refTrajectoryPositions) { delete[] refTrajectoryPositions; refTrajectoryPositions = 0; }
-    if (refTorques) { delete[] refTorques; refTorques = 0; }
-    if (refVelocitySpeeds) { delete[] refVelocitySpeeds; refVelocitySpeeds = 0; }
-    if (torques) { delete[] torques; torques = 0; }
-    if (positions) { delete[] positions; positions = 0; }
-    if (speeds) { delete[] speeds; speeds = 0; }
-    if (motorPositions) { delete[] motorPositions; motorPositions = 0; }
-    if (done) { delete[] done; done = 0; }
+    if (m_controlModes) { delete[] m_controlModes; m_controlModes = nullptr; }
+    if (m_refTrajectorySpeeds) { delete[] m_refTrajectorySpeeds; m_refTrajectorySpeeds = nullptr; }
+    if (m_refTrajectoryPositions) { delete[] m_refTrajectoryPositions; m_refTrajectoryPositions = nullptr; }
+    if (m_refTorques) { delete[] m_refTorques; m_refTorques = nullptr; }
+    if (m_refVelocitySpeeds) { delete[] m_refVelocitySpeeds; m_refVelocitySpeeds = nullptr; }
+    if (m_torques) { delete[] m_torques; m_torques = nullptr; }
+    if (m_positions) { delete[] m_positions; m_positions = nullptr; }
+    if (m_speeds) { delete[] m_speeds; m_speeds = nullptr; }
+    if (m_currents) { delete[] m_currents; m_currents = nullptr; }
+    if (m_motorPositions) { delete[] m_motorPositions; m_motorPositions = nullptr; }
+    if (m_dutyCycles) { delete[] m_dutyCycles; m_dutyCycles = nullptr; }
+    if (m_done) { delete[] m_done; m_done = nullptr; }
 }
 
 bool PartItem::openPolyDrivers()
 {
-    partsdd->open(partOptions);
-    if (!partsdd->isValid()) {
+    m_partsdd->open(m_partOptions);
+    if (!m_partsdd->isValid()) {
         return false;
     }
 
@@ -364,21 +355,22 @@ void PartItem::initInterfaces()
 {
     yDebug("Initializing interfaces...");
     //default value for unopened interfaces
-    iPos      = NULL;
-    iVel      = NULL;
-    iVar      = NULL;
-    iDir      = NULL;
-    iencs     = NULL;
-    iAmp      = NULL;
-    iPid      = NULL;
-    iOpl      = NULL;
-    iTrq      = NULL;
-    iImp = NULL;
-    iLim      = NULL;
-    cal       = NULL;
-    ctrlmode2 = NULL;
-    iinteract = NULL;
-    remCalib  = NULL;
+    m_iPos = nullptr;
+    m_iVel = nullptr;
+    m_iVar = nullptr;
+    m_iDir = nullptr;
+    m_iencs = nullptr;
+    m_iAmp = nullptr;
+    m_iPid = nullptr;
+    m_iCur = nullptr;
+    m_iPWM = nullptr;
+    m_iTrq = nullptr;
+    m_iImp = nullptr;
+    m_iLim = nullptr;
+    m_ical = nullptr;
+    m_ictrlmode = nullptr;
+    m_iinteract = nullptr;
+    m_iremCalib = nullptr;
 }
 
 bool PartItem::openInterfaces()
@@ -386,134 +378,144 @@ bool PartItem::openInterfaces()
     yDebug("Opening interfaces...");
     bool ok = false;
 
-    if (partsdd->isValid()) {
-        ok  = partsdd->view(iPid);
+    if (m_partsdd->isValid()) {
+        ok = m_partsdd->view(m_iPid);
         if(!ok){
             yError("...iPid was not ok...");
         }
-        ok &= partsdd->view(iAmp);
+        ok &= m_partsdd->view(m_iAmp);
         if(!ok){
             yError("...iAmp was not ok...");
         }
-        ok &= partsdd->view(iPos);
+        ok &= m_partsdd->view(m_iPos);
         if(!ok){
             yError("...iPos was not ok...");
         }
-        ok &= partsdd->view(iDir);
+        ok &= m_partsdd->view(m_iDir);
         if(!ok){
             yError("...posDirect was not ok...");
         }
-        ok &= partsdd->view(iVel);
+        ok &= m_partsdd->view(m_iVel);
         if(!ok){
             yError("...iVel was not ok...");
         }
-        ok &= partsdd->view(iLim);
+        ok &= m_partsdd->view(m_iLim);
         if(!ok){
             yError("...iLim was not ok...");
         }
-        ok &= partsdd->view(iencs);
+        ok &= m_partsdd->view(m_iencs);
         if(!ok){
             yError("...enc was not ok...");
         }
-        ok &= partsdd->view(cal);
+        ok &= m_partsdd->view(m_ical);
         if(!ok){
             yError("...cal was not ok...");
         }
-        ok &= partsdd->view(iTrq);
+        ok &= m_partsdd->view(m_iTrq);
         if(!ok){
             yError("...trq was not ok...");
         }
-        ok = partsdd->view(iOpl);
+        ok = m_partsdd->view(m_iPWM);
         if(!ok){
             yError("...opl was not ok...");
         }
-        ok &= partsdd->view(iImp);
+        ok &= m_partsdd->view(m_iImp);
         if(!ok){
             yError("...imp was not ok...");
         }
-        ok &= partsdd->view(ctrlmode2);
+        ok &= m_partsdd->view(m_ictrlmode);
         if(!ok){
             yError("...ctrlmode2 was not ok...");
         }
-        ok &= partsdd->view(iinteract);
+        ok &= m_partsdd->view(m_iinteract);
         if(!ok){
             yError("...iinteract was not ok...");
         }
 
         //optional interfaces
-        if (!partsdd->view(iVar))
+        if (!m_partsdd->view(m_iVar))
         {
             yError("...iVar was not ok...");
         }
 
-        if (!partsdd->view(iMot))
+        if (!m_partsdd->view(m_iMot))
         {
             yError("...iMot was not ok...");
         }
 
-        if (!partsdd->view(remCalib))
+        if (!m_partsdd->view(m_iremCalib))
         {
             yError("...remCalib was not ok...");
         }
 
-        if (!partsdd->view(iinfo))
+        if (!m_partsdd->view(m_iinfo))
         {
             yError("...axisInfo was not ok...");
         }
 
+        if (!m_partsdd->view(m_iCur))
+        {
+            yError("...iCur was not ok...");
+        }
+
         if (!ok) {
             yError("Error while acquiring interfaces!");
-            QMessageBox::critical(0,"Problems acquiring interfaces.","Check if interface is running");
-            interfaceError=true;
+            QMessageBox::critical(nullptr,"Problems acquiring interfaces.","Check if interface is running");
+            m_interfaceError = true;
         }
     }
     else
     {
         yError("Device driver was not valid!");
-        interfaceError=true;
+        m_interfaceError = true;
     }
 
-    return !interfaceError;
+    return !m_interfaceError;
 }
 
 bool PartItem::getInterfaceError()
 {
-    return interfaceError;
+    return m_interfaceError;
 }
 
 QString PartItem::getPartName()
 {
-    return partName;
+    return m_partName;
 }
 
-void PartItem::onSliderOpenloopCommand(double torqueVal, int index)
+void PartItem::onSliderPWMCommand(double torqueVal, int index)
 {
-    iOpl->setRefOutput(index, torqueVal);
+    m_iPWM->setRefDutyCycle(index, torqueVal);
+}
+
+void PartItem::onSliderCurrentCommand(double currentVal, int index)
+{
+    m_iCur->setRefCurrent(index, currentVal);
 }
 
 void PartItem::onSliderVelocityCommand(double speedVal, int index)
 {
-    iVel->velocityMove(index,speedVal);
+    m_iVel->velocityMove(index, speedVal);
 }
 
 void PartItem::onSliderTorqueCommand(double torqueVal, int index)
 {
-    iTrq->setRefTorque(index, torqueVal);
+    m_iTrq->setRefTorque(index, torqueVal);
 }
 
 void PartItem::onSliderTrajectoryVelocityCommand(double trajspeedVal, int index)
 {
-    iPos->setRefSpeed(index, trajspeedVal);
+    m_iPos->setRefSpeed(index, trajspeedVal);
 }
 
 
 void PartItem::onSliderDirectPositionCommand(double dirpos, int index)
 {
     int mode;
-    ctrlmode2->getControlMode(index, &mode);
+    m_ictrlmode->getControlMode(index, &mode);
     if (mode == VOCAB_CM_POSITION_DIRECT)
     {
-        iDir->setPosition(index, dirpos);
+        m_iDir->setPosition(index, dirpos);
     }
     else
     {
@@ -521,14 +523,52 @@ void PartItem::onSliderDirectPositionCommand(double dirpos, int index)
     }
 }
 
+void PartItem::onDumpAllRemoteVariables()
+{
+    if (m_iVar == nullptr)
+    {
+        return;
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(this, QString("Save Dump for Remote Variables as:"), QDir::homePath()+QString("/RemoteVariablesDump.txt"));
+
+    FILE* dumpfile = fopen(fileName.toStdString().c_str(), "w");
+    if (dumpfile != nullptr)
+    {
+        yarp::os::Bottle keys;
+        if (m_iVar->getRemoteVariablesList(&keys))
+        {
+            std::string s = keys.toString();
+            size_t keys_size = keys.size();
+            for (size_t i = 0; i < keys_size; i++)
+            {
+                std::string key_name;
+                if (keys.get(i).isString())
+                {
+                    yarp::os::Bottle val;
+                    key_name = keys.get(i).asString();
+                    if (m_iVar->getRemoteVariable(key_name, val))
+                    {
+                        std::string key_value = val.toString();
+                        std::string p_value = std::string(key_name).append(" ").append(key_value).append("\n");
+                        fputs(p_value.c_str(), dumpfile);
+                    }
+                }
+            }
+        }
+        fclose(dumpfile);
+    }
+}
+
+
 void PartItem::onSliderTrajectoryPositionCommand(double posVal, int index)
 {
     int mode;
-    ctrlmode2->getControlMode(index, &mode);
+    m_ictrlmode->getControlMode(index, &mode);
 
-    if ( mode == VOCAB_CM_POSITION) 
+    if ( mode == VOCAB_CM_POSITION)
     {
-        iPos->positionMove(index, posVal);
+        m_iPos->positionMove(index, posVal);
     }
     else
     {
@@ -539,11 +579,11 @@ void PartItem::onSliderTrajectoryPositionCommand(double posVal, int index)
 void PartItem::onSliderMixedPositionCommand(double posVal, int index)
 {
     int mode;
-    ctrlmode2->getControlMode(index, &mode);
+    m_ictrlmode->getControlMode(index, &mode);
 
     if ( mode == VOCAB_CM_MIXED)
     {
-        iPos->positionMove(index, posVal);
+        m_iPos->positionMove(index, posVal);
     }
     else
     {
@@ -554,11 +594,11 @@ void PartItem::onSliderMixedPositionCommand(double posVal, int index)
 void PartItem::onSliderMixedVelocityCommand( double vel, int index)
 {
     int mode;
-    ctrlmode2->getControlMode(index, &mode);
+    m_ictrlmode->getControlMode(index, &mode);
 
     if (mode == VOCAB_CM_MIXED)
     {
-        iVel->velocityMove(index, vel);
+        m_iVel->velocityMove(index, vel);
     }
     else
     {
@@ -572,11 +612,11 @@ void PartItem::onJointInteraction(int interaction,JointItem *joint)
     switch (interaction) {
     case JointItem::Compliant:
         yInfo("interaction mode of joint %d set to COMPLIANT", jointIndex);
-        iinteract->setInteractionMode(jointIndex, (yarp::dev::InteractionModeEnum) VOCAB_IM_COMPLIANT);
+        m_iinteract->setInteractionMode(jointIndex, (yarp::dev::InteractionModeEnum) VOCAB_IM_COMPLIANT);
         break;
     case JointItem::Stiff:
         yInfo("interaction mode of joint %d set to STIFF", jointIndex);
-        iinteract->setInteractionMode(jointIndex, (yarp::dev::InteractionModeEnum) VOCAB_IM_STIFF);
+        m_iinteract->setInteractionMode(jointIndex, (yarp::dev::InteractionModeEnum) VOCAB_IM_STIFF);
         break;
     default:
         break;
@@ -584,20 +624,20 @@ void PartItem::onJointInteraction(int interaction,JointItem *joint)
 }
 
 
-void PartItem::onSendOpenLoop(int jointIndex, int openLoopVal)
+void PartItem::onSendPWM(int jointIndex, double pwmVal)
 {
-    double openloop_reference = 0;
-    double openloop_current_pwm = 0;
+    double pwm_reference = 0;
+    double current_pwm = 0;
 
-    iOpl->setRefOutput(jointIndex, openLoopVal);
+    m_iPWM->setRefDutyCycle(jointIndex, pwmVal);
 
-    yarp::os::Time::delay(0.010);
-    iOpl->getRefOutput(jointIndex, &openloop_reference);  //This is the reference reference
-    yarp::os::Time::delay(0.010);
-    iOpl->getOutput(jointIndex, &openloop_current_pwm);  //This is the reak PWM output
+    yarp::os::SystemClock::delaySystem(0.010);
+    m_iPWM->getRefDutyCycle(jointIndex, &pwm_reference);  //This is the reference
+    yarp::os::SystemClock::delaySystem(0.010);
+    m_iPWM->getDutyCycle(jointIndex, &current_pwm);  //This is the real PWM output
 
-    if(currentPidDlg){
-        currentPidDlg->initOpenLoop(openloop_reference,openloop_current_pwm);
+    if (m_currentPidDlg){
+        m_currentPidDlg->initPWM(pwm_reference, current_pwm);
     }
 }
 
@@ -608,11 +648,11 @@ void PartItem::onSendStiffness(int jointIdex,double stiff,double damp,double for
     double damp_val=0;
     double offset_val=0;
 
-    iImp->setImpedance(jointIdex, stiff, damp);
+    m_iImp->setImpedance(jointIdex, stiff, damp);
     //imp->setImpedanceOffset(jointIdex, force);
-    yarp::os::Time::delay(0.005);
-    iImp->getImpedance(jointIdex, &stiff_val, &damp_val);
-    iImp->getImpedanceOffset(jointIdex, &offset_val);
+    yarp::os::SystemClock::delaySystem(0.005);
+    m_iImp->getImpedance(jointIdex, &stiff_val, &damp_val);
+    m_iImp->getImpedanceOffset(jointIdex, &offset_val);
 
     //update the impedance limits
     double stiff_max=0.0;
@@ -621,11 +661,12 @@ void PartItem::onSendStiffness(int jointIdex,double stiff,double damp,double for
     double damp_min=0.0;
     double off_max=0.0;
     double off_min=0.0;
-    iImp->getCurrentImpedanceLimit(jointIdex, &stiff_min, &stiff_max, &damp_min, &damp_max);
-    iTrq->getTorqueRange(jointIdex, &off_min, &off_max);
+    m_iImp->getCurrentImpedanceLimit(jointIdex, &stiff_min, &stiff_max, &damp_min, &damp_max);
+    m_iTrq->getTorqueRange(jointIdex, &off_min, &off_max);
 
-    if(currentPidDlg){
-        currentPidDlg->initStiffness(stiff_val,stiff_min,stiff_max,
+    if (m_currentPidDlg)
+    {
+        m_currentPidDlg->initStiffness(stiff_val, stiff_min, stiff_max,
                                      damp_val,damp_min,damp_max,
                                      offset_val,off_min,off_max);
     }
@@ -637,39 +678,39 @@ void PartItem::onSendTorquePid(int jointIndex,Pid newPid,MotorTorqueParameters n
 {
     Pid myTrqPid(0,0,0,0,0,0);
     yarp::dev::MotorTorqueParameters TrqParam;
-    iTrq->setTorquePid(jointIndex, newPid);
+    m_iPid->setPid(VOCAB_PIDTYPE_TORQUE, jointIndex, newPid);
 
-    iTrq->setMotorTorqueParams(jointIndex, newTrqParam);
-    yarp::os::Time::delay(0.005);
-    iTrq->getTorquePid(jointIndex, &myTrqPid);
-    iTrq->getMotorTorqueParams(jointIndex, &TrqParam);
+    m_iTrq->setMotorTorqueParams(jointIndex, newTrqParam);
+    yarp::os::SystemClock::delaySystem(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_TORQUE,jointIndex, &myTrqPid);
+    m_iTrq->getMotorTorqueParams(jointIndex, &TrqParam);
 
-    if(currentPidDlg){
-        currentPidDlg->initTorque(myTrqPid,TrqParam);
+    if (m_currentPidDlg){
+        m_currentPidDlg->initTorque(myTrqPid, TrqParam);
     }
 }
 
 void PartItem::onSendPositionPid(int jointIndex,Pid newPid)
 {
     Pid myPosPid(0,0,0,0,0,0);
-    iPid->setPid(jointIndex, newPid);
-    yarp::os::Time::delay(0.005);
-    iPid->getPid(jointIndex, &myPosPid);
+    m_iPid->setPid(VOCAB_PIDTYPE_POSITION, jointIndex, newPid);
+    yarp::os::SystemClock::delaySystem(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_POSITION, jointIndex, &myPosPid);
 
-    if(currentPidDlg){
-        currentPidDlg->initPosition(myPosPid);
+    if (m_currentPidDlg){
+        m_currentPidDlg->initPosition(myPosPid);
     }
 }
 
 void PartItem::onSendVelocityPid(int jointIndex, Pid newPid)
 {
     Pid myVelPid(0, 0, 0, 0, 0, 0);
-    iVel->setVelPid(jointIndex, newPid);
-    yarp::os::Time::delay(0.005);
-    iVel->getVelPid(jointIndex, &myVelPid);
+    m_iPid->setPid(VOCAB_PIDTYPE_VELOCITY, jointIndex, newPid);
+    yarp::os::SystemClock::delaySystem(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_VELOCITY, jointIndex, &myVelPid);
 
-    if (currentPidDlg){
-        currentPidDlg->initVelocity(myVelPid);
+    if (m_currentPidDlg){
+        m_currentPidDlg->initVelocity(myVelPid);
     }
 }
 
@@ -689,91 +730,99 @@ void PartItem::onRefreshPids(int jointIndex)
     double damp_min = 0;
     double off_min = 0;
     double impedance_offset_val = 0;
-    double openloop_reference = 0;
-    double openloop_current_pwm = 0;
+    double pwm_reference = 0;
+    double current_pwm = 0;
 
-    iImp->getCurrentImpedanceLimit(jointIndex, &stiff_min, &stiff_max, &damp_min, &damp_max);
-    iTrq->getTorqueRange(jointIndex, &off_min, &off_max);
+    m_iImp->getCurrentImpedanceLimit(jointIndex, &stiff_min, &stiff_max, &damp_min, &damp_max);
+    m_iTrq->getTorqueRange(jointIndex, &off_min, &off_max);
 
     // Position
-    iPid->getPid(jointIndex, &myPosPid);
-    yarp::os::Time::delay(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_POSITION, jointIndex, &myPosPid);
+    yarp::os::SystemClock::delaySystem(0.005);
 
     // Velocity
-    iVel->getVelPid(jointIndex, &myVelPid);
-    yarp::os::Time::delay(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_VELOCITY, jointIndex, &myVelPid);
+    yarp::os::SystemClock::delaySystem(0.005);
 
     // Current
-    //???????iCur->getCurPid(jointIndex, &myCurPid);
-    yarp::os::Time::delay(0.005);
+    if (m_iCur)
+    {
+        m_iPid->getPid(VOCAB_PIDTYPE_CURRENT, jointIndex, &myCurPid);
+        yarp::os::SystemClock::delaySystem(0.005);
+    }
 
     // Torque
-    iTrq->getTorquePid(jointIndex, &myTrqPid);
-    iTrq->getMotorTorqueParams(jointIndex, &motorTorqueParams);
-    yarp::os::Time::delay(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_TORQUE, jointIndex, &myTrqPid);
+    m_iTrq->getMotorTorqueParams(jointIndex, &motorTorqueParams);
+    yarp::os::SystemClock::delaySystem(0.005);
 
     //Stiff
-    iImp->getImpedance(jointIndex, &stiff_val, &damp_val);
-    iImp->getImpedanceOffset(jointIndex, &impedance_offset_val);
-    yarp::os::Time::delay(0.005);
+    m_iImp->getImpedance(jointIndex, &stiff_val, &damp_val);
+    m_iImp->getImpedanceOffset(jointIndex, &impedance_offset_val);
+    yarp::os::SystemClock::delaySystem(0.005);
 
-    // Openloop
-    iOpl->getRefOutput(jointIndex, &openloop_reference);
-    iOpl->getOutput(jointIndex, &openloop_current_pwm);
+    // PWM
+    m_iPWM->getRefDutyCycle(jointIndex, &pwm_reference);
+    m_iPWM->getDutyCycle(jointIndex, &current_pwm);
 
-    if (currentPidDlg)
+    if (m_currentPidDlg)
     {
-        currentPidDlg->initPosition(myPosPid);
-        currentPidDlg->initTorque(myTrqPid, motorTorqueParams);
-        currentPidDlg->initVelocity(myVelPid);
-        currentPidDlg->initCurrent(myCurPid);
-        currentPidDlg->initStiffness(stiff_val, stiff_min, stiff_max, damp_val, damp_min, damp_max, impedance_offset_val, off_min, off_max);
-        currentPidDlg->initOpenLoop(openloop_reference, openloop_current_pwm);
-        currentPidDlg->initRemoteVariables(iVar);
+        m_currentPidDlg->initPosition(myPosPid);
+        m_currentPidDlg->initTorque(myTrqPid, motorTorqueParams);
+        m_currentPidDlg->initVelocity(myVelPid);
+        m_currentPidDlg->initCurrent(myCurPid);
+        m_currentPidDlg->initStiffness(stiff_val, stiff_min, stiff_max, damp_val, damp_min, damp_max, impedance_offset_val, off_min, off_max);
+        m_currentPidDlg->initPWM(pwm_reference, current_pwm);
+        m_currentPidDlg->initRemoteVariables(m_iVar);
     }
 }
 
 void PartItem::onSendCurrentPid(int jointIndex, Pid newPid)
 {
+    if (m_iCur == nullptr)
+    {
+        yError() << "iCurrent interface not opened";
+        return;
+    }
     Pid myCurPid(0, 0, 0, 0, 0, 0);
-    //????iCur->setCurPid(jointIndex, newPid);
-    yarp::os::Time::delay(0.005);
-    //????iCur->getCurPid(jointIndex, &myCurPid);
+    m_iPid->setPid(VOCAB_PIDTYPE_CURRENT, jointIndex, newPid);
+    yarp::os::SystemClock::delaySystem(0.005);
+    m_iPid->getPid(VOCAB_PIDTYPE_CURRENT, jointIndex, &myCurPid);
 
-    if (currentPidDlg){
-        currentPidDlg->initCurrent(myCurPid);
+    if (m_currentPidDlg){
+        m_currentPidDlg->initCurrent(myCurPid);
     }
 }
 
 void PartItem::onSendSingleRemoteVariable(std::string key, yarp::os::Bottle val)
 {
-    iVar->setRemoteVariable(key,val);
-    yarp::os::Time::delay(0.005);
+    m_iVar->setRemoteVariable(key, val);
+    yarp::os::SystemClock::delaySystem(0.005);
 }
 
 void PartItem::onUpdateAllRemoteVariables()
 {
-    if (currentPidDlg){
-        currentPidDlg->initRemoteVariables(iVar);
+    if (m_currentPidDlg){
+        m_currentPidDlg->initRemoteVariables(m_iVar);
     }
 }
 
 void PartItem::onCalibClicked(JointItem *joint)
 {
-    if(!remCalib)
+    if (!m_iremCalib)
     {
         QMessageBox::critical(this,"Operation not supported", QString("The IRemoteCalibrator interface was not found on this application"));
         return;
     }
 
-    if(QMessageBox::question(this,"Question","Do you want really to recalibrate the joint?") != QMessageBox::Yes){
+    if(QMessageBox::question(this,"Question","Do you really want to recalibrate the joint?") != QMessageBox::Yes){
         return;
     }
-    if(!remCalib->calibrateSingleJoint(joint->getJointIndex()) )
+    if (!m_iremCalib->calibrateSingleJoint(joint->getJointIndex()))
     {
         // provide better feedback to user by verifying if the calibrator device was set or not
         bool isCalib = false;
-        remCalib->isCalibratorDevicePresent(&isCalib);
+        m_iremCalib->isCalibratorDevicePresent(&isCalib);
         if(!isCalib)
             QMessageBox::critical(this,"Calibration failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file has the 'Calibrator' keyword in the attach phase"));
         else
@@ -785,92 +834,51 @@ void PartItem::onCalibClicked(JointItem *joint)
 void PartItem::onPidClicked(JointItem *joint)
 {
     const int jointIndex = joint->getJointIndex();
-
-    currentPidDlg = new PidDlg(partName,jointIndex);
-    connect(currentPidDlg, SIGNAL(sendPositionPid(int,Pid)),this,SLOT(onSendPositionPid(int,Pid)));
-    connect(currentPidDlg, SIGNAL(sendVelocityPid(int, Pid)), this, SLOT(onSendVelocityPid(int, Pid)));
-    connect(currentPidDlg, SIGNAL(sendCurrentPid(int, Pid)), this, SLOT(onSendCurrentPid(int, Pid)));
-    connect(currentPidDlg, SIGNAL(sendSingleRemoteVariable(std::string, yarp::os::Bottle)), this, SLOT(onSendSingleRemoteVariable(std::string, yarp::os::Bottle)));
-    connect(currentPidDlg, SIGNAL(updateAllRemoteVariables()), this, SLOT(onUpdateAllRemoteVariables()));
-    connect(currentPidDlg, SIGNAL(sendTorquePid(int,Pid,MotorTorqueParameters)),this,SLOT(onSendTorquePid(int,Pid,MotorTorqueParameters)));
-    connect(currentPidDlg, SIGNAL(sendStiffness(int,double,double,double)),this,SLOT(onSendStiffness(int,double,double,double)));
-    connect(currentPidDlg, SIGNAL(sendOpenLoop(int,int)),this,SLOT(onSendOpenLoop(int,int)));
-    connect(currentPidDlg, SIGNAL(refreshPids(int)), this, SLOT(onRefreshPids(int)));
+    QString jointName = joint->getJointName();
+    m_currentPidDlg = new PidDlg(m_partName, jointIndex, jointName);
+    connect(m_currentPidDlg, SIGNAL(sendPositionPid(int, Pid)), this, SLOT(onSendPositionPid(int, Pid)));
+    connect(m_currentPidDlg, SIGNAL(sendVelocityPid(int, Pid)), this, SLOT(onSendVelocityPid(int, Pid)));
+    connect(m_currentPidDlg, SIGNAL(sendCurrentPid(int, Pid)), this, SLOT(onSendCurrentPid(int, Pid)));
+    connect(m_currentPidDlg, SIGNAL(sendSingleRemoteVariable(std::string, yarp::os::Bottle)), this, SLOT(onSendSingleRemoteVariable(std::string, yarp::os::Bottle)));
+    connect(m_currentPidDlg, SIGNAL(updateAllRemoteVariables()), this, SLOT(onUpdateAllRemoteVariables()));
+    connect(m_currentPidDlg, SIGNAL(sendTorquePid(int, Pid, MotorTorqueParameters)), this, SLOT(onSendTorquePid(int, Pid, MotorTorqueParameters)));
+    connect(m_currentPidDlg, SIGNAL(sendStiffness(int, double, double, double)), this, SLOT(onSendStiffness(int, double, double, double)));
+    connect(m_currentPidDlg, SIGNAL(sendPWM(int, double)), this, SLOT(onSendPWM(int, double)));
+    connect(m_currentPidDlg, SIGNAL(refreshPids(int)), this, SLOT(onRefreshPids(int)));
+    connect(m_currentPidDlg, SIGNAL(dumpRemoteVariables()), this, SLOT(onDumpAllRemoteVariables()));
 
     this->onRefreshPids(jointIndex);
 
-    currentPidDlg->exec();
+    m_currentPidDlg->exec();
 
-    delete currentPidDlg;
-    currentPidDlg = NULL;
+    delete m_currentPidDlg;
+    m_currentPidDlg = nullptr;
 }
 
 void PartItem::onRunClicked(JointItem *joint)
 {
     const int jointIndex = joint->getJointIndex();
     double posJoint;
-    while (!iencs->getEncoder(jointIndex, &posJoint)){
-        Time::delay(0.001);
+    while (!m_iencs->getEncoder(jointIndex, &posJoint)){
+        SystemClock::delaySystem(0.001);
     }
 
-    ctrlmode2->setControlMode(jointIndex,VOCAB_CM_POSITION);
+    m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_POSITION);
 }
 
 void PartItem::onIdleClicked(JointItem *joint)
 {
     const int jointIndex = joint->getJointIndex();
-    ctrlmode2->setControlMode(jointIndex,VOCAB_CM_FORCE_IDLE);
+    m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_FORCE_IDLE);
 }
 
 void PartItem::onHomeClicked(JointItem *joint)
 {
     int NUMBER_OF_JOINTS;
     const int jointIndex = joint->getJointIndex();
-    iPos->getAxes(&NUMBER_OF_JOINTS);
+    m_iPos->getAxes(&NUMBER_OF_JOINTS);
 
-    QString zero = QString("%1_zero").arg(partName);
-
-    if (!finder->isNull() && !finder->findGroup(zero.toLatin1().data()).isNull()){
-        bool ok = true;
-        Bottle xtmp;
-        xtmp = finder->findGroup(zero.toLatin1().data()).findGroup("PositionZero");
-        ok = ok && (xtmp.size() == NUMBER_OF_JOINTS+1);
-        double positionZero = xtmp.get(jointIndex+1).asDouble();
-        //fprintf(stderr, "%f\n", positionZero);
-
-        xtmp = finder->findGroup(zero.toLatin1().data()).findGroup("VelocityZero");
-        //fprintf(stderr, "VALUE VEL is %d \n", fnd->findGroup(buffer2).find("VelocityZero").toString().c_str());
-        ok = ok && (xtmp.size() == NUMBER_OF_JOINTS+1);
-        double velocityZero = xtmp.get(jointIndex+1).asDouble();
-        //fprintf(stderr, "%f\n", velocityZero);
-
-        if(!ok){
-            QMessageBox::critical(this,"Error", QString("Check the number of entries in the group %1").arg(zero));
-        } else {
-            iPos->setRefSpeed(jointIndex, velocityZero);
-            iPos->positionMove(jointIndex, positionZero);
-        }
-    }
-    else
-    {
-        if(!remCalib)
-        {
-            QMessageBox::critical(this,"Operation not supported", QString("The IRemoteCalibrator interface was not found on this application"));
-            return;
-        }
-
-        QMessageBox::information(this,"Info", QString("Asking the yarprobotinterface to homing part %1 through the remoteCalibrator interface, since no custom zero group found in the supplied file").arg(partName));
-        if(!remCalib->homingSingleJoint(jointIndex) )
-        {
-            // provide better feedback to user by verifying if the calibrator device was set or not
-            bool isCalib = false;
-            remCalib->isCalibratorDevicePresent(&isCalib);
-            if(!isCalib)
-                QMessageBox::critical(this,"Calibration failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file for part %1 has the 'Calibrator' keyword in the attach phase").arg(partName));
-            else
-                QMessageBox::critical(this,"Calibration failed", QString("The remote calibrator reported that something went wrong during the calibration procedure"));
-        }
-    }
+    this->homeJoint(jointIndex);
 }
 
 void PartItem::onJointChangeMode(int mode,JointItem *joint)
@@ -879,8 +887,8 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
     switch (mode) {
     case JointItem::Idle:{
         yInfo("joint: %d in IDLE mode", jointIndex);
-        if(ctrlmode2){
-            ctrlmode2->setControlMode(jointIndex, VOCAB_CM_IDLE);
+        if (m_ictrlmode){
+            m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_IDLE);
         } else {
             yError("ERROR: cannot do!");
         }
@@ -888,8 +896,8 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
     }
     case JointItem::Position:{
         yInfo("joint: %d in POSITION mode", jointIndex);
-        if(ctrlmode2){
-            ctrlmode2->setControlMode(jointIndex, VOCAB_CM_POSITION);
+        if (m_ictrlmode){
+            m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_POSITION);
             joint->resetTarget();
         } else {
             yError("ERROR: cannot do!");
@@ -899,9 +907,9 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
     case JointItem::PositionDirect:{
         //if(positionDirectEnabled){
             yInfo("joint: %d in POSITION DIRECT mode", jointIndex);
-            if(ctrlmode2){
+            if (m_ictrlmode){
                 joint->resetTarget();
-                ctrlmode2->setControlMode(jointIndex, VOCAB_CM_POSITION_DIRECT);
+                m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_POSITION_DIRECT);
             } else {
                 yError("ERROR: cannot do!");
             }
@@ -919,9 +927,9 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
     case JointItem::Mixed:{
         //if(positionDirectEnabled){
             yInfo("joint: %d in MIXED mode", jointIndex);
-            if(ctrlmode2){
+            if (m_ictrlmode){
                 joint->resetTarget();
-                ctrlmode2->setControlMode(jointIndex, VOCAB_CM_MIXED);
+                m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_MIXED);
             } else {
                 yError("ERROR: cannot do!");
             }
@@ -940,11 +948,11 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
     case JointItem::Velocity:{
         //if(positionDirectEnabled){
             yInfo("joint: %d in VELOCITY mode", jointIndex);
-            if(ctrlmode2)
+            if (m_ictrlmode)
             {
-                ctrlmode2->setControlMode(jointIndex, VOCAB_CM_VELOCITY);
+                m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_VELOCITY);
                 yInfo() << "Changing reference acceleration of joint " << jointIndex << " to 100000";
-                iVel->setRefAcceleration(jointIndex, 100000);
+                m_iVel->setRefAcceleration(jointIndex, 100000);
             } else {
                 yError("ERROR: cannot do!");
             }
@@ -963,16 +971,16 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
     case JointItem::Torque:{
         //if(positionDirectEnabled){
             yInfo("joint: %d in TORQUE mode", jointIndex);
-            if(ctrlmode2){
-                ctrlmode2->setControlMode(jointIndex, VOCAB_CM_TORQUE);
+            if (m_ictrlmode){
+                m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_TORQUE);
             } else {
                 yError("ERROR: cannot do!");
             }
             break;
 //        } else {
-//            LOG_ERROR("joint: %d in OPENLOOP mode", jointIndex);
+//            LOG_ERROR("joint: %d in TORQUE mode", jointIndex);
 //            if(ctrlmode2){
-//                ctrlmode2->setOpenLoopMode(jointIndex);
+//                ctrlmode2->setTorqueMode(jointIndex);
 //            } else {
 //                LOG_ERROR("ERROR: cannot do!");
 //            }
@@ -980,11 +988,21 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
 //        }
 
     }
-    case JointItem::OpenLoop:{
-        yInfo("joint: %d in OPENLOOP mode", jointIndex);
-        if(ctrlmode2){
-            ctrlmode2->setControlMode(jointIndex, VOCAB_CM_OPENLOOP);
+    case JointItem::Pwm:{
+        yInfo("joint: %d in PWM mode", jointIndex);
+        if (m_ictrlmode){
+            m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_PWM);
         } else {
+            yError("ERROR: cannot do!");
+        }
+        break;
+    }
+    case JointItem::Current:{
+        yInfo("joint: %d in CURRENT mode", jointIndex);
+        if (m_ictrlmode){
+            m_ictrlmode->setControlMode(jointIndex, VOCAB_CM_CURRENT);
+        }
+        else {
             yError("ERROR: cannot do!");
         }
         break;
@@ -996,7 +1014,7 @@ void PartItem::onJointChangeMode(int mode,JointItem *joint)
 
 void PartItem::resizeWidget(int w)
 {
-    int count = layout->count();
+    int count = m_layout->count();
 
 
     int jointPerLineCount = (w - 20) / (MAX_WIDTH_JOINT + 10);
@@ -1012,7 +1030,7 @@ void PartItem::resizeWidget(int w)
 
 
     for(int i=0;i<count;i++){
-        QWidget *widget = layout->itemAt(i)->widget();
+        QWidget *widget = m_layout->itemAt(i)->widget();
         if(widget){
             widget->setMaximumWidth(MAX_WIDTH_JOINT + (extraSpace/jointPerLineCount));
             widget->setMinimumWidth(MAX_WIDTH_JOINT + (extraSpace/jointPerLineCount));
@@ -1034,7 +1052,7 @@ void PartItem::changeEvent( QEvent *event )
 {
     if(event->type() == QEvent::WindowStateChange ){
         qDebug() << "State Changed " << width();
-        int count = layout->count();
+        int count = m_layout->count();
         int jointPerLineCount = (width() - 20) / (MAX_WIDTH_JOINT + 10);
 
         if(jointPerLineCount > count){
@@ -1049,7 +1067,7 @@ void PartItem::changeEvent( QEvent *event )
         qDebug() << jointPerLineCount;
 
         for(int i=0;i<count;i++){
-            QWidget *widget = layout->itemAt(i)->widget();
+            QWidget *widget = m_layout->itemAt(i)->widget();
             if(widget){
                 widget->setMaximumWidth(MAX_WIDTH_JOINT + (extraSpace/jointPerLineCount));
                 widget->setMinimumWidth(MAX_WIDTH_JOINT + (extraSpace/jointPerLineCount));
@@ -1059,146 +1077,175 @@ void PartItem::changeEvent( QEvent *event )
 
 }
 
-void PartItem::calibrateAll()
+void PartItem::calibratePart()
 {
-    if(!remCalib)
+    if (!m_iremCalib)
     {
         QMessageBox::critical(this,"Operation not supported", QString("The IRemoteCalibrator interface was not found on this application"));
         return;
     }
 
-    if(QMessageBox::question(this,"Question", QString("Do you want really to recalibrate the whole part?")) == QMessageBox::Yes)
+    if (!m_iremCalib->calibrateWholePart())
     {
-        if(!remCalib->calibrateWholePart() )
-        {
-            // provide better feedback to user by verifying if the calibrator device was set or not
-            bool isCalib = false;
-            remCalib->isCalibratorDevicePresent(&isCalib);
-            if(!isCalib)
-                QMessageBox::critical(this,"Calibration failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file for part %1 has the 'Calibrator' keyword in the attach phase").arg(partName));
-            else
-                QMessageBox::critical(this,"Calibration failed", QString("The remote calibrator reported that something went wrong during the calibration procedure"));
-        }
+        // provide better feedback to user by verifying if the calibrator device was set or not
+        bool isCalib = false;
+        m_iremCalib->isCalibratorDevicePresent(&isCalib);
+        if(!isCalib)
+            QMessageBox::critical(this, "Calibration failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file for part %1 has the 'Calibrator' keyword in the attach phase").arg(m_partName));
+        else
+            QMessageBox::critical(this,"Calibration failed", QString("The remote calibrator reported that something went wrong during the calibration procedure"));
     }
 }
 
-bool PartItem::checkAndHomeAll()
+bool PartItem::homeJoint(int jointIndex)
 {
-    return homeAll();
+    if (!m_iremCalib)
+    {
+        QMessageBox::critical(this, "Operation not supported", QString("The IRemoteCalibrator interface was not found on this application"));
+        return false;
+    }
+
+    if (!m_iremCalib->homingSingleJoint(jointIndex))
+    {
+        // provide better feedback to user by verifying if the calibrator device was set or not
+        bool isCalib = false;
+        m_iremCalib->isCalibratorDevicePresent(&isCalib);
+        if (!isCalib)
+        {
+            QMessageBox::critical(this, "Operation failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file for part %1 has the 'Calibrator' keyword in the attach phase").arg(m_partName));
+            return false;
+        }
+        else
+        {
+            QMessageBox::critical(this, "Operation failed", QString("The remote calibrator reported that something went wrong during the calibration procedure"));
+            return false;
+        }
+    }
+    return true;
 }
 
-bool PartItem::homeAll()
+bool PartItem::homePart()
+{
+    if (!m_iremCalib)
+    {
+        QMessageBox::critical(this, "Operation not supported", QString("The IRemoteCalibrator interface was not found on this application"));
+        return false;
+    }
+
+    if (!m_iremCalib->homingWholePart())
+    {
+        // provide better feedback to user by verifying if the calibrator device was set or not
+        bool isCalib = false;
+        m_iremCalib->isCalibratorDevicePresent(&isCalib);
+        if (!isCalib)
+        {
+            QMessageBox::critical(this, "Operation failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file for part %1 has the 'Calibrator' keyword in the attach phase").arg(m_partName));
+            return false;
+        }
+        else
+        {
+            QMessageBox::critical(this, "Operation failed", QString("The remote calibrator reported that something went wrong during the calibration procedure"));
+            return false;
+        }
+    }
+    return true;
+}
+
+bool PartItem::homeToCustomPosition(const yarp::os::Bottle& positionElement)
 {
     bool ok = true;
     int NUMBER_OF_JOINTS;
-    iPos->getAxes(&NUMBER_OF_JOINTS);
+    m_iPos->getAxes(&NUMBER_OF_JOINTS);
 
-    QString zero = QString("%1_zero").arg(partName);
+    if (positionElement.isNull()) {
+        QMessageBox::critical(this, "Operation failed", QString("No custom position supplied in configuration file for part ") + QString(m_partName));
+        return false;
+    }
 
-    if (!finder->isNull() && !finder->findGroup(zero.toLatin1().data()).isNull()){
-        Bottle xtmp, ytmp;
-        xtmp = finder->findGroup(zero.toLatin1().data()).findGroup("PositionZero");
-        ok = ok && (xtmp.size() == NUMBER_OF_JOINTS+1);
-        ytmp = finder->findGroup(zero.toLatin1().data()).findGroup("VelocityZero");
-        ok = ok && (ytmp.size() == NUMBER_OF_JOINTS+1);
-        if(ok){
-            for (int jointIndex = 0; jointIndex < NUMBER_OF_JOINTS; jointIndex++){
-                double positionZero = xtmp.get(jointIndex+1).asDouble();
+    //Look for group called m_robotPartPort_Position and m_robotPartPort_Velocity
+    Bottle xtmp, ytmp;
+    xtmp = positionElement.findGroup(m_robotPartPort.toStdString() + "_Position");
+    ok = ok && (xtmp.size() == (size_t) NUMBER_OF_JOINTS + 1);
+    ytmp = positionElement.findGroup(m_robotPartPort.toStdString() + "_Velocity");
+    ok = ok && (ytmp.size() == (size_t) NUMBER_OF_JOINTS + 1);
 
-                double velocityZero = ytmp.get(jointIndex+1).asDouble();
-
-                iPos->setRefSpeed(jointIndex, velocityZero);
-                iPos->positionMove(jointIndex, positionZero);
-            }
-
-        }else{
-            QMessageBox::critical(this,"Error", QString("Check the number of entries in the group %1").arg(zero));
-            ok = false;
+    if(ok)
+    {
+        for (int jointIndex = 0; jointIndex < NUMBER_OF_JOINTS; jointIndex++)
+        {
+            double position = xtmp.get(jointIndex+1).asFloat64();
+            double velocity = ytmp.get(jointIndex + 1).asFloat64();
+            m_iPos->setRefSpeed(jointIndex, velocity);
+            m_iPos->positionMove(jointIndex, position);
         }
     }
     else
     {
-        if(!remCalib)
-        {
-            QMessageBox::critical(this,"Operation not supported", QString("The IRemoteCalibrator interface was not found on this application"));
-            return false;
-        }
-
-        QMessageBox::information(this,"Info", QString("Asking the yarprobotinterface to homing part %1 through the remoteCalibrator interface, since no custom zero group found in the supplied file.").arg(partName));
-        ok = remCalib->homingWholePart();
-        if(!ok)
-        {
-            // provide better feedback to user by verifying if the calibrator device was set or not
-            bool isCalib = false;
-            remCalib->isCalibratorDevicePresent(&isCalib);
-            if(!isCalib)
-                QMessageBox::critical(this,"Homing failed", QString("No calibrator device was configured to perform this action, please verify that the wrapper config file for part %1 has the 'Calibrator' keyword in the attach phase").arg(partName));
-            else
-                QMessageBox::critical(this,"Homing failed", QString("The remote calibrator reported that something went wrong during the homing procedure"));
-        }
+        QMessageBox::critical(this, "Error", QString("Check the number of entries in the group %1").arg(m_robotPartPort));
+        ok = false;
     }
+
     return ok;
 }
 
-void PartItem::idleAll()
+void PartItem::idlePart()
 {
-
     int NUMBER_OF_JOINTS;
-    iPos->getAxes(&NUMBER_OF_JOINTS);
+    m_iPos->getAxes(&NUMBER_OF_JOINTS);
 
     for (int joint=0; joint < NUMBER_OF_JOINTS; joint++){
-        ctrlmode2->setControlMode(joint,VOCAB_CM_IDLE);
+        m_ictrlmode->setControlMode(joint, VOCAB_CM_IDLE);
     }
 }
 
 bool PartItem::checkAndRunAllSeq()
 {
-    if(!sequenceWindow){
+    if (!m_sequenceWindow){
         return false;
     }
 
-    return sequenceWindow->checkAndRun();
+    return m_sequenceWindow->checkAndRun();
 
 
 }
 
 bool PartItem::checkAndRunTimeAllSeq()
 {
-    if(!sequenceWindow){
+    if (!m_sequenceWindow){
         return false;
     }
 
-    return sequenceWindow->checkAndRunTime();
+    return m_sequenceWindow->checkAndRunTime();
 
 
 }
 
 bool PartItem::checkAndCycleTimeAllSeq()
 {
-    if(!sequenceWindow){
+    if (!m_sequenceWindow){
         return false;
     }
 
-    return sequenceWindow->checkAndCycleTimeSeq();
+    return m_sequenceWindow->checkAndCycleTimeSeq();
 }
 
 bool PartItem::checkAndCycleAllSeq()
 {
-    if(!sequenceWindow){
+    if (!m_sequenceWindow){
         return false;
     }
 
-    return sequenceWindow->checkAndCycleSeq();
+    return m_sequenceWindow->checkAndCycleSeq();
 }
 
-void PartItem::runAll()
+void PartItem::runPart()
 {
     int NUMBER_OF_JOINTS;
-    iPos->getAxes(&NUMBER_OF_JOINTS);
+    m_iPos->getAxes(&NUMBER_OF_JOINTS);
 
     for (int joint=0; joint < NUMBER_OF_JOINTS; joint++){
         //iencs->getEncoder(joint, &posJoint);
-        ctrlmode2->setControlMode(joint,VOCAB_CM_POSITION);
+        m_ictrlmode->setControlMode(joint, VOCAB_CM_POSITION);
     }
 }
 
@@ -1211,37 +1258,37 @@ void PartItem::loadSequence()
 void PartItem::saveSequence(QString global_filename)
 {
     openSequenceWindow();
-    sequenceWindow->save(global_filename);
+    m_sequenceWindow->save(global_filename);
 }
 
 void PartItem::closeSequenceWindow()
 {
-    if (sequenceWindow)
+    if (m_sequenceWindow)
     {
-        sequenceWindow->close();
+        m_sequenceWindow->close();
     }
 }
 
 void PartItem::openSequenceWindow()
 {
-    if(!sequenceWindow){
-        sequenceWindow = new SequenceWindow(partName,layout->count());
-        connect(sequenceWindow,SIGNAL(itemDoubleClicked(int)),this,SLOT(onSequenceWindowDoubleClicked(int)),Qt::DirectConnection);
-        connect(this,SIGNAL(sendPartJointsValues(int,QList<double>,QList<double>)),sequenceWindow,SLOT(onReceiveValues(int,QList<double>,QList<double>)),Qt::DirectConnection);
-        connect(sequenceWindow,SIGNAL(goToPosition(SequenceItem)),this,SLOT(onGo(SequenceItem)));
-        connect(sequenceWindow,SIGNAL(runTime(QList<SequenceItem>)),this,SLOT(onSequenceRunTime(QList<SequenceItem>)),Qt::QueuedConnection);
-        connect(sequenceWindow,SIGNAL(run(QList<SequenceItem>)),this,SLOT(onSequenceRun(QList<SequenceItem>)),Qt::QueuedConnection);
-        connect(sequenceWindow,SIGNAL(saveSequence(QList<SequenceItem>, QString)), this, SLOT(onSaveSequence(QList<SequenceItem>, QString)), Qt::QueuedConnection);
-        connect(sequenceWindow,SIGNAL(openSequence()),this,SLOT(onOpenSequence()));
-        connect(sequenceWindow,SIGNAL(cycle(QList<SequenceItem>)),this,SLOT(onSequenceCycle(QList<SequenceItem>)),Qt::QueuedConnection);
-        connect(sequenceWindow,SIGNAL(cycleTime(QList<SequenceItem>)),this,SLOT(onSequenceCycleTime(QList<SequenceItem>)),Qt::QueuedConnection);
-        connect(sequenceWindow,SIGNAL(stopSequence()),this,SLOT(onStopSequence()),Qt::QueuedConnection);
+    if (!m_sequenceWindow){
+        m_sequenceWindow = new SequenceWindow(m_partName, m_layout->count());
+        connect(m_sequenceWindow, SIGNAL(itemDoubleClicked(int)), this, SLOT(onSequenceWindowDoubleClicked(int)), Qt::DirectConnection);
+        connect(this, SIGNAL(sendPartJointsValues(int, QList<double>, QList<double>)), m_sequenceWindow, SLOT(onReceiveValues(int, QList<double>, QList<double>)), Qt::DirectConnection);
+        connect(m_sequenceWindow, SIGNAL(goToPosition(SequenceItem)), this, SLOT(onGo(SequenceItem)));
+        connect(m_sequenceWindow, SIGNAL(runTime(QList<SequenceItem>)), this, SLOT(onSequenceRunTime(QList<SequenceItem>)), Qt::QueuedConnection);
+        connect(m_sequenceWindow, SIGNAL(run(QList<SequenceItem>)), this, SLOT(onSequenceRun(QList<SequenceItem>)), Qt::QueuedConnection);
+        connect(m_sequenceWindow, SIGNAL(saveSequence(QList<SequenceItem>, QString)), this, SLOT(onSaveSequence(QList<SequenceItem>, QString)), Qt::QueuedConnection);
+        connect(m_sequenceWindow, SIGNAL(openSequence()), this, SLOT(onOpenSequence()));
+        connect(m_sequenceWindow, SIGNAL(cycle(QList<SequenceItem>)), this, SLOT(onSequenceCycle(QList<SequenceItem>)), Qt::QueuedConnection);
+        connect(m_sequenceWindow, SIGNAL(cycleTime(QList<SequenceItem>)), this, SLOT(onSequenceCycleTime(QList<SequenceItem>)), Qt::QueuedConnection);
+        connect(m_sequenceWindow, SIGNAL(stopSequence()), this, SLOT(onStopSequence()), Qt::QueuedConnection);
 
-        connect(this,SIGNAL(runTimeSequence()),sequenceWindow,SLOT(onRunTimeSequence()));
-        connect(this,SIGNAL(cycleTimeSequence()),sequenceWindow,SLOT(onCycleTimeSequence()));
-        connect(this,SIGNAL(cycleSequence()),sequenceWindow,SLOT(onCycleSequence()));
-        connect(this,SIGNAL(stoppedSequence()),sequenceWindow,SLOT(onStoppedSequence()));
-        connect(this,SIGNAL(setCurrentIndex(int)),sequenceWindow,SLOT(onSetCurrentSequenceIndex(int)));
+        connect(this, SIGNAL(runTimeSequence()), m_sequenceWindow, SLOT(onRunTimeSequence()));
+        connect(this, SIGNAL(cycleTimeSequence()), m_sequenceWindow, SLOT(onCycleTimeSequence()));
+        connect(this, SIGNAL(cycleSequence()), m_sequenceWindow, SLOT(onCycleSequence()));
+        connect(this, SIGNAL(stoppedSequence()), m_sequenceWindow, SLOT(onStoppedSequence()));
+        connect(this, SIGNAL(setCurrentIndex(int)), m_sequenceWindow, SLOT(onSetCurrentSequenceIndex(int)));
 
         connect(this,SIGNAL(runTimeSequence()),this,SLOT(onSequenceActivated()));
         connect(this,SIGNAL(cycleTimeSequence()),this,SLOT(onSequenceActivated()));
@@ -1251,31 +1298,31 @@ void PartItem::openSequenceWindow()
 
     }
 
-    if(!sequenceWindow->isVisible()){
-        sequenceWindow->show();
+    if (!m_sequenceWindow->isVisible()){
+        m_sequenceWindow->show();
     }else{
-        sequenceWindow->setFocus();
-        sequenceWindow->raise();
-        sequenceWindow->setWindowState(Qt::WindowActive);
+        m_sequenceWindow->setFocus();
+        m_sequenceWindow->raise();
+        m_sequenceWindow->setWindowState(Qt::WindowActive);
     }
 
 }
 
 bool PartItem::checkAndGo()
 {
-    if(!sequenceWindow){
+    if (!m_sequenceWindow){
         return false;
     }
 
-    return sequenceWindow->checkAndGo();
+    return m_sequenceWindow->checkAndGo();
 }
 void PartItem::stopSequence()
 {
-    cycleTimer.stop();
-    runTimer.stop();
-    runTimeTimer.stop();
-    cycleTimeTimer.stop();
-    stoppedSequence();
+    m_cycleTimer.stop();
+    m_runTimer.stop();
+    m_runTimeTimer.stop();
+    m_cycleTimeTimer.stop();
+    emit stoppedSequence();
 }
 
 void PartItem::onStopSequence()
@@ -1285,19 +1332,19 @@ void PartItem::onStopSequence()
 
 void PartItem::onOpenSequence()
 {
-    QString fileName = QFileDialog::getOpenFileName(sequenceWindow,QString("Load Sequence for part %1 As").arg(partName),QDir::homePath());
+    QString fileName = QFileDialog::getOpenFileName(m_sequenceWindow, QString("Load Sequence for part %1 As").arg(m_partName), QDir::homePath());
 
     QFileInfo fInfo(fileName);
     if(!fInfo.exists()){
         return;
     }
 
-    QString desiredExtension = QString("pos%1").arg(partName);
+    QString desiredExtension = QString("pos%1").arg(m_partName);
     QString extension = fInfo.suffix();
 
     if(desiredExtension != extension){
         QMessageBox::critical(this,"Error Loading The Sequence",
-                              QString("Wrong format (check estensions) of the file associated with: ").arg(partName));
+            QString("Wrong format (check extensions) of the file associated with: ").arg(m_partName));
         return;
     }
 
@@ -1312,7 +1359,6 @@ void PartItem::onOpenSequence()
     QXmlStreamReader reader(&file);
     reader.readNext();
 
-    int totPositions = 0;
     QString referencePart;
 
     QList<SequenceItem> sequenceItems;
@@ -1323,7 +1369,6 @@ void PartItem::onOpenSequence()
         if(reader.isStartElement()){
             if(reader.name().contains("Sequence_")){ //Sequence_
                 QXmlStreamAttributes attributes = reader.attributes();
-                totPositions = attributes.value("TotPositions").toInt();
                 referencePart = attributes.value("ReferencePart").toString();
             }
 
@@ -1390,8 +1435,8 @@ void PartItem::onOpenSequence()
         return;
     }
 
-    if(sequenceWindow){
-        sequenceWindow->loadSequence(sequenceItems);
+    if (m_sequenceWindow){
+        m_sequenceWindow->loadSequence(sequenceItems);
     }
 
 }
@@ -1400,7 +1445,7 @@ void PartItem::onSaveSequence(QList<SequenceItem> values, QString fileName)
 {
     if (fileName=="")
     {
-        fileName = QFileDialog::getSaveFileName(this, QString("Save Sequence for part %1 As").arg(partName), QDir::homePath());
+        fileName = QFileDialog::getSaveFileName(this, QString("Save Sequence for part %1 As").arg(m_partName), QDir::homePath());
     }
 
     if(fileName.isEmpty()){
@@ -1408,10 +1453,11 @@ void PartItem::onSaveSequence(QList<SequenceItem> values, QString fileName)
     }
 
     QFileInfo fInfo(fileName);
-    QString completeFileName = QString("%1/%2.pos%3").arg(fInfo.absolutePath()).arg(fInfo.baseName()).arg(partName);
+    QString completeFileName = QString("%1/%2.pos%3").arg(fInfo.absolutePath()).arg(fInfo.baseName()).arg(m_partName);
+    std::string completeFileName_s = completeFileName.toStdString();
 
     //QFile file(completeFileName);
-    yInfo("Saving file %s\n", completeFileName.toLatin1().data());
+    yInfo("Saving file %s\n", completeFileName_s.c_str());
 
     QFile file(completeFileName);
     if(!file.open(QIODevice::WriteOnly)){
@@ -1422,10 +1468,10 @@ void PartItem::onSaveSequence(QList<SequenceItem> values, QString fileName)
     writer.setAutoFormatting(true);
     writer.writeStartDocument();
 
-    writer.writeStartElement(QString("Sequence_pos%1").arg(partName));
+    writer.writeStartElement(QString("Sequence_pos%1").arg(m_partName));
 
     writer.writeAttribute("TotPositions", QString("%1").arg(values.count()));
-    writer.writeAttribute("ReferencePart", partName);
+    writer.writeAttribute("ReferencePart", m_partName);
 
     for(int i=0;i<values.count();i++){
         SequenceItem sequenceItem = values.at(i);
@@ -1493,90 +1539,62 @@ void PartItem::onSaveSequence(QList<SequenceItem> values, QString fileName)
 void PartItem::onSequenceCycleTime(QList<SequenceItem> values)
 {
     // Remove items after the first timing with value < 0
-    if(cycleTimeTimer.isActive() || cycleTimer.isActive() || runTimeTimer.isActive() || runTimer.isActive()){
+    if (m_cycleTimeTimer.isActive() || m_cycleTimer.isActive() || m_runTimeTimer.isActive() || m_runTimer.isActive()){
         return;
     }
 
-    cycleTimeValues.clear();
+    m_cycleTimeValues.clear();
     for(int i=0;i<values.count();i++){
         SequenceItem it = values.at(i);
         if(it.getTiming() > 0){
-            cycleTimeValues.append(it);
+            m_cycleTimeValues.append(it);
         }
     }
 
     SequenceItem vals;
-    if(cycleTimeValues.count() > 0){
-        vals = cycleTimeValues.takeFirst();
-
-        cycleTimeValues.append(vals);
-
-//        double *cmdPositions = new double[vals.getPositions().count()];
-//        double *cmdVelocities = new double[vals.getSpeeds().count()];
-
-//        for(int i=0;i<vals.getPositions().count();i++){
-//            cmdPositions[i] = vals.getPositions().at(i);
-//            cmdVelocities[i] = vals.getSpeeds().at(i);
-//            qDebug() << "vals.getSpeeds().at(i)" << vals.getSpeeds().at(i);
-//        }
-
-        //fixedTimeMove(vals.getPositions());
-
-        setCurrentIndex(vals.getSequenceNumber());
+    if (m_cycleTimeValues.count() > 0)
+    {
+        vals = m_cycleTimeValues.takeFirst();
+        m_cycleTimeValues.append(vals);
+        emit setCurrentIndex(vals.getSequenceNumber());
         fixedTimeMove(vals);
-//        iPos->setRefSpeeds(cmdVelocities);
-//        iPos->positionMove(cmdPositions);
-        cycleTimeTimer.start(vals.getTiming() * 1000);
-
-        cycleTimeSequence();
+        m_cycleTimeTimer.start(vals.getTiming() * 1000);
+        emit cycleTimeSequence();
     }
 }
 
 void PartItem::onCycleTimeTimerTimeout()
 {
-    if(cycleTimeValues.count() > 0){
-        SequenceItem vals = cycleTimeValues.takeFirst();
-
-        cycleTimeValues.append(vals);
-
-//        double *cmdPositions = new double[vals.getPositions().count()];
-//        double *cmdVelocities = new double[vals.getSpeeds().count()];
-
-//        for(int i=0;i<vals.getPositions().count();i++){
-//            cmdPositions[i] = vals.getPositions().at(i);
-//            cmdVelocities[i] = vals.getSpeeds().at(i);
-//            qDebug() << "vals.getSpeeds().at(i)" << vals.getSpeeds().at(i);
-//        }
-
-        //fixedTimeMove(vals.getPositions());
-        setCurrentIndex(vals.getSequenceNumber());
+    if (m_cycleTimeValues.count() > 0)
+    {
+        SequenceItem vals = m_cycleTimeValues.takeFirst();
+        m_cycleTimeValues.append(vals);
+        emit setCurrentIndex(vals.getSequenceNumber());
         fixedTimeMove(vals);
-//        iPos->setRefSpeeds(cmdVelocities);
-//        iPos->positionMove(cmdPositions);
-        cycleTimeTimer.start(vals.getTiming() * 1000);
+        m_cycleTimeTimer.start(vals.getTiming() * 1000);
     }
 }
 
 void PartItem::onSequenceCycle(QList<SequenceItem> values)
 {
     // Remove items after the first timing with value < 0
-    if(cycleTimeTimer.isActive() || cycleTimer.isActive() || runTimeTimer.isActive() || runTimer.isActive()){
+    if (m_cycleTimeTimer.isActive() || m_cycleTimer.isActive() || m_runTimeTimer.isActive() || m_runTimer.isActive()){
         return;
     }
 
-    cycleValues.clear();
+    m_cycleValues.clear();
     for(int i=0;i<values.count();i++){
         SequenceItem it = values.at(i);
         if(it.getTiming() > 0){
-            cycleValues.append(it);
+            m_cycleValues.append(it);
         }
     }
 
     SequenceItem vals;
-    if(cycleValues.count() > 0){
-        vals = cycleValues.takeFirst();
+    if (m_cycleValues.count() > 0){
+        vals = m_cycleValues.takeFirst();
 
-        cycleValues.append(vals);
+        m_cycleValues.append(vals);
 
         double *cmdPositions = new double[vals.getPositions().count()];
         double *cmdVelocities = new double[vals.getSpeeds().count()];
@@ -1587,22 +1605,22 @@ void PartItem::onSequenceCycle(QList<SequenceItem> values)
             //qDebug() << "vals.getSpeeds().at(i)" << vals.getSpeeds().at(i);
         }
 
-        setCurrentIndex(vals.getSequenceNumber());
+        emit setCurrentIndex(vals.getSequenceNumber());
         //fixedTimeMove(vals.getPositions());
-        iPos->setRefSpeeds(cmdVelocities);
-        iPos->positionMove(cmdPositions);
-        cycleTimer.start(vals.getTiming() * 1000);
+        m_iPos->setRefSpeeds(cmdVelocities);
+        m_iPos->positionMove(cmdPositions);
+        m_cycleTimer.start(vals.getTiming() * 1000);
 
-        cycleSequence();
+        emit cycleSequence();
     }
 }
 
 void PartItem::onCycleTimerTimeout()
 {
-    if(cycleValues.count() > 0){
-        SequenceItem vals = cycleValues.takeFirst();
+    if (m_cycleValues.count() > 0){
+        SequenceItem vals = m_cycleValues.takeFirst();
 
-        cycleValues.append(vals);
+        m_cycleValues.append(vals);
 
         double *cmdPositions = new double[vals.getPositions().count()];
         double *cmdVelocities = new double[vals.getSpeeds().count()];
@@ -1612,36 +1630,35 @@ void PartItem::onCycleTimerTimeout()
             cmdVelocities[i] = vals.getSpeeds().at(i);
         }
 
-        setCurrentIndex(vals.getSequenceNumber());
+        emit setCurrentIndex(vals.getSequenceNumber());
         //fixedTimeMove(vals.getPositions());
-        iPos->setRefSpeeds(cmdVelocities);
-        iPos->positionMove(cmdPositions);
+        m_iPos->setRefSpeeds(cmdVelocities);
+        m_iPos->positionMove(cmdPositions);
 
-
-        cycleTimer.start(vals.getTiming() * 1000);
+        m_cycleTimer.start(vals.getTiming() * 1000);
     }
 }
 
 void PartItem::onSequenceRun(QList<SequenceItem> values)
 {
     // Remove items after the first timing with value < 0
-    if(cycleTimeTimer.isActive() || cycleTimer.isActive() || runTimeTimer.isActive() || runTimer.isActive()){
+    if (m_cycleTimeTimer.isActive() || m_cycleTimer.isActive() || m_runTimeTimer.isActive() || m_runTimer.isActive()){
         return;
     }
 
-    runValues.clear();
+    m_runValues.clear();
     for(int i=0;i<values.count();i++){
         SequenceItem it = values.at(i);
         if(it.getTiming() > 0){
-            runValues.append(it);
+            m_runValues.append(it);
         }
     }
 
     SequenceItem vals;
-    if(runValues.count() > 0){
-        vals = runValues.takeFirst();
+    if (m_runValues.count() > 0){
+        vals = m_runValues.takeFirst();
 
-        runValues.append(vals);
+        m_runValues.append(vals);
 
         double *cmdPositions = new double[vals.getPositions().count()];
         double *cmdVelocities = new double[vals.getSpeeds().count()];
@@ -1652,21 +1669,21 @@ void PartItem::onSequenceRun(QList<SequenceItem> values)
             //qDebug() << "vals.getSpeeds().at(i)" << vals.getSpeeds().at(i);
         }
 
-        setCurrentIndex(vals.getSequenceNumber());
+        emit setCurrentIndex(vals.getSequenceNumber());
         //fixedTimeMove(vals.getPositions());
-        iPos->setRefSpeeds(cmdVelocities);
-        iPos->positionMove(cmdPositions);
-        runTimer.start(vals.getTiming() * 1000);
+        m_iPos->setRefSpeeds(cmdVelocities);
+        m_iPos->positionMove(cmdPositions);
+        m_runTimer.start(vals.getTiming() * 1000);
 
-        runSequence();
+        emit runSequence();
     }
 }
 void PartItem::onRunTimeout()
 {
-    if(runValues.count() > 0){
-        SequenceItem vals = runValues.takeFirst();
+    if (m_runValues.count() > 0){
+        SequenceItem vals = m_runValues.takeFirst();
         if(vals.getTiming() < 0){
-            stoppedSequence();
+            emit stoppedSequence();
             return;
         }
         double *cmdPositions = new double[vals.getPositions().count()];
@@ -1678,15 +1695,15 @@ void PartItem::onRunTimeout()
             //qDebug() << "vals.getSpeeds().at(i)" << vals.getSpeeds().at(i);
         }
 
-        setCurrentIndex(vals.getSequenceNumber());
+        emit setCurrentIndex(vals.getSequenceNumber());
         //fixedTimeMove(vals.getPositions());
-        iPos->setRefSpeeds(cmdVelocities);
-        iPos->positionMove(cmdPositions);
+        m_iPos->setRefSpeeds(cmdVelocities);
+        m_iPos->positionMove(cmdPositions);
 
 
-        runTimer.start(vals.getTiming() * 1000);
+        m_runTimer.start(vals.getTiming() * 1000);
     }else{
-        stoppedSequence();
+        emit stoppedSequence();
     }
 }
 
@@ -1694,59 +1711,59 @@ void PartItem::onRunTimeout()
 
 void PartItem::onSequenceRunTime(QList<SequenceItem> values)
 {
-    if(cycleTimeTimer.isActive() || cycleTimer.isActive() || runTimeTimer.isActive() || runTimer.isActive()){
+    if (m_cycleTimeTimer.isActive() || m_cycleTimer.isActive() || m_runTimeTimer.isActive() || m_runTimer.isActive()){
         return;
     }
 
-    runTimeValues.clear();
+    m_runTimeValues.clear();
 
     for(int i=0;i<values.count();i++){
         SequenceItem it = values.at(i);
         if(it.getTiming() > 0){
-            runTimeValues.append(it);
+            m_runTimeValues.append(it);
         }
     }
 
     SequenceItem vals;
-    if(runTimeValues.count() > 0){
-        vals = runTimeValues.takeFirst();
+    if (m_runTimeValues.count() > 0){
+        vals = m_runTimeValues.takeFirst();
 
-        setCurrentIndex(vals.getSequenceNumber());
+        emit setCurrentIndex(vals.getSequenceNumber());
         fixedTimeMove(vals);
-        runTimeTimer.start(vals.getTiming() * 1000);
+        m_runTimeTimer.start(vals.getTiming() * 1000);
 
-        runTimeSequence();
+        emit runTimeSequence();
     }
 
 }
 
 void PartItem::onRunTimerTimeout()
 {
-    if(runTimeValues.count() > 0){
-        SequenceItem vals = runTimeValues.takeFirst();
+    if (m_runTimeValues.count() > 0){
+        SequenceItem vals = m_runTimeValues.takeFirst();
         if(vals.getTiming() < 0){
-            stoppedSequence();
+            emit stoppedSequence();
             return;
         }
-        setCurrentIndex(vals.getSequenceNumber());
+        emit setCurrentIndex(vals.getSequenceNumber());
         fixedTimeMove(vals);
-        runTimeTimer.start(vals.getTiming() * 1000);
+        m_runTimeTimer.start(vals.getTiming() * 1000);
     }else{
-        stoppedSequence();
+        emit stoppedSequence();
     }
 }
 
 void PartItem::fixedTimeMove(SequenceItem sequence)
 {
     int NUM_JOINTS;
-    iPos->getAxes(&NUM_JOINTS);
-    double *cmdPositions = new double[NUM_JOINTS];
-    double *cmdVelocities = new double[NUM_JOINTS];
-    double *startPositions = new double[NUM_JOINTS];
+    m_iPos->getAxes(&NUM_JOINTS);
+    auto* cmdPositions = new double[NUM_JOINTS];
+    auto* cmdVelocities = new double[NUM_JOINTS];
+    auto* startPositions = new double[NUM_JOINTS];
     double cmdTime = sequence.getTiming();
 
-    while (!iencs->getEncoders(startPositions)){
-        Time::delay(0.001);
+    while (!m_iencs->getEncoders(startPositions)){
+        SystemClock::delaySystem(0.001);
     }
 
 
@@ -1761,13 +1778,13 @@ void PartItem::fixedTimeMove(SequenceItem sequence)
         }
     }
 
-  iPos->setRefSpeeds(cmdVelocities);
-  iPos->positionMove(cmdPositions);
+    m_iPos->setRefSpeeds(cmdVelocities);
+  m_iPos->positionMove(cmdPositions);
 
-  sequence_port_stamp.update();
-  sequence_port.setEnvelope(sequence_port_stamp);
+  m_sequence_port_stamp.update();
+  m_sequence_port.setEnvelope(m_sequence_port_stamp);
   Vector v(NUM_JOINTS,cmdPositions);
-  sequence_port.write(v);
+  m_sequence_port.write(v);
   delete[] cmdVelocities;
   delete[] startPositions;
   delete[] cmdPositions;
@@ -1783,132 +1800,154 @@ void PartItem::onGo(SequenceItem sequenceItem)
     }
 
     int NUMBER_OF_JOINTS;
-    iPos->getAxes(&NUMBER_OF_JOINTS);
+    m_iPos->getAxes(&NUMBER_OF_JOINTS);
 
     for(int i=0;i<NUMBER_OF_JOINTS;i++)
     {
-        iPos->setRefSpeed(i,sequenceItem.getSpeeds().at(i));
-        iPos->positionMove(i,sequenceItem.getPositions().at(i));
+        m_iPos->setRefSpeed(i, sequenceItem.getSpeeds().at(i));
+        m_iPos->positionMove(i, sequenceItem.getPositions().at(i));
     }
 }
 
 void PartItem::onSequenceActivated()
 {
-    for(int i=0;i<layout->count();i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         if(joint){
             joint->sequenceActivated();
         }
     }
 
-    sequenceActivated();
+    emit sequenceActivated();
 
 }
 
 void PartItem::onSequenceStopped()
 {
-    for(int i=0;i<layout->count();i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         if(joint){
             joint->sequenceStopped();
         }
     }
-    sequenceStopped();
+    emit sequenceStopped();
 }
 
 void PartItem::onSequenceWindowDoubleClicked(int sequenceNum)
 {
     QList<double>values;
     QList<double>speeds;
-    for(int i=0;i<layout->count();i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
-        values.append(this->positions[i]);
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        values.append(this->m_positions[i]);
         speeds.append(joint->getTrajectoryVelocityValue());
     }
 
-    sendPartJointsValues(sequenceNum,values,speeds);
+    emit sendPartJointsValues(sequenceNum,values,speeds);
 }
 
 void PartItem::onEnableControlVelocity(bool control)
 {
-    for(int i=0;i<layout->count();i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint  = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         joint->enableControlVelocity(control);
     }
 }
 
 void PartItem::onEnableControlMixed(bool control)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         joint->enableControlMixed(control);
     }
 }
 
 void PartItem::onEnableControlPositionDirect(bool control)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         joint->enableControlPositionDirect(control);
     }
 }
 
-void PartItem::onEnableControlOpenloop(bool control)
+void PartItem::onEnableControlPWM(bool control)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
-        joint->enableControlOpenloop(control);
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        joint->enableControlPWM(control);
+    }
+}
+
+void PartItem::onEnableControlCurrent(bool control)
+{
+    for (int i = 0; i<m_layout->count(); i++)
+    {
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        joint->enableControlCurrent(control);
     }
 }
 
 void PartItem::onViewSpeedValues(bool view)
 {
-    part_speedVisible = view;
-    for(int i=0;i<layout->count();i++)
+    m_part_speedVisible = view;
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint  = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         joint->setSpeedVisible(view);
     }
 }
 
 void PartItem::onViewMotorPositions(bool view)
 {
-    part_motorPositionVisible = view;
-    for (int i = 0; i<layout->count(); i++)
+    m_part_motorPositionVisible = view;
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         joint->setMotorPositionVisible(view);
+    }
+}
+
+void PartItem::onViewDutyCycles(bool view)
+{
+    m_part_dutyVisible = view;
+    for (int i = 0; i<m_layout->count(); i++)
+    {
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        joint->setDutyVisible(view);
+    }
+}
+
+void PartItem::onViewCurrentValues(bool view)
+{
+    m_part_currentVisible = view;
+    for (int i = 0; i<m_layout->count(); i++)
+    {
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        joint->setCurrentsVisible(view);
     }
 }
 
 void PartItem::onViewPositionTarget(bool ena)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
-        if (ena)
-        {
-            joint->viewPositionTarget(ena);
-        }
-        else
-        {
-            joint->viewPositionTarget(ena);
-        }
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        joint->viewPositionTarget(ena);
     }
 }
 
 void PartItem::onSetPosSliderOptionPI(int mode, double step)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         if (mode==0)
         {
             joint->enablePositionSliderDoubleAuto();
@@ -1921,7 +1960,7 @@ void PartItem::onSetPosSliderOptionPI(int mode, double step)
         {
             joint->enablePositionSliderDoubleValue(1.0);
         }
-        else 
+        else
         {
             joint->disablePositionSliderDouble();
         }
@@ -1929,9 +1968,9 @@ void PartItem::onSetPosSliderOptionPI(int mode, double step)
 }
 void PartItem::onSetVelSliderOptionPI(int mode, double step)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         if (mode == 0)
         {
             joint->enableVelocitySliderDoubleAuto();
@@ -1947,18 +1986,43 @@ void PartItem::onSetVelSliderOptionPI(int mode, double step)
             joint->enableVelocitySliderDoubleValue(1.0);
             joint->enableTrajectoryVelocitySliderDoubleValue(1.0);
         }
-        else 
+        else
         {
             joint->disableVelocitySliderDouble();
             joint->disableTrajectoryVelocitySliderDouble();
         }
     }
 }
+
+void PartItem::onSetCurSliderOptionPI(int mode, double step)
+{
+    for (int i = 0; i<m_layout->count(); i++)
+    {
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
+        if (mode == 0)
+        {
+            joint->enableCurrentSliderDoubleAuto();
+        }
+        else if (mode == 1)
+        {
+            joint->enableCurrentSliderDoubleValue(step);
+        }
+        else if (mode == 2)
+        {
+            joint->enableCurrentSliderDoubleValue(1.0);
+        }
+        else
+        {
+            joint->disableCurrentSliderDouble();
+        }
+    }
+}
+
 void PartItem::onSetTrqSliderOptionPI(int mode, double step)
 {
-    for (int i = 0; i<layout->count(); i++)
+    for (int i = 0; i<m_layout->count(); i++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(i)->widget();
+        auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
         if (mode == 0)
         {
             joint->enableTorqueSliderDoubleAuto();
@@ -1971,7 +2035,7 @@ void PartItem::onSetTrqSliderOptionPI(int mode, double step)
         {
             joint->enableTorqueSliderDoubleValue(1.0);
         }
-        else 
+        else
         {
             joint->disableTorqueSliderDouble();
         }
@@ -1979,20 +2043,20 @@ void PartItem::onSetTrqSliderOptionPI(int mode, double step)
 }
 QTreeWidgetItem *PartItem::getTreeWidgetModeNode()
 {
-    return node;
+    return m_node;
 }
 
 void PartItem::setTreeWidgetModeNode(QTreeWidgetItem *node)
 {
-    this->node = node;
+    m_node = node;
 }
 
 QList<int> PartItem::getPartMode()
 {
     QList <int> modes;
 
-    for (int k = 0; k < layout->count(); k++){
-        switch (controlModes[k])
+    for (int k = 0; k < m_layout->count(); k++){
+        switch (m_controlModes[k])
         {
         case VOCAB_CM_IDLE:
             modes.append(JointItem::Idle);
@@ -2012,8 +2076,11 @@ QList<int> PartItem::getPartMode()
         case VOCAB_CM_TORQUE:
             modes.append(JointItem::Torque);
             break;
-        case VOCAB_CM_OPENLOOP:
-            modes.append(JointItem::OpenLoop);
+        case VOCAB_CM_PWM:
+            modes.append(JointItem::Pwm);
+            break;
+        case VOCAB_CM_CURRENT:
+            modes.append(JointItem::Current);
             break;
         case VOCAB_CM_HW_FAULT:
             modes.append(JointItem::HwFault);
@@ -2042,7 +2109,7 @@ QList<int> PartItem::getPartMode()
 
 void PartItem::updateControlMode()
 {
-    bool ret=ctrlmode2->getControlModes(controlModes);
+    bool ret = m_ictrlmode->getControlModes(m_controlModes);
 
 
     if(ret==false){
@@ -2054,35 +2121,62 @@ bool PartItem::updatePart()
 {
     bool ret = false;
     int number_of_joints=0;
-    iPos->getAxes(&number_of_joints);
-    if (slow_k >= number_of_joints-1) slow_k = 0;
-    else slow_k++;
+    m_iPos->getAxes(&number_of_joints);
+    if (m_slow_k >= number_of_joints - 1) m_slow_k = 0;
+    else m_slow_k++;
 
     if (number_of_joints == 0)
     {
         LOG_ERROR("Lost connection with the robot. You should save and restart.\n" );
-        Time::delay(0.1);
+        SystemClock::delaySystem(0.1);
 
-        for(int i=0;i<layout->count();i++){
-            JointItem *joint  = (JointItem*)layout->itemAt(i)->widget();
+        for (int i = 0; i<m_layout->count(); i++){
+            auto* joint = (JointItem*)m_layout->itemAt(i)->widget();
             joint->setJointState(JointItem::Disconnected);
         }
         return false;
     }
 
     // *** update measured encoders, velocity, torques ***
-    if (!iencs->getEncoders(positions))   { yWarning("Unable to update encoders"); return false; }
-    if (!iTrq->getTorques(torques))       { yWarning("Unable to update torques"); }
-    if (this->part_speedVisible && !iencs->getEncoderSpeeds(speeds)) { yWarning("Unable to update speeds"); }
-    if (this->part_motorPositionVisible && !iMot->getMotorEncoders(motorPositions)) { yWarning("Unable to update motorPositions"); }
-    
+    bool b = true;
+    if (true)
+    {
+        b = m_iencs->getEncoders(m_positions);
+        if (!b) { yWarning("Unable to update encoders"); return false; }
+    }
+    if (true)
+    {
+        b = m_iTrq->getTorques(m_torques);
+        if (!b) { yWarning("Unable to update torques"); }
+    }
+    if (this->m_part_currentVisible)
+    {
+        b = m_iCur->getCurrents(m_currents);
+        if (!b) { yWarning("Unable to update currents"); }
+    }
+    if (this->m_part_speedVisible)
+    {
+        b = m_iencs->getEncoderSpeeds(m_speeds);
+        if (!b) { yWarning("Unable to update speeds"); }
+    }
+    if (this->m_part_motorPositionVisible)
+    {
+        b = m_iMot->getMotorEncoders(m_motorPositions);
+        if (!b) { yWarning("Unable to update motorPositions"); }
+    }
+    if (this->m_part_dutyVisible)
+    {
+        b = m_iPWM->getDutyCycles(m_dutyCycles);
+        if (!b) { yWarning("Unable to update dutyCycles"); }
+    }
+
     // *** update checkMotionDone, refTorque, refTrajectorySpeed, refSpeed ***
-    // (only one at a time in order to save badwidth)
-    bool b_motdone     = iPos->checkMotionDone(slow_k, &done[slow_k]); //using k to save bandwidth
-    bool b_refTrq      = iTrq->getRefTorque(slow_k, &refTorques[slow_k]); //using k to save bandwidth
-    bool b_refPosSpeed = iPos->getRefSpeed(slow_k, &refTrajectorySpeeds[slow_k]); //using k to save bandwidth
-    bool b_refVel      = iVel->getRefVelocity(slow_k,&refVelocitySpeeds[slow_k]); //this interface is missing!
-    bool b_refPos      = iPos->getTargetPosition(slow_k, &refTrajectoryPositions[slow_k]);
+    // (only one at a time in order to save bandwidth)
+    bool b_motdone = m_iPos->checkMotionDone(m_slow_k, &m_done[m_slow_k]); //using k to save bandwidth
+    bool b_refTrq = m_iTrq->getRefTorque(m_slow_k, &m_refTorques[m_slow_k]); //using k to save bandwidth
+    bool b_refPosSpeed = m_iPos->getRefSpeed(m_slow_k, &m_refTrajectorySpeeds[m_slow_k]); //using k to save bandwidth
+    bool b_refVel = m_iVel->getRefVelocity(m_slow_k, &m_refVelocitySpeeds[m_slow_k]); //this interface is missing!
+    bool b_refPos = m_iPos->getTargetPosition(m_slow_k, &m_refTrajectoryPositions[m_slow_k]);
 
     if (!b_refPos)
     {
@@ -2108,29 +2202,33 @@ bool PartItem::updatePart()
     // *** update the widget every cycle ***
     for (int jk = 0; jk < number_of_joints; jk++)
     {
-        JointItem *joint = (JointItem*)layout->itemAt(jk)->widget();
-        if (1) { joint->setPosition(positions[jk]); }
+        auto* joint = (JointItem*)m_layout->itemAt(jk)->widget();
+        if (true) { joint->setPosition(m_positions[jk]); }
         else {}
-        if (1) { joint->setTorque(torques[jk]); }
+        if (true) { joint->setTorque(m_torques[jk]); }
         else {}
-        if (1) { joint->setSpeed(speeds[jk]); }
+        if (true) { joint->setSpeed(m_speeds[jk]); }
         else {}
-        if (1) { joint->setMotorPosition(motorPositions[jk]); }
+        if (true) { joint->setCurrent(m_currents[jk]); }
+        else {}
+        if (true) { joint->setMotorPosition(m_motorPositions[jk]); }
+        else {}
+        if (true) { joint->setDutyCycles(m_dutyCycles[jk]); }
         else {}
     }
-    
+
     // *** update the widget NOT every cycle ***
     {
-        JointItem *joint_slow_k = (JointItem*)layout->itemAt(slow_k)->widget();
-        if (b_refTrq) { joint_slow_k->setRefTorque(refTorques[slow_k]); }
+        auto* joint_slow_k = (JointItem*)m_layout->itemAt(m_slow_k)->widget();
+        if (b_refTrq) { joint_slow_k->setRefTorque(m_refTorques[m_slow_k]); }
         else {}
-        if (b_refPosSpeed) { joint_slow_k->setRefTrajectorySpeed(refTrajectorySpeeds[slow_k]); }
+        if (b_refPosSpeed) { joint_slow_k->setRefTrajectorySpeed(m_refTrajectorySpeeds[m_slow_k]); }
         else {}
-        if (b_refPos) { joint_slow_k->setRefTrajectoryPosition(refTrajectoryPositions[slow_k]); }
+        if (b_refPos) { joint_slow_k->setRefTrajectoryPosition(m_refTrajectoryPositions[m_slow_k]); }
         else {}
-        if (b_refVel) { joint_slow_k->setRefVelocitySpeed(refVelocitySpeeds[slow_k]); }
+        if (b_refVel) { joint_slow_k->setRefVelocitySpeed(m_refVelocitySpeeds[m_slow_k]); }
         else {}
-        if (b_motdone) { joint_slow_k->updateMotionDone(done[slow_k]); }
+        if (b_motdone) { joint_slow_k->updateMotionDone(m_done[m_slow_k]); }
         else {}
     }
 
@@ -2141,15 +2239,15 @@ bool PartItem::updatePart()
     //    if(ret==false){
     //        LOG_ERROR("ictrl->getControlMode failed\n" );
     //    }
-    ret=iinteract->getInteractionModes(interactionModes);
+    ret = m_iinteract->getInteractionModes(m_interactionModes);
     if(ret==false){
         LOG_ERROR("iint->getInteractionlMode failed\n" );
     }
 
     for (int k = 0; k < number_of_joints; k++)
     {
-        JointItem *joint  = (JointItem*)layout->itemAt(k)->widget();
-        switch (controlModes[k])
+        auto* joint = (JointItem*)m_layout->itemAt(k)->widget();
+        switch (m_controlModes[k])
         {
             case VOCAB_CM_IDLE:
                 joint->setJointState(JointItem::Idle);
@@ -2169,12 +2267,20 @@ bool PartItem::updatePart()
             case VOCAB_CM_TORQUE:
                 joint->setJointState(JointItem::Torque);
                 break;
-            case VOCAB_CM_OPENLOOP:
+            case VOCAB_CM_CURRENT:
             {
-                joint->setJointState(JointItem::OpenLoop);
-                double openLoopValue = 0;
-                iOpl->getRefOutput(k, &openLoopValue);
-                joint->setOpenLoop(openLoopValue);
+                joint->setJointState(JointItem::Current);
+                double ref_current = 0;
+                m_iCur->getRefCurrent(k, &ref_current);
+                joint->setRefCurrent(ref_current);
+                break;
+            }
+            case VOCAB_CM_PWM:
+            {
+                joint->setJointState(JointItem::Pwm);
+                double ref_duty = 0;
+                m_iPWM->getRefDutyCycle(k, &ref_duty);
+                joint->setRefPWM(ref_duty);
                 break;
             }
             case VOCAB_CM_HW_FAULT:
@@ -2197,7 +2303,7 @@ bool PartItem::updatePart()
                 joint->setJointState(JointItem::Unknown);
                 break;
         }
-        switch (interactionModes[k])
+        switch (m_interactionModes[k])
         {
             case VOCAB_IM_STIFF:
                 joint->setJointInteraction(JointItem::Stiff);

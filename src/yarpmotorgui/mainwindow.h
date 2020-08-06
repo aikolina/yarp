@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- *         Francesco Nori <francesco.nori@iit.it>
- *         Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
@@ -24,6 +33,8 @@
 #include "partitem.h"
 #include "sliderOptions.h"
 
+#include <vector>
+
 namespace Ui {
 class MainWindow;
 }
@@ -35,8 +46,8 @@ class MainWindow : public QMainWindow
 
 public:
     explicit MainWindow(QWidget *parent = 0);
-    bool init(QString robotName, QStringList enabledParts,
-              ResourceFinder *finder,
+    bool init(QStringList enabledParts,
+              ResourceFinder& finder,
               bool debug_param_enabled,
               bool speedview_param_enabled,
               bool enable_calib_all);
@@ -45,34 +56,43 @@ public:
     void term();
 
 protected:
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 private:
-    Ui::MainWindow *ui;
-    QTabWidget *tabPanel;
-    QToolBar *globalToolBar;
-    QToolBar *partToolBar;
-    QLabel *partName;
-    QTimer timer;
-    QMenu *currentPartMenu;
-    QMutex mutex;
-    int sequenceActiveCount;
-    sliderOptions* sliderOpt;
+    Ui::MainWindow*  m_ui;
+    QTabWidget*      m_tabPanel;
+    QToolBar*        m_globalToolBar;
+    QToolBar*        m_partToolBar;
+    QLabel*          m_partName;
+    QTimer           m_timer;
+    QMenu*           m_currentPartMenu;
+    QMutex           m_mutex;
+    int              m_sequenceActiveCount;
+    sliderOptions*   m_sliderOpt;
+    ResourceFinder   m_finder;
+    std::string      m_user_script1;
+    std::string      m_user_script2;
 
-    QAction *goAll;
-    QAction *runAllSeq;
-    QAction *runAllSeqTime;
-    QAction *saveAllSeq;
-    QAction *loadAllSeq;
-    QAction *cycleAllSeq;
-    QAction *cycleAllSeqTime;
-    QAction *stopAllSeq;
-    QAction *runAllParts;
-    QAction *homeAllParts;
+    QAction *m_goAll;
+    QAction *m_runAllSeq;
+    QAction *m_runAllSeqTime;
+    QAction *m_saveAllSeq;
+    QAction *m_loadAllSeq;
+    QAction *m_cycleAllSeq;
+    QAction *m_cycleAllSeqTime;
+    QAction *m_stopAllSeq;
+    QAction *m_idleAllParts;
+    QAction *m_runAllParts;
+    QAction *m_homeAllParts;
+    std::vector<QAction *> m_customPositionsAllParts;
+    std::vector<QAction *> m_customPositionsSinglePart;
+    std::vector<QAction *> m_customPositionsSinglePartToolbar;
     QAction *openSequenceAction;
-    QAction *runAll;
-    QAction *calibAll;
-    QAction *homeAll;
-    QAction *idleAll;
+    QAction *m_runSinglePart;
+    QAction *m_calibSinglePart;
+    QAction *m_homeSinglePart;
+    QAction *m_idleSinglePart;
+    QAction *m_script2;
+    QAction *m_script1;
 
 private:
     void updateModesTree(PartItem *part);
@@ -86,27 +106,35 @@ private slots:
     void onStopAllSeq();
     void onCurrentPartChanged(int index);
     void onOpenSequenceTab();
-    void onRunAll();
+    void onRunSinglePart();
     void onRunAllParts();
     void onRunTimeAllSeq();
     void onRunAllSeq();
     void onCycleAllSeq();
     void onCycleTimeAllSeq();
     void onUpdate();
-    void onIdleAll();
-    void onHomeAll();
+    void onIdleAllParts();
+    void onIdleSinglePart();
+    void onHomeSinglePart();
     void onHomeAllParts();
-    void onCalibAll();
+    void onHomeSinglePartToCustomPosition(const yarp::os::Bottle& positionElement);
+    void onHomeAllPartsToCustomPosition(const yarp::os::Bottle& positionElement);
+    void onCalibSinglePart();
     void onGoAll();
+    void onExecuteScript1();
+    void onExecuteScript2();
     void onViewGlobalToolbar(bool);
     void onViewPartToolbar(bool);
     void onViewSpeeds(bool);
+    void onViewCurrents(bool);
     void onViewMotorPositions(bool);
+    void onViewDutyCycles(bool);
     void onViewPositionTarget(bool);
     void onEnableControlVelocity(bool val);
     void onEnableControlMixed(bool val);
     void onEnableControlPositionDirect(bool val);
-    void onEnableControlOpenloop(bool val);
+    void onEnableControlPWM(bool val);
+    void onEnableControlCurrent(bool val);
     void onSliderOptionsClicked();
     void onSetPosSliderOptionMW(int, double);
     void onSetVelSliderOptionMW(int, double);
@@ -116,9 +144,12 @@ signals:
     void sig_enableControlVelocity(bool);
     void sig_enableControlMixed(bool);
     void sig_enableControlPositionDirect(bool);
-    void sig_enableControlOpenloop(bool);
+    void sig_enableControlPWM(bool);
+    void sig_enableControlCurrent(bool);
     void sig_viewSpeedValues(bool);
+    void sig_viewCurrentValues(bool);
     void sig_viewMotorPositions(bool);
+    void sig_viewDutyCycles(bool);
     void sig_setPosSliderOptionMW(int, double);
     void sig_setVelSliderOptionMW(int, double);
     void sig_setTrqSliderOptionMW(int, double);

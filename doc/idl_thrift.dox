@@ -1,18 +1,13 @@
-/*
- * Copyright (C) 2014 iCub Facility
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- *
- */
-
 /**
- * @page idl_thrift Thrift
- *
+\page idl_thrift Thrift
+
+\tableofcontents
+
+\section idl_thrift_tutorials `yarpidl_thrift` tutorials
 
 \li \subpage thrift_tutorial_portable
 \li \subpage thrift_tutorial_simple
 \li \subpage thrift_tutorial
 \li \subpage thrift_editor
 
- *
- */
+*/

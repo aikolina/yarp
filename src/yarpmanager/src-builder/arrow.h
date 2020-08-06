@@ -1,3 +1,25 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+/**
+ * Original license follows:
+ */
+
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
@@ -66,7 +88,7 @@ class Label : public QGraphicsTextItem
 public:
     Label(QString label, QGraphicsItem *parent = 0);
     ~Label();
-    int type() const  { return UserType + (int)ArrowLabelItemType; }
+    int type() const override { return UserType + (int)ArrowLabelItemType; }
     bool hasBeenMoved();
     void setHasMoved(bool);
     void currentComboTextChanged(QString text);
@@ -74,11 +96,11 @@ public:
     void setText(QString);
 
 protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent *event);
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *event);
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event);
-    QVariant itemChange(GraphicsItemChange change, const QVariant &value);
+    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
     QPointF computeTopLeftGridPoint(const QPointF &pointP);
 protected:
@@ -104,21 +126,21 @@ public:
           int id, Manager *safeManager, bool nestedInApp = false, bool editingMode = false, BuilderItem *parent = 0);
 
     ~Arrow();
-    int type() const  { return (int)QGraphicsItem::UserType + (int)itemType; }
+    int type() const override { return (int)QGraphicsItem::UserType + (int)itemType; }
 
-    QPointF connectionPoint();
+    QPointF connectionPoint() override;
     void setConnected(bool);
     int getId();
     QString getFrom();
     QString getTo();
-    void setConnection(Connection conn);
+    void setConnection(const Connection& conn);
     void setConnectionSelected(bool selected);
     void updateModel();
     void updateCarrier(QString carrier);
     GraphicModel* getModel();
 
-    QRectF boundingRect() const Q_DECL_OVERRIDE;
-    QPainterPath shape() const Q_DECL_OVERRIDE;
+    QRectF boundingRect() const override;
+    QPainterPath shape() const override;
     void setColor(const QColor &color) { myColor = color; }
     BuilderItem *startItem() const { return myStartItem; }
     BuilderItem *endItem() const { return myEndItem; }
@@ -134,12 +156,12 @@ public:
     void updateGraphicModel();
 
 protected:
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = 0) Q_DECL_OVERRIDE;
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event);
-    void mousePressEvent(QGraphicsSceneMouseEvent *e);
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *e);
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *e);
-    QVariant itemChange(GraphicsItemChange change, const QVariant &value);
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = 0) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent *e) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *e) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *e) override;
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
 
 
 private:
@@ -166,8 +188,6 @@ private:
     QPointF startP;
     QPointF endP;
 
-    bool firstTime;
-
     QList <LineHandle*> handleList;
 };
 
@@ -178,14 +198,14 @@ public:
     LineHandle(QPointF center, Arrow *parent = 0);
     ~LineHandle();
     QPointF handlePoint();
-    int type() const  { return UserType + (int)HandleItemType; }
+    int type() const override { return UserType + (int)HandleItemType; }
 
 protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent *event);
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *event);
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = 0);
-    QVariant itemChange(GraphicsItemChange change, const QVariant &value);
+    void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = 0) override;
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     QPointF computeTopLeftGridPoint(const QPointF &pointP);
 private:
     QPointF center;

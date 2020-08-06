@@ -1,8 +1,8 @@
+-- Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+-- All rights reserved.
 --
--- Copyright (C) 2012 IITRBCS
--- Authors: Ali Paikan
--- CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
---
+-- This software may be modified and distributed under the terms of the
+-- BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 -- loading lua-yarp binding library
 require("yarp")
@@ -54,16 +54,14 @@ end
 
 
 --
--- In this example, trig() is called periodically every 30ms 
--- This is specified in the PortMonitor.create() using 
--- PortMonitor.setTrigInterval(0.3). 
+-- In this example, trig() is called periodically every 30ms
+-- This is specified in the PortMonitor.create() using
+-- PortMonitor.setTrigInterval(0.3).
 --
 PortMonitor.trig = function()
-    if received == false then 
+    if received == false then
         print("[qos_monitor] Qos is not okay. (data frequency < 30Hz)")
     else
         received = false
-    end 
+    end
 end
-
-

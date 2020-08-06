@@ -1,47 +1,70 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
 #include "qtyarpscope.h"
 #include <yarp/os/ResourceFinder.h>
 #include "simpleloader.h"
 #include "xmlloader.h"
+#include <yarp/os/Time.h>
 
 #define PADDING         25
 #define GRIDSPACING     25
 #define SCALEWIDTH      25
 
 QtYARPScope::QtYARPScope(QQuickItem *parent):
-    QQuickPaintedItem(parent)
+    QQuickPaintedItem(parent),
+    i(0),
+    yarp(yarp::os::YARP_CLOCK_SYSTEM),
+    loader(nullptr),
+    plotManager(PlotManager::instance()),
+    topLevel(nullptr),
+    bPressed(false),
+    currentSelectedPlotter(nullptr)
 {
-
     setFlag(ItemHasContents, true);
-
-    currentSelectedPlotter = NULL;
-    loader = NULL;
-    plotManager = PlotManager::instance();
 
     setAcceptedMouseButtons(Qt::AllButtons);
     setRenderTarget(QQuickPaintedItem::FramebufferObject);
 
     connect(this, SIGNAL(widthChanged()), this, SLOT(updateCustomPlotSize()) );
     connect(this, SIGNAL(heightChanged()), this, SLOT(updateCustomPlotSize()));
-    connect(plotManager,SIGNAL(requestRepaint()),this,SLOT(onRepaint()),Qt::QueuedConnection);
 
 }
 
 QtYARPScope::~QtYARPScope()
 {
     playPressed(false);
-    if(plotManager){
-        delete plotManager;
+    if (plotManager)
+    {
+        for (auto pltr : *(plotManager->getPlotters()))
+        {
+            if (pltr)
+            {
+                for (auto graph : static_cast<Plotter*> (pltr)->graphList)
+                {
+                    if (graph)
+                    {
+                        static_cast<Graph*> (graph)->getConnection()->freeResources();
+                    }
+                }
+            }
+        }
     }
+
     if(loader){
         delete loader;
     }
@@ -51,12 +74,20 @@ QtYARPScope::~QtYARPScope()
 */
 bool QtYARPScope::parseParameters(QStringList params)
 {
+    //YARP network initialization
+    if (!yarp.checkNetwork()) {
+        qCritical("Cannot connect to yarp network");
+        return false;
+    }
+    else
+    {
+        connect(plotManager,SIGNAL(requestRepaint()),this,SLOT(onRepaint()),Qt::QueuedConnection);
+    }
     // Setup resource finder
     yarp::os::ResourceFinder rf;
-    rf.setVerbose();
     // TODO Read default values from yarpscope.ini
     rf.setDefaultConfigFile("yarpscope.ini");
-    rf.setDefaultContext("yarpscope"); 
+    rf.setDefaultContext("yarpscope");
 
     // Transform Qt Params array in standard argc & argv
     int c = params.count();
@@ -86,19 +117,10 @@ bool QtYARPScope::parseParameters(QStringList params)
         return false;
     }
 
-    //YARP network initialization
-    if (!yarp.checkNetwork()) {
-        qCritical("Cannot connect to yarp network");
-        for(int i=0;i<params.count();i++) {
-            free(v[i]);
-        }
-        free(v);
-        return false;
+    for(int i=0;i<params.count();i++) {
+        free(v[i]);
     }
-        for(int i=0;i<params.count();i++) {
-            free(v[i]);
-        }
-        free(v);
+    free(v);
 
 //********************** Deprecated options
     // local
@@ -120,19 +142,19 @@ bool QtYARPScope::parseParameters(QStringList params)
     int interval;
     // title
     if (rf.find("title").isString()) {
-        setWindowTitle(QString("%1").arg(rf.find("title").asString().data()));
+        emit setWindowTitle(QString("%1").arg(rf.find("title").asString().data()));
     }
     // position
-    if (rf.find("x").isInt() && rf.find("y").isInt()) {
-        setWindowPosition(rf.find("x").asInt(), rf.find("y").asInt());
+    if (rf.find("x").isInt32() && rf.find("y").isInt32()) {
+        emit setWindowPosition(rf.find("x").asInt32(), rf.find("y").asInt32());
     }
     // size
-    if (rf.find("dx").isInt() && rf.find("dy").isInt()) {
-        setWindowSize(rf.find("dx").asInt(), rf.find("dy").asInt());
+    if (rf.find("dx").isInt32() && rf.find("dy").isInt32()) {
+        emit setWindowSize(rf.find("dx").asInt32(), rf.find("dy").asInt32());
     }
     // interval
-    if (rf.find("interval").isInt()) {
-        interval = rf.find("interval").asInt();
+    if (rf.find("interval").isInt32()) {
+        interval = rf.find("interval").asInt32();
     }else{
         interval = 50;
     }
@@ -141,7 +163,7 @@ bool QtYARPScope::parseParameters(QStringList params)
     bool ok;
     if (rf.check("xml")) {
 // XML Mode Options
-        const yarp::os::ConstString &filename = rf.findFile("xml");
+        const std::string &filename = rf.findFile("xml");
         QString f = QString("%1").arg(filename.data());
         loader = new XmlLoader(f,plotManager,this);
         qDebug("Loading file %s",filename.c_str());
@@ -155,7 +177,7 @@ bool QtYARPScope::parseParameters(QStringList params)
         }
     }
     plotManager->setInterval(interval);
-    intervalLoaded(interval);
+    emit intervalLoaded(interval);
 
 
     updateCustomPlotSize();
@@ -231,7 +253,7 @@ void QtYARPScope::usage() {
 //    qDebug("                        Depending on index it must be a [string] or an array of [string]s.");
     qDebug(" --color [...]          Graph color(s).");
     qDebug("                        Depending on index it must be a [string] or an array of [string]s.");
-    qDebug(" --type [...]           Graph type(s). Accepted values are \"points\", \"lines\" and \"bars\" (default = \"lines\")");
+    qDebug(R"( --type [...]           Graph type(s). Accepted values are "points", "lines" and "bars" (default = "lines"))");
     qDebug("                        Depending on index it must be a [string] or an array of [string]s.");
     qDebug(" --graph_size [...]     Graph size(s) (thickness of the points) (default = 1)");
     qDebug("                        Depending on index it must be a [uint] or an array of [uint]s.\n");
@@ -257,9 +279,9 @@ void QtYARPScope::onRepaint()
 */
 void QtYARPScope::paint(QPainter *painter)
 {
-	if(!loader){
-		return;
-	}
+    if(!loader) {
+        return;
+    }
     int rows = loader->portscope_rows;
     int cols = loader->portscope_columns;
     int w = painter->device()->width();
@@ -268,14 +290,15 @@ void QtYARPScope::paint(QPainter *painter)
     for (int i=0; i<plotManager->getPlotters()->count();i++)
     {
         painter->beginNativePainting(); // Workaround to flush the painter
-        Plotter *plotter = (Plotter*)plotManager->getPlotters()->at(i);
+        auto* plotter = (Plotter*)plotManager->getPlotters()->at(i);
 
         int hSpan = plotter->hspan;
         int vSpan = plotter->vspan;
         int plotterWidth = (w/cols) * hSpan;
         int plotterHeight = (h/rows) * vSpan;
 
-        QPixmap picture( plotter->customPlot.size() );
+        QPixmap picture(QSize(plotter->customPlot.width() * plotter->customPlot.devicePixelRatio(),
+                              plotter->customPlot.height() * plotter->customPlot.devicePixelRatio()));
 
         QCPPainter qcpPainter( &picture );
         plotter->customPlot.toPainter( &qcpPainter );
@@ -350,7 +373,7 @@ void QtYARPScope::routeMouseEvents( QMouseEvent* event )
 
     for (int i=0; i<plotManager->getPlotters()->count();i++)
     {
-        Plotter *plotter = (Plotter*)plotManager->getPlotters()->at(i);
+        auto* plotter = (Plotter*)plotManager->getPlotters()->at(i);
         QRectF r = plotter->paintRectGeometry;
 
         if(r.contains(x,y)){
@@ -374,7 +397,7 @@ void QtYARPScope::routeMouseEvents( QWheelEvent* event )
 
     for (int i=0; i<plotManager->getPlotters()->count();i++)
     {
-        Plotter *plotter = (Plotter*)plotManager->getPlotters()->at(i);
+        auto* plotter = (Plotter*)plotManager->getPlotters()->at(i);
         QRectF r = plotter->paintRectGeometry;
 
         if(r.contains(x,y)){
@@ -393,7 +416,7 @@ void QtYARPScope::routeMouseEvents( QWheelEvent* event )
 void QtYARPScope::updateCustomPlotSize()
 {
 
-    if(loader == NULL){
+    if(loader == nullptr){
         return;
     }
     int w = width();
@@ -403,7 +426,7 @@ void QtYARPScope::updateCustomPlotSize()
 
     int plottersCount = plotManager->getPlotters()->count();
     for(int i=0; i<plottersCount; i++){
-        Plotter * plotter = (Plotter*)plotManager->getPlotters()->at(i);
+        auto* plotter = (Plotter*)plotManager->getPlotters()->at(i);
 
         int hSpan = plotter->hspan;
         int vSpan = plotter->vspan;

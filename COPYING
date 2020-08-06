@@ -1,136 +1,205 @@
 Unless otherwise stated, files in YARP are:
-  Copyright: 2012 Paul Fitzpatrick, Lorenzo Natale, Giorgio Metta
-  Released under the GNU LGPLv2.1 or later - see LGPL.TXT for details.
+  Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+  All rights reserved.
 
-The list of authors for YARP (ordered by file count) is:
-  Istituto Italiano di Tecnologia
-  Paul Fitzpatrick
-  Lorenzo Natale
-  Ali Paikan
-  Daniele E. Domenichelli
-  Marco Randazzo
-  Davide Perrone
-  Alberto Cardellino
-  Giorgio Metta
-  Giacomo Spigler
-  Anne van Rossum
-  Duarte Aragao
-  Daniel Krieg
-  Arjan Gijsberts
-  Elena Ceseracciu
-  Alessandro Scalzo
-  Chris Morley
-  Alexandre Bernardino
-  Silvio Traversaro
-  Ugo Pattacini
-  Renaud Detry
-  Miguel Sarabia del Castillo
-  Julio Gomes
-  Carlos Beltran-Gonzalez
-  Mattia Castelnovi
-  Jonas Ruesch
-  Francesco Nori
-  Eric Mislivec
-  Assif Mirza
-  Ze Ji
-  Freyr Magnusson
-  Andrea Ruzzenenti
-  Radu Bogdan Rusu
-  Mike P. Blow
-  Lars Olsson
-  Francesco Romano
-  Alexis Maldonado
-  Tobias Fischer
-  Stephane Lallee
-  Robotics Brain
-  Marco Randazo
-  Francesco Giovannini
-  Fabien Benureau
-  Claudio Fantacci
+  This software may be modified and distributed under the terms of the
+  BSD-3-Clause license. See the accompanying LICENSE file for details.
+
+Most YARP components are released under the terms of the BSD-3-Clause.
+Some optional components are released under the terms of the LGPL-2.1 or later,
+GPL-2.0 or later, GPL-3.0 or later, or Apache-2.0 License:
+ * Some components are released under the terms of the LGPL license, version 2.1
+   or later.
+   + devices:
+     - `audioPlayerWrapper`
+     - `audioRecorderWrapper`
+     - `batteryClient`
+     - `batteryWrapper`
+     - `depthCamera`
+     - `fakeLocalizerDevice`
+     - `fakeNavigationDevice`
+     - `imuBosch_BNO055`
+     - `laserFromDepth`
+     - `laserHokuyo`
+     - `localization2DClient`
+     - `map2DClient`
+     - `map2DServer`
+     - `navigation2DClient`
+     - `opencv`
+     - `ovrheadset`
+     - `portaudio`
+     - `portaudioPlayer`
+     - `portaudioRecorder`
+     - `Rangefinder2DClient`
+     - `Rangefinder2DWrapper`
+     - `rpLidar`
+     - `rpLidar2`
+     - `SDLJoypad`
+     - `transformClient`
+     - `transformServer`
+     - `usbCamera`
+   + tools:
+     - `yarplogger-console`
+     - `yarpmanager-console`
+     - `yarprobotinterface`
+   + GUIs:
+     - `yarpbatterygui`
+     - `yarpdataplayer`
+     - `yarplaserscannergui`
+     - `yarplogger`
+     - `yarpmanager`
+     - `yarpmotorgui`
+     - `QtYARPView` and `yarpview`
+ * Some optional components use 3rd party libraries that may have some extra
+   requirements.
+   + `YARP_robottestingframework` and the Robot Testing Framework plugins use
+     [Robot Testing Framework](https://github.com/robotology/robot-testing-framework/blob/master/LICENSE).
+   + The `xmlrpc` carrier uses a custom version of the
+     [xmlrpcpp](https://sourceforge.net/projects/xmlrpcpp/) library.
+   + The `bayer` carrier uses alternatively
+     [libdc1394](http://damien.douxchamps.net/ieee1394/libdc1394/) or, if the
+     library is not available, links statically a few files taken from
+     [libdc1394](http://libdc1394.git.sourceforge.net/git/gitweb.cgi?p=libdc1394/libdc1394;a=blob_plain;f=libdc1394/dc1394/bayer.c;hb=HEAD).
+   + The `h264` carrier uses glib (LGPLv2.1 or later) and gstreamer (LGPLv2.1 or
+     later).
+   + The `mpi` carrier uses MPI (license dependent on the implementation).
+   + The `dynamixelAX12Ftdi` device uses
+     [libftdi](https://www.intra2net.com/en/developer/libftdi/).
+   + The `SDLJoypad` device uses alternatively
+     [SDL 1.2](https://libsdl.org/license.php).
+   + The ffmpeg_grabber and ffmpeg_writer devices use
+     [Ffmpeg](https://github.com/FFmpeg/FFmpeg/blob/master/LICENSE.md).
+   + The ovrheadset device use the
+     [Oculis SDK](https://developer.oculus.com/licenses/).
+ * A few optional parts of YARP are released under the terms of the GPL license,
+   version 2 or later:
+   + `YARP_gsl` uses the GNU Scientific Library, under the GPL 2 or later.
+   + `example/matrix/gsl_example.cpp` uses GSL, under the GPL 2 or later.
+ * A few optional parts of YARP are released under the terms of the GPL license,
+   version 3 or later:
+   + `QtYARPScope` uses QCustomPlot that is GPL3+ and it is therefore GPL3+.
+   + `yarpscope` uses `QtYARPScope` that is GPL3+ and it is therefore GPL3+.
+   + `yarpviz` uses qgv that is GPL3+ and it is therefore GPL3+.
+   + `example/ContainerExample` uses `QtYARPScope` and it is therefore GPL3+.
+ * The `yarpidl_thrift` tool is released under the Apache-2.0 License.
 
 The list of committers in the YARP repository (ordered by number of commit) is:
-  Paul Fitzpatrick
   Daniele E. Domenichelli
-  Lorenzo Natale
-  Ugo Pattacini
+  Paul Fitzpatrick
+  Nicolò Genesio
   Marco Randazzo
-  Ali Paikan
+  Lorenzo Natale
   Alberto Cardellino
+  Ugo Pattacini
+  Ali Paikan
   YARP Developers
+  Damiano Enerli
+  Andrea Ruzzenenti
   Alessandro Scalzo
   Elena Ceseracciu
   Silvio Traversaro
+  Francesco Romano
+  Matteo Brunettini
   Giacomo Spigler
   Giorgio Metta
   Vadim Tikhanoff
-  Matteo Brunettini
   Davide Perrone
-  Francesco Romano
   Alessandro Roncone
-  Andrea Ruzzenenti
+  Valentina Gaggero
+  Claudio Fantacci
   Konstantinos Theofilis
-  Alberto Cardellino
   Alexandre Bernardino
-  Duarte Aragao
+  Bartek Łukawski
   Tobias Fischer
+  Duarte Aragao
   Francesco Nori
+  Juan G. Victores
+  Nuno Guedelha
   Andrea Del Prete
   Arjan Gijsberts
   Carlos Beltran-Gonzalez
-  Claudio Fantacci
   Claudio Castellini
   Daniel Krieg
+  Diego Ferigo
+  Ettore Landini
+  Prashanth Ramadoss
   Alexandros Paraschos
-  Jonas Ruesch
-  Michael Bucko
-  Giulia Vezzani
-  Alessio Rocchi
+  Yeshasvi Tirupachuri
   Giovanni Saponaro
+  Giulia Vezzani
+  Jonas Ruesch
+  Lorenzo Rapetti
+  Michael Bucko
+  Giulio Romualdi
+  Massimo Regoli
+  Alessio Rocchi
   Mirko Ferrati
-  Valentina Gaggero
+  Stefano Dafarra
+  Aiko Dinale
+  Alexandre Gomes Pereira Antunes
+  Andrea Ruzzenenti
+  Bertrand Higy
+  David-Estevez
   Francesco Giovannini
+  Arren Glover
   Bruno Nery
   Davide Pollarolo
+  Emilio Cartoni
   Fabien Benureau
   Francesco Orabona
   Gabriele Nava
   Holger Friedrich
+  Mohamed Babiker Mohamed Elobaid
   Naeem Assif Mirza
   Plinio Moreno
   Ze Ji
+  Austin Kothig
   Carlo Ciliberto
+  Carlotta Sartore
   Claudia Latella
   Davide Tome
+  Elena Rampone
+  Emilio Benenati
   Enrico Mingo
   Francesca Stramandinoli
-  Juan G Victores
+  Giovanni Saponaro
+  Jason Chevrie
+  Marco Monforte
+  Massimiliano Iacono
   Matej Hoffmann
+  Nicola Piga
   Pedro Vicente
   Serena Ivaldi
+  Vítor Galvão
+  Zero King
 
 The list of copyright holders for YARP is:
-  RobotCub Consortium (747 files)
-  Istituto Italiano di Tecnologia (520 files)
-  Duarte Aragao (25 files)
-  Giacomo Spigler (17 files)
-  Daniel Krieg (16 files)
-  Chris Morley (16 files)
-  Anne van Rossum (13 files)
-  Alexandre Bernardino (8 files)
-  Arjan Gijsberts (7 files)
-  Carlos Beltran-Gonzalez (5 files)
-  Marco Randazzo (5 files)
-  Renaud Detry (5 files)
-  Assif Mirza (4 files)
-  Julio Gomes (4 files)
-  Mattia Castelnovi (4 files)
-  Jonas Ruesch (3 files)
-  Ze Ji (3 files)
-  Eric Mislivec (2 files)
-  Freyr Magnusson (2 files)
-  Lars Olsson (2 files)
-  Mike P. Blow (2 files)
-  Francesco Giovannini (1 file)
+  Copyright (C) 1995, 2000, 2003, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020
+    Istituto Italiano di Tecnologia (IIT) (2394 files)
+    RobotCub Consortium (762 files)
+    Daniel Krieg <krieg@fias.uni-frankfurt.de> (16 files)
+    David Miller <miller@oxygen-icons.org> (13 files)
+    David Vignoni <david@icon-king.com> (13 files)
+    Johann Ollivier Lapeyre <johann@oxygen-icons.org> (13 files)
+    Kenneth Wimer <kwwii@bootsplash.org> (13 files)
+    Nuno Pinheiro <nuno@oxygen-icons.org> (13 files)
+    Riccardo Iaconelli <riccardo@oxygen-icons.org> (13 files)
+    Anne van Rossum <anne@almende.com> (11 files)
+    Arjan Gijsberts (10 files)
+    Giacomo Spigler (7 files)
+    Alexandre Bernardino (5 files)
+    Carlos Beltran-Gonzalez (5 files)
+    Digia Plc and/or its subsidiary(-ies) (4 files)
+    Eric Mislivec (2 files)
+    Freyr Magnusson (2 files)
+    Intel Corporation (2 files)
+    Julio Gomes (2 files)
+    Ze Ji (2 files)
+    Fabrice Bellard (1 file)
+    Francesco Giovannini (1 file)
+    Jonas Ruesch (1 file)
+    Open Perception, Inc. (1 file)
+    Willow Garage, Inc. (1 file)
 
 The identifier "RobotCub Consortium" used in some copyright statements is
 equivalent to the following list of institutions:
@@ -155,1436 +224,3 @@ equivalent to the following list of institutions:
     Automation - Salford - United Kingdom
   * [2009-2010] The University of Sheffield, Dept. of Automatic Control &
     Systems Engineering, Sheffield, UK
-
-Certain files are integrated in YARP from other sources with
-friendly licenses.  Here is a list of these files and a summary of
-their copyright.  See the individual files for more details.
-All files used in the default YARP build are compatible with the
-LGPL.  Optional modules may require use of YARP under the GPL,
-rather than the LGPL.
-
-src/yarpdataplayer/src/main.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/src/utils.cpp
-  Copyright: (C) 2011 Dept. Robotics, Brain and Cognitive Sciences, Istituto Italiano di Tecnologia
-  Authors: Vadim Tikhanoff
-  CopyPolicy: GPLv2 or later
-
-src/yarpdataplayer/src/loadingwidget.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/src/mainwindow.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/src/worker.cpp
-  Copyright: (C) 2011 Dept. Robotics, Brain and Cognitive Sciences, Istituto Italiano di Tecnologia
-  Authors: Vadim Tikhanoff
-  CopyPolicy: GPLv2 or later
-
-src/yarpdataplayer/src/genericinfodlg.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/src/aboutdlg.cpp
-  Copyright: ,QString webSite,QWidget
-  CopyPolicy: GPLv2 or later
-
-src/yarpdataplayer/include/genericinfodlg.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/include/loadingwidget.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/include/aboutdlg.h
-  Copyright: , QString website, QWidget
-  CopyPolicy: unknown
-
-src/yarpdataplayer/include/mainwindow.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/include/msvc/dirent.h
-  Copyright: (C) 2006 Toni Ronkko
-  CopyPolicy: unknown
-
-src/yarpdataplayer/include/utils.h
-  Copyright: (C) 2011 Dept. Robotics, Brain and Cognitive Sciences, Istituto Italiano di Tecnologia
-  Authors: Vadim Tikhanoff
-  CopyPolicy: GPLv2 or later
-
-src/yarpdataplayer/include/log.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpdataplayer/include/worker.h
-  Copyright: (C) 2011 Dept. Robotics, Brain and Cognitive Sciences, Istituto Italiano di Tecnologia
-  Authors: Vadim Tikhanoff
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_OS/src/Random.cpp
-  Copyright: (C) 1994 Everett F. Carter Jr.
-  CopyPolicy: Preserve copyright notice
-
-src/libYARP_OS/src/TcpConnector.cpp
-  Copyright: (C) 2010 Anne van Rossum <anne@almende.com>
-  CopyPolicy: LGPL; non-binding note discouraging certain uses
-
-src/libYARP_OS/src/TcpAcceptor.cpp
-  Copyright: (C) 2010 Anne van Rossum <anne@almende.com>
-  CopyPolicy: LGPL; non-binding note discouraging certain uses
-
-src/libYARP_OS/src/sha2.c
-  Copyright: (C) 2005, 2007 Olivier Gay <olivier.gay@a3.epfl.ch>
-  CopyPolicy: 3-clause BSD
-
-src/libYARP_OS/src/hmac_sha2.c
-  Copyright: (C) 2005 Olivier Gay <olivier.gay@a3.epfl.ch>
-  CopyPolicy: 3-clause BSD
-
-src/libYARP_OS/src/TcpStream.cpp
-  Copyright: (C) 2010 Anne van Rossum <anne@almende.com>
-  CopyPolicy: LGPL; non-binding note discouraging certain uses
-
-src/libYARP_OS/include/yarp/os/impl/TcpConnector.h
-  Copyright: (C) 2010 Anne van Rossum <anne@almende.com>
-  CopyPolicy: LGPL; non-binding note discouraging certain uses
-
-src/libYARP_OS/include/yarp/os/impl/hmac/sha2.h
-  Copyright: (C) 2005, 2007 Olivier Gay <olivier.gay@a3.epfl.ch>
-  CopyPolicy: 3-clause BSD
-
-src/libYARP_OS/include/yarp/os/impl/hmac/hmac_sha2.h
-  Copyright: (C) 2005 Olivier Gay <olivier.gay@a3.epfl.ch>
-  CopyPolicy: 3-clause BSD
-
-src/libYARP_OS/include/yarp/os/impl/TcpAcceptor.h
-  Copyright: (C) 2010 Anne van Rossum <anne@almende.com>
-  CopyPolicy: LGPL; non-binding note discouraging certain uses
-
-src/libYARP_OS/include/yarp/os/impl/TcpStream.h
-  Copyright: (C) 2010 Anne van Rossum <anne@almende.com>
-  CopyPolicy: LGPL; non-binding note discouraging certain uses
-
-src/yarplogger-console/main.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger-console/CMakeLists.txt
-  Copyright: (C) 2014 RobotCub Consortium
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/RGBDSensorClient/RGBDSensorClient_StreamingMsgParser.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/src/devices/RGBDSensorClient/RGBDSensorClient.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/src/devices/RGBDSensorClient/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/ServerInertial/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/RGBDSensorWrapper/RGBDSensorWrapper.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/src/devices/RGBDSensorWrapper/rosPixelCode.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/RGBDSensorWrapper/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/AnalogSensorClient/AnalogSensorClient.h
-  Copyright: (C) 2014 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_Image.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_CameraInfo.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs/JointState.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs/LaserScan.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs/Imu.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/visualization_msgs_MarkerArray.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_Point.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs/Vector3.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs/Quaternion.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs/Pose.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs/Wrench.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs/WrenchStamped.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs/Point.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/visualization_msgs/Marker.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/visualization_msgs/MarkerArray.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_RegionOfInterest.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/std_msgs_ColorRGBA.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_JointState.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/visualization_msgs_Marker.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_Pose.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_PointField.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_Imu.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_WrenchStamped.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_TransformStamped.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_Quaternion.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/std_msgs/ColorRGBA.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/std_msgs/Header.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/TickTime.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_Wrench.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/std_msgs_Header.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_LaserScan.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_Vector3.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/tf_tfMessage.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/sensor_msgs_PointCloud2.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/TickDuration.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/ros/include/geometry_msgs_Transform.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/msgs/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/RemoteControlBoard/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/RemoteControlBoard/stateExtendedReader.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/RemoteControlBoard/RemoteControlBoard.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/ControlBoardWrapper/SubDevice.cpp
-  Copyright: (C) 2009 RobotCub Consortium
-  Authors: Lorenzo Natale
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/ControlBoardWrapper/RPCMessagesParser.cpp
-  Copyright: (C) 2009 RobotCub Consortium
-  Authors: Lorenzo Natale
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/ControlBoardWrapper/StreamingMessagesParser.cpp
-  Copyright: (C) 2009 RobotCub Consortium
-  Authors: Lorenzo Natale
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/ControlBoardWrapper/ControlBoardWrapper.cpp
-  Copyright: (C) 2009 RobotCub Consortium
-  Authors: Lorenzo Natale
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/ControlBoardWrapper/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_dev/src/devices/ControlBoardRemapper/ControlBoardRemapperHelpers.cpp
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Lorenzo Natale, Silvio Traversaro
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/VirtualAnalogWrapper/VirtualAnalogWrapper.h
-  Copyright: (C) 2013 RobotCub Consortium
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/src/devices/VirtualAnalogWrapper/VirtualAnalogWrapper.cpp
-  Copyright: (C) 2013 RobotCub Consortium
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2
-
-src/libYARP_dev/include/yarp/dev/FrameGrabberControl2.h
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/include/yarp/dev/IVisualParams.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/include/yarp/dev/FrameGrabberControl2Impl.h
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_dev/include/yarp/dev/IRGBDSensor.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/yarpmotorgui/partitem.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/main.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/jointitem.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/sliderOptions.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/yarpmotorgui.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/jointitem.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/startdlg.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/sequencewindow.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/sliderWithTarget.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/startdlg.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/piddlg.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/mainwindow.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/sliderWithTarget.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/mainwindow.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/piddlg.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/flowlayout.h
-  Copyright: (C) 2013 Digia Plc and/or its subsidiary(-ies).
-  CopyPolicy: unknown
-
-src/yarpmotorgui/log.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/sequencewindow.cpp
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmotorgui/flowlayout.cpp
-  Copyright: (C) 2013 Digia Plc and/or its subsidiary(-ies).
-  CopyPolicy: unknown
-
-src/yarpmotorgui/sliderOptions.h
-  Copyright: (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpmanager/src-manager/logwidget.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/genericinfodlg.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/aboutdlg.h
-  Copyright: , QString website, QWidget
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/yscopewindow.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/logwidget.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/newapplicationwizard.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/newapplicationwizard.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/yscopewindow.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/genericinfodlg.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-manager/aboutdlg.cpp
-  Copyright: ,QString webSite,QWidget
-  CopyPolicy: GPLv2 or later
-
-src/yarpmanager/src-builder/builderwindow.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/builderscene.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/applicationitem.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/yarpbuilderlib.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/main.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/builderscene.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/builderwindow.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/customtree.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/customtree.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/yarpbuilderlib.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/applicationitem.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/itemsignalhandler.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/arrow.cpp
-  Copyright: (C) 2013 Digia Plc and/or its subsidiary(-ies).
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/propertiestable.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/builderitem.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/destinationportitem.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/yarpbuilderlib_global.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/moduleitem.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/commons.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/sourceportitem.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/destinationportitem.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/arrow.h
-  Copyright: (C) 2013 Digia Plc and/or its subsidiary(-ies).
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/moduleitem.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/builderitem.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/itemsignalhandler.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/sourceportitem.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpmanager/src-builder/propertiestable.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpscope/src/qtquick2applicationviewer/qtquick2applicationviewer.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpscope/src/qtquick2applicationviewer/qtquick2applicationviewer.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpscope/plugin/portreader.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpscope/plugin/portreader.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_gsl/src/Gsl.cpp
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Lorenzo Natale.
-  CopyPolicy: Released under the terms of the GPL 2.0 license or later.
-
-src/libYARP_gsl/include/yarp/gsl/Gsl.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Lorenzo Natale.
-  CopyPolicy: Released under the terms of the GPL 2.0 license or later.
-
-src/devices/dimax_u2c/I2c.h
-  Copyright: (C)2004 Dimax ( http://www.xdimax.com )
-  CopyPolicy: GPL
-
-src/devices/dimax_u2c/i2cbridge.h
-  Copyright: (C)2004 Dimax ( http://www.xdimax.com )
-  CopyPolicy: GPL
-
-src/devices/dimax_u2c/u2c_common_func.h
-  Copyright: (C)2004 Dimax ( http://www.xdimax.com )
-  CopyPolicy: GPL
-
-src/devices/dimax_u2c/I2c.cpp
-  Copyright: (C)2004 Dimax ( http://www.xdimax.com )
-  CopyPolicy: GPL
-
-src/devices/fakeMotionControl/fakeMotionControl.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/devices/ffmpeg/avpreamble.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/devices/fakeIMU/fakeIMU.h
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/devices/vfw/vfw_extra_from_wine.h
-  Copyright: (C) 2007 the Wine project
-  CopyPolicy: Released under the terms of the GNU LGPL v2.1. or later
-
-src/devices/vfw/vfw_extra_from_australia.h
-  Copyright: (C) 2006 The University of Queensland, Australia <www.uq.edu.au>
-  CopyPolicy: GPL2 or later, or 4-clause BSD at your choice
-
-src/devices/rpLidar/rpLidar.h
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/devices/rpLidar/rpLidar.cpp
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/devices/urbtc/kernel_module/urobotc.h
-  Copyright: (C) 2007 iXs Research Corp
-  CopyPolicy: GPLv2
-
-src/devices/urbtc/kernel_module/urbtc.c
-  Copyright: (C) 2001-2004 Greg Kroah-Hartman (greg@kroah.com)
-  CopyPolicy: GPLv2
-
-src/devices/urbtc/kernel_module/urbtc.h
-  Copyright: (C) 2007 iXs Research Corp
-  CopyPolicy: GPLv2
-
-src/devices/fakeLaser/fakeLaser.cpp
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/devices/fakeLaser/fakeLaser.h
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/devices/jrkerr/sio_util.cpp
-  Copyright: (c) 2007 Jeffrey Kerr LLC
-  CopyPolicy: 3-clause BSD
-
-src/devices/jrkerr/picservo.cpp
-  Copyright: (c) 2007 Jeffrey Kerr LLC
-  CopyPolicy: 3-clause BSD
-
-src/devices/jrkerr/sio_util.h
-  Copyright: (c) 2007 Jeffrey Kerr LLC
-  CopyPolicy: 3-clause BSD
-
-src/devices/jrkerr/nmccom.h
-  Copyright: (c) 2007 Jeffrey Kerr LLC
-  CopyPolicy: 3-clause BSD
-
-src/devices/jrkerr/nmccom.cpp
-  Copyright: (c) 2007 Jeffrey Kerr LLC
-  CopyPolicy: 3-clause BSD
-
-src/devices/jrkerr/picservo.h
-  Copyright: (c) 2007 Jeffrey Kerr LLC
-  CopyPolicy: 3-clause BSD
-
-src/devices/kinect/freenect/KinectDeviceDriver.h
-  Copyright: (C) 2010 Philipp Robbel
-  CopyPolicy: GPLv2
-
-src/devices/kinect/freenect/ServerKinect.h
-  Copyright: (C) 2010 Philipp Robbel
-  CopyPolicy: GPLv2
-
-src/devices/kinect/freenect/CMakeLists.txt
-  Copyright: (C) 2010 Philipp Robbel
-  CopyPolicy: GPLv2
-
-src/devices/kinect/freenect/KinectDeviceDriver.cpp
-  Copyright: (C) 2010 Philipp Robbel
-  CopyPolicy: GPLv2
-
-src/devices/kinect/freenect/KinectExample.cpp
-  Copyright: (C) 2010 Philipp Robbel
-  CopyPolicy: GPLv2
-
-src/devices/imuBosch_BNO055/imuBosch_BNO055.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino 
-  CopyPolicy: GPLv2
-
-src/devices/imuBosch_BNO055/CMakeLists.txt
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2
-
-src/devices/imuBosch_BNO055/imuBosch_BNO055.cpp
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino 
-  CopyPolicy: GPLv2
-
-src/devices/depthCamera/depthCameraDriver.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/devices/depthCamera/depthCameraDriver.h
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Andrea Ruzzenenti 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpdatadumper/main.cpp
-  Copyright: (C) 2010 RobotCub Consortium
-  Authors: Ugo Pattacini 
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/yarpdatadumper/CMakeLists.txt
-  Copyright: (C) 2010 RobotCub Consortium
-  Authors: Ugo Pattacini
-  CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-
-src/carriers/portmonitor_carrier/lua/lua_swig.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/carriers/depth_image_portmonitor/DepthImage.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Alberto Cardellino
-  CopyPolicy: GPLv2 or later
-
-src/yarprobotinterface/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpview/src/qtquick2applicationviewer/qtquick2applicationviewer.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarpview/src/qtquick2applicationviewer/qtquick2applicationviewer.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_eigen/include/yarp/eigen/Eigen.h
-  Copyright: (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Silvio Traversaro.
-  CopyPolicy: Released under the terms of the LGPL 2.0 license or later.
-
-src/yarplaserscannergui/main.cpp
-  Copyright: (C) 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_math/include/yarp/impl/mt.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_sig/src/DeBayer.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/libYARP_sig/include/yarp/sig/IplImage.h
-  Copyright: (C) 2000, Intel Corporation, all rights reserved.
-  CopyPolicy: Intel License Agreement For Open Source Computer Vision Library
-
-src/libYARP_logger/src/YarpLogger.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/libYARP_logger/include/yarp/logger/YarpLogger.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/advanced_dialog.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/logtab.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/main.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/logtabSorting.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/logtabSorting.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/advanced_dialog.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/mainwindow.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-src/yarplogger/messageWidget.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/mainwindow.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/yarprunPortSorting.cpp
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/yarprunPortSorting.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/logtab.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/yarplogger/messageWidget.h
-  Copyright: (C)2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Marco Randazzo
-  CopyPolicy: GPLv2 or later
-
-src/idls/thrift/msvc/inttypes.h
-  Copyright: (c) 2006 Alexander Chemeris
-  CopyPolicy: 3-clause BSD
-
-src/idls/thrift/msvc/stdint.h
-  Copyright: (c) 2006-2008 Alexander Chemeris
-  CopyPolicy: 3-clause BSD
-
-src/idls/thrift/src_thrift/md5.c
-  Copyright: (C) 1999, 2000, 2002 Aladdin Enterprises.  All rights reserved.
-  CopyPolicy: zlib
-
-src/idls/thrift/src_thrift/md5.h
-  Copyright: (C) 1999, 2002 Aladdin Enterprises.  All rights reserved.
-  CopyPolicy: zlib
-
-src/idls/thrift/src_thrift/parse/t_field.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_map.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_enum_value.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_const_value.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_scope.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_service.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_doc.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_function.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_list.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_struct.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_container.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_set.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_program.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_base_type.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_enum.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_typedef.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_const.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/parse/t_type.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/generate/t_generator.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/generate/t_oop_generator.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/generate/t_generator_registry.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/platform.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/globals.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/thrift/src_thrift/main.h
-  Copyright: Apache Software Foundation
-  CopyPolicy: Apache License, Version 2.0
-
-src/idls/rosmsg/src/md5.c
-  Copyright: (C) 1999, 2000, 2002 Aladdin Enterprises.  All rights reserved.
-  CopyPolicy: zlib
-
-src/idls/rosmsg/src/md5.h
-  Copyright: (C) 1999, 2002 Aladdin Enterprises.  All rights reserved.
-  CopyPolicy: zlib
-
-scripts/admin/initial-cache.cmake
-  Copyright: unknown
-  CopyPolicy: unknown
-
-data/yarpdataplayer/CMakeLists.txt
-  Copyright: (C) 2011 Dept. Robotics, Brain and Cognitive Sciences, Istituto Italiano di Tecnologia
-  Authors: Vadim Tikhanoff
-  CopyPolicy: GPLv2
-
-example/ContainerExample/qtquick2applicationviewer/qtquick2applicationviewer.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-example/ContainerExample/qtquick2applicationviewer/qtquick2applicationviewer.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-example/ros/package/src/yarp_test/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-example/rfmodule/main.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-example/rfmodule/CMakeLists.txt
-  Copyright: 2012 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Lorenzo Natale
-  CopyPolicy: GPLv2
-
-example/log/CMakeLists.txt
-  Copyright: unknown
-  CopyPolicy: unknown
-
-example/yayarpview/CImg.h
-  Copyright: 2004 David Tschumperle
-  CopyPolicy: CeCILL license (use, modify, redistribute)
-
-example/matlab/simulink/sfun_time.c
-  Copyright: 2009 The MathWorks, Inc.
-  CopyPolicy: 3-clause BSD
-
-CTestConfig.cmake
-  Copyright: unknown
-  CopyPolicy: unknown
-
-cmake/full-options.cmake
-  Copyright: unknown
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/cmake-next/Modules/FindSWIG.cmake
-  Copyright: .txt or https://cmake.org/licensing for details.
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/cmake-next/Modules/UseSWIG.cmake
-  Copyright: .txt or https://cmake.org/licensing for details.
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/cmake-next/CMakeParseArguments.cmake
-  Copyright: 2010 Alexander Neundorf <neundorf@kde.org>
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-next/FindPackageMessage.cmake
-  Copyright: .txt or https://cmake.org/licensing for details.
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/cmake-next/FindPackageHandleStandardArgs.cmake
-  Copyright: 2007-2009 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-next/FindSWIG.cmake
-  Copyright: .txt or https://cmake.org/licensing for details.
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/cmake-next/UseSWIG.cmake
-  Copyright: .txt or https://cmake.org/licensing for details.
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/cmake-proposed/Modules/FindGLEW.cmake
-  Copyright: 2012 Benjamin Eikel
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindLibusb1.cmake
-  Copyright: 2012-2014 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindOpenCV.cmake
-  Copyright: 2009 Benoit Rat
-  CopyPolicy: LGPLv2.1
-
-cmake/ycm-0.2/find-modules/FindStage.cmake
-  Copyright: 2009 RobotCub Consortium
-  Authors: Paul Fitzpatrick 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindSQLite.cmake
-  Copyright: 2012-2013  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindFTDI.cmake
-  Copyright: 2010 Ze Ji
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindFreenect.cmake
-  Copyright: 2012-2014  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindPortAudio.cmake
-  Copyright: 2008 RobotCub Consortium
-  Authors: Paul Fitzpatrick 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindACE.cmake
-  Copyright: 2009 RobotCub Consortium
-  Authors: Alexandre Bernardino 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindLibdc1394.cmake
-  Copyright: 2012-2015  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindTinyXML.cmake
-  Copyright: 2012-2013  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindOpenNI.cmake
-  Copyright: 2012-2014 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindFFMPEG.cmake
-  Copyright: 1993-2008 Ken Martin, Will Schroeder, Bill Lorensen
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindLibedit.cmake
-  Copyright: 2016 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindGSL.cmake
-  Copyright: 2010 Jan Woetzel
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindLibOVR.cmake
-  Copyright: 2015  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindGLFW3.cmake
-  Copyright: 2015  iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/find-modules/FindFuse.cmake
-  Copyright: 2014 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/modules/AddUninstallTarget.cmake
-  Copyright: 2008-2013 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/modules/StandardFindModule.cmake
-  Copyright: 2012-2013 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/modules/ReplaceImportedTargets.cmake
-  Copyright: 2015 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/modules/AddInstallRPATHSupport.cmake
-  Copyright: 2014 RBCS, Istituto Italiano di Tecnologia
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/modules/ExtractVersion.cmake
-  Copyright: 2013 iCub Facility, Istituto Italiano di Tecnologia
-  Authors: Daniele E. Domenichelli 
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/FeatureSummary.cmake
-  Copyright: 2007-2009 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/CMakePackageConfigHelpers.cmake
-  Copyright: 2012 Alexander Neundorf <neundorf@kde.org>
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/CMakeParseArguments.cmake
-  Copyright: 2010 Alexander Neundorf <neundorf@kde.org>
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/FindPackageMessage.cmake
-  Copyright: 2008-2009 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/CMakeFindDependencyMacro.cmake
-  Copyright: 2013 Stephen Kelly <steveire@gmail.com>
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/GNUInstallDirs.cmake
-  Copyright: 2011 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/FindLua.cmake
-  Copyright: 2007-2009 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/cmake-3.1/Modules/FindPackageHandleStandardArgs.cmake
-  Copyright: 2007-2009 Kitware, Inc.
-  CopyPolicy: 3-clause BSD
-
-cmake/ycm-0.2/3rdparty/FindQCustomPlot.cmake
-  Copyright: unknown
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/3rdparty/FindEigen3.cmake
-  Copyright: (c) 2006, 2007 Montel Laurent, <montel@kde.org>
-  CopyPolicy: unknown
-
-cmake/ycm-0.2/3rdparty/FindOctave.cmake
-  Copyright: 2013, Julien Schueller
-  CopyPolicy: unknown
-
-extern/sqlite/sqlite/sqlite3.c
-  Copyright: The author disclaims copyright to this source code
-  CopyPolicy: In place of a legal notice, a blessing is given.
-
-extern/sqlite/sqlite/shell.c
-  Copyright: The author disclaims copyright to this source code
-  CopyPolicy: In place of a legal notice, a blessing is given.
-
-extern/sqlite/sqlite/sqlite3.h
-  Copyright: The author disclaims copyright to this source code
-  CopyPolicy: In place of a legal notice, a blessing is given.
-
-extern/sqlite/sqlite/sqlite3ext.h
-  Copyright: The author disclaims copyright to this source code
-  CopyPolicy: In place of a legal notice, a blessing is given.
-
-extern/diff_match_patch/diff_match_patch.h
-  Copyright: 2008 Google Inc. All Rights Reserved.
-  CopyPolicy: Apache License, Version 2.0
-
-extern/tinyxml/tinyxml/tinyxml.cpp
-  Copyright: Lee Thomason
-  CopyPolicy: zlib
-
-extern/tinyxml/tinyxml/tinystr.cpp
-  Copyright: Lee Thomason
-  CopyPolicy: zlib
-
-extern/tinyxml/tinyxml/tinyxmlparser.cpp
-  Copyright: Lee Thomason
-  CopyPolicy: zlib
-
-extern/tinyxml/tinyxml/tinyxmlerror.cpp
-  Copyright: (c) 2000-2006 Lee Thomason (www.grinninglizard.com)
-  CopyPolicy: zlib
-
-extern/tinyxml/tinyxml/tinystr.h
-  Copyright: Lee Thomason
-  CopyPolicy: zlib
-
-extern/tinyxml/tinyxml/xmltest.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/tinyxml/tinyxml/tinyxml.h
-  Copyright: Lee Thomason
-  CopyPolicy: zlib
-
-extern/xmlrpcpp/xmlrpcpp/test/HelloClient.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/Validator.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/TestXml.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/FileClient.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/TestBase64Server.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/HelloServer.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/TestValues.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/TestValuesWin32.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/test/TestBase64Client.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/xmlrpcpp/xmlrpcpp/src/base64.cpp
-  Copyright: (C) 2004-2008 Ren�(C) Nyffenegger
-  CopyPolicy: zlib
-
-extern/xmlrpcpp/xmlrpcpp/src/base64.h
-  Copyright: (C) 2004-2008 Ren�(C) Nyffenegger
-  CopyPolicy: zlib
-
-extern/libdc1394_bayer/libdc1394_bayer.c
-  Copyright: Damien Douxchamps and Frederic Devernay
-  CopyPolicy: LGPLv2.1
-
-extern/qcustomplot/qcustomplot/qcustomplot.h
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/qcustomplot.cpp
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/plots/main.cpp
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/plots/mainwindow.h
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/plots/mainwindow.cpp
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/interactions/main.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/interactions/mainwindow.h
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/interactions/mainwindow.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/scrollbar-axis-range-control/main.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/scrollbar-axis-range-control/mainwindow.h
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/scrollbar-axis-range-control/mainwindow.cpp
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/text-document-integration/main.cpp
-  Copyright: unknown
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/text-document-integration/qcpdocumentobject.h
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/text-document-integration/mainwindow.h
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/text-document-integration/mainwindow.cpp
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-
-extern/qcustomplot/qcustomplot/examples/text-document-integration/qcpdocumentobject.cpp
-  Copyright: (C) 2011-2015 Emanuel Eichhammer
-  CopyPolicy: unknown
-

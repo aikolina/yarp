@@ -1,7 +1,9 @@
 /*
- * Copyright: (C) 2012 iCub Facility, Istituto Italiano di Tecnologia
- * Author: Lorenzo Natale
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <yarp/os/Network.h>
@@ -14,22 +16,21 @@
 using namespace yarp::os;
 
 using namespace std;
-int main(int argc, char *argv[]) 
+int main(int argc, char *argv[])
 {
     Network yarp;
 
     ResourceFinder rf;
-    rf.setVerbose();
     rf.setDefaultConfigFile("or.ini");
     rf.setDefaultContext("orBottle");
     rf.configure(argc, argv);
-        
-    ConstString robotName=rf.find("robot").asString();
-    ConstString model=rf.findFile("model");
-    
+
+    std::string robotName=rf.find("robot").asString();
+    std::string model=rf.findFile("model");
+
     cout<<"Running with:"<<endl;
     cout<<"robot: "<<robotName.c_str()<<endl;
-    
+
     if (model=="")
     {
         cout<<"Sorry no model was found, check config parameters"<<endl;

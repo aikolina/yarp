@@ -1,33 +1,30 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-# Make sure that YARP_DIR is set in your environment to wherever you 
+# Make sure that YARP_DIR is set in your environment to wherever you
 # compiled YARP.
 
-cmake_minimum_required(VERSION 2.8.9)
+project(run_fakebot)
+cmake_minimum_required(VERSION 3.12)
 
-# Start a project.
-PROJECT(run_fakebot)
+find_package(YARP COMPONENTS os dev REQUIRED)
 
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
-
-SET(ENABLE_fakebot TRUE CACHE BOOLEAN "we want to use fakebot")
+set(ENABLE_fakebot TRUE CACHE BOOLEAN "we want to use fakebot")
 
 # Search for source code.
-SET(folder_source fakebot/FakeBot.cpp adder.cpp add_fakebot.cpp yarpdev.cpp)
-SET(folder_header fakebot/FakeBot.h adder.h)
-SOURCE_GROUP("Source Files" FILES ${folder_source})
-SOURCE_GROUP("Header Files" FILES ${folder_header})
-
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/fakebot)
+set(folder_source fakebot/FakeBot.cpp
+                  adder.cpp
+                  add_fakebot.cpp
+                  yarpdev.cpp)
+set(folder_header fakebot/FakeBot.h
+                  adder.h)
 
 # Set up our main executable.
-IF (folder_source)
-  ADD_EXECUTABLE(run_fakebot ${folder_source} ${folder_header})
-  TARGET_LINK_LIBRARIES(run_fakebot ${YARP_LIBRARIES})
-  INSTALL_TARGETS(/bin run_fakebot)
-ELSE (folder_source)
-  MESSAGE(FATAL_ERROR "No source code files found. Please add something")
-ENDIF (folder_source)
+add_executable(run_fakebot)
+target_sources(run_fakebot PRIVATE ${folder_source} ${folder_header})
+target_include_directories(run_fakebot PRIVATE ${CMAKE_SOURCE_DIR}/fakebot)
+target_link_libraries(run_fakebot PRIVATE ${YARP_LIBRARIES})

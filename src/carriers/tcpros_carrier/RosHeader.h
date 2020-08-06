@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef ROSHEADER_INC
@@ -11,9 +12,8 @@
 #include <string>
 #include <map>
 
-#include <tcpros_carrier_api.h>
-
-class YARP_tcpros_carrier_API RosHeader {
+class RosHeader
+{
 public:
     std::map<std::string,std::string> data;
 
@@ -23,7 +23,7 @@ public:
 
     std::string toString() const;
 
-    static void appendInt(char *&buf,int x);
+    static void appendInt32(char *&buf,int x);
 
     static void appendString(char *&buf,const std::string& str);
 

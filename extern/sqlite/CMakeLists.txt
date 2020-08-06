@@ -1,44 +1,51 @@
-# Copyright (C) 2012  iCub Facility, Istituto Italiano di Tecnologia
-# Author: Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
-
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 # SQLite
 project(YARP_priv_sqlite)
 
+add_library(YARP_priv_sqlite STATIC)
+
 set(sqlite_SRCS
     sqlite/shell.c
-    sqlite/sqlite3.c
-)
+    sqlite/sqlite3.c)
 
 set(sqlite_HDRS
     sqlite/sqlite3ext.h
-    sqlite/sqlite3.h
-)
+    sqlite/sqlite3.h)
 
 if(MSVC)
-    set_source_files_properties(sqlite/sqlite3.c PROPERTIES COMPILE_FLAGS "/wd4996")
+  set_source_files_properties(sqlite/sqlite3.c PROPERTIES COMPILE_FLAGS "/wd4996")
 endif()
 
-add_definitions(-DSQLITE_OMIT_LOAD_EXTENSION)
+target_sources(YARP_priv_sqlite PRIVATE ${sqlite_SRCS})
 
-add_library(YARP_priv_sqlite STATIC ${sqlite_SRCS})
+target_include_directories(YARP_priv_sqlite PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sqlite>)
 
-set_property(TARGET YARP_priv_sqlite PROPERTY FOLDER "External Libraries")
+target_compile_definitions(YARP_priv_sqlite PRIVATE SQLITE_OMIT_LOAD_EXTENSION)
 
 if(UNIX)
-    target_link_libraries(YARP_priv_sqlite LINK_PRIVATE pthread)
+  target_link_libraries(YARP_priv_sqlite PRIVATE pthread)
 endif(UNIX)
+
+set_property(TARGET YARP_priv_sqlite PROPERTY FOLDER "Libraries/External")
+
 
 set(SQLite_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/sqlite PARENT_SCOPE)
 set(SQLite_LIBRARIES YARP_priv_sqlite PARENT_SCOPE)
 set(SQLite_DEFINITIONS "" PARENT_SCOPE)
 
 install(TARGETS YARP_priv_sqlite
-        EXPORT YARP
-        COMPONENT runtime
+        EXPORT YARP_priv_sqlite
+        COMPONENT YARP_priv_sqlite
         RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
         LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
         ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 
-set_property(GLOBAL APPEND PROPERTY YARP_LIBS YARP_priv_sqlite)
+if(NOT CREATE_SHARED_LIBS)
+  include(YarpInstallBasicPackageFiles)
+  yarp_install_basic_package_files(YARP_priv_sqlite)
+endif()

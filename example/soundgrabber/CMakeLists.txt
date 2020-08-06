@@ -1,14 +1,15 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Alexandre Bernardino
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+project(record_sound)
 
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
+find_package(YARP COMPONENTS os sig REQUIRED)
 
-PROJECT(record_sound) 
-
-ADD_EXECUTABLE(record_sound record_sound.cpp)
-TARGET_LINK_LIBRARIES(record_sound ${YARP_LIBRARIES})
-
+add_executable(record_sound)
+target_sources(record_sound PRIVATE record_sound.cpp)
+target_link_libraries(record_sound PRIVATE ${YARP_LIBRARIES})

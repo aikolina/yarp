@@ -1,39 +1,46 @@
-# Copyright (C) 2010 RobotCub Consortium
-# Authors: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 yarp_prepare_plugin(xmlrpc
                     CATEGORY carrier
-                    TYPE yarp::os::XmlRpcCarrier
+                    TYPE XmlRpcCarrier
                     INCLUDE XmlRpcCarrier.h
                     EXTRA_CONFIG CODE="POST /"
-                    DEPENDS "CREATE_OPTIONAL_CARRIERS;YARP_HAS_ACE"
                     DEFAULT ON)
 
 if(NOT SKIP_xmlrpc)
-  set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS})
-  include_directories(${xmlrpcpp_INCLUDE_DIRS})
+  yarp_add_plugin(yarp_xmlrpc)
+
+  target_sources(yarp_xmlrpc PRIVATE XmlRpcCarrier.h
+                                     XmlRpcCarrier.cpp
+                                     XmlRpcStream.h
+                                     XmlRpcStream.cpp
+                                     XmlRpcLogComponent.h
+                                     XmlRpcLogComponent.cpp)
 
   check_cxx_compiler_flag("-Wformat-nonliteral" CXX_HAS_WFORMAT_NONLITERAL)
   if(CXX_HAS_WFORMAT_NONLITERAL)
     set_source_files_properties(xmlrpc/XmlRpcValue.cpp PROPERTIES COMPILE_FLAGS "-Wno-format-nonliteral")
   endif()
 
-  yarp_add_plugin(yarp_xmlrpc
-                  XmlRpcCarrier.h
-                  XmlRpcCarrier.cpp
-                  XmlRpcStream.h
-                  XmlRpcStream.cpp)
-  target_link_libraries(yarp_xmlrpc YARP_OS
-                                    ${xmlrpcpp_LIBRARIES})
+  target_link_libraries(yarp_xmlrpc PRIVATE YARP::YARP_os)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS YARP_os)
+
+  target_include_directories(yarp_xmlrpc SYSTEM PRIVATE ${xmlrpcpp_INCLUDE_DIRS})
+  target_link_libraries(yarp_xmlrpc PRIVATE ${xmlrpcpp_LIBRARIES})
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS xmlrpcpp)
+
   yarp_install(TARGETS yarp_xmlrpc
-               EXPORT YARP
-               COMPONENT runtime
+               EXPORT YARP_${YARP_PLUGIN_MASTER}
+               COMPONENT ${YARP_PLUGIN_MASTER}
                LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
-               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR})
-  yarp_install(FILES xmlrpc.ini
-               COMPONENT runtime
-               DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
+               YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+
+  set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
+
+  set_property(TARGET yarp_xmlrpc PROPERTY FOLDER "Plugins/Carrier")
 endif()

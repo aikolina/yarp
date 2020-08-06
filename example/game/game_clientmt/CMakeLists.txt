@@ -1,31 +1,30 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-PROJECT(clientmt)
+cmake_minimum_required(VERSION 3.12)
+project(clientmt)
 
-cmake_minimum_required(VERSION 2.8.9)
-
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
-LINK_LIBRARIES(${YARP_LIBRARIES})
+find_package(YARP COMPONENTS os REQUIRED)
 
 # using ACE
-ADD_DEFINITIONS(-D_REENTRANT)
+add_definitions(-D_REENTRANT)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR})
+if(WIN32 AND NOT CYGWIN)
+  add_definitions(-DWIN32 -D_WINDOWS)
+endif(WIN32 AND NOT CYGWIN)
 
-IF (WIN32 AND NOT CYGWIN)
-  ADD_DEFINITIONS(-DWIN32 -D_WINDOWS)
-ENDIF (WIN32 AND NOT CYGWIN)
+if(WIN32 AND CYGWIN)
+  add_definitions(-DCYGWIN)
+endif(WIN32 AND CYGWIN)
 
-IF(WIN32 AND CYGWIN)
-  ADD_DEFINITIONS(-DCYGWIN)
-ENDIF(WIN32 AND CYGWIN)
-
-IF (NOT WIN32)
-   LINK_LIBRARIES(ncurses)
-ENDIF (NOT WIN32)
-
-ADD_EXECUTABLE(clientmt main.cpp)
-
+add_executable(clientmt)
+target_sources(clientmt PRIVATE main.cpp)
+target_include_directories(clientmt PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(clientmt PRIVATE ${YARP_LIBRARIES})
+if(NOT WIN32)
+  target_link_libraries(clientmt PRIVATE ncurses)
+endif(NOT WIN32)

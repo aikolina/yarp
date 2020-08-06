@@ -1,20 +1,20 @@
-/* 
- * Copyright (C)2014  iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo
- * email:  marco.randazzo@iit.it
- * website: www.robotcub.org
- * Permission is granted to copy, distribute, and/or modify this program
- * under the terms of the GNU General Public License, version 2 or any
- * later version published by the Free Software Foundation.
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * A copy of the license can be found at
- * http://www.robotcub.org/icub/license/gpl.txt
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
- * Public License for more details
-*/
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #include <yarp/os/Network.h>
 #include <yarp/os/Port.h>
@@ -25,19 +25,19 @@
 #include <yarp/logger/YarpLogger.h>
 
 #include <string>
-#include <stdio.h>
+#include <cstdio>
 
 using namespace yarp::os;
 using namespace yarp::yarpLogger;
 
 class logger_module : public yarp::os::RFModule
 {
-    LoggerEngine* the_logger;
+    LoggerEngine* the_logger = nullptr;
 
     protected:
     yarp::os::Port rpcPort;
 
-    virtual bool configure(yarp::os::ResourceFinder &rf)
+    bool configure(yarp::os::ResourceFinder &rf) override
     {
         the_logger = new LoggerEngine ("/logger");
 
@@ -49,13 +49,13 @@ class logger_module : public yarp::os::RFModule
         return true;
     }
 
-    virtual bool interruptModule()
+    bool interruptModule() override
     {
         rpcPort.interrupt();
         return true;
     }
 
-    virtual bool close()
+    bool close() override
     {
         rpcPort.interrupt();
         rpcPort.close();
@@ -63,23 +63,23 @@ class logger_module : public yarp::os::RFModule
         if (the_logger)
         {
             delete the_logger;
-            the_logger=NULL;
+            the_logger=nullptr;
         }
         return true;
     }
 
-    virtual double getPeriod()
+    double getPeriod() override
     {
-        return 10.0; 
-    }
-    
-    virtual bool updateModule()
-    {
-        printf("logger running, listening to %d ports\n",the_logger->get_num_of_processes());
-        return true; 
+        return 10.0;
     }
 
-    virtual bool respond(const yarp::os::Bottle& command,yarp::os::Bottle& reply) 
+    bool updateModule() override
+    {
+        printf("logger running, listening to %d ports\n",the_logger->get_num_of_processes());
+        return true;
+    }
+
+    bool respond(const yarp::os::Bottle& command,yarp::os::Bottle& reply) override
     {
         reply.clear();
         if (command.get(0).asString()=="quit")
@@ -170,9 +170,9 @@ class logger_module : public yarp::os::RFModule
     }
 };
 
-int main(int argc, char *argv[]) 
+int main(int argc, char *argv[])
 {
-    yarp::os::Network yarp;
+    yarp::os::Network yarp(yarp::os::YARP_CLOCK_SYSTEM);
     if (!yarp.checkNetwork())
     {
         fprintf(stderr,"ERROR: check Yarp network.\n");
@@ -180,7 +180,6 @@ int main(int argc, char *argv[])
     }
 
     yarp::os::ResourceFinder rf;
-    rf.setVerbose(true);
     rf.setDefaultConfigFile("yarprunLogger.ini");           //overridden by --from parameter
     rf.setDefaultContext("yarprunLogger");                  //overridden by --context parameter
     rf.configure(argc,argv);

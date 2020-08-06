@@ -1,10 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #include "sliderOptions.h"
 #include "ui_sliderOptions.h"
@@ -31,7 +42,7 @@ sliderOptions::sliderOptions( QWidget *parent) :
     pos_step_validator = new QDoubleValidator(this);
     vel_step_validator = new QDoubleValidator(this);
     trq_step_validator = new QDoubleValidator(this);
-    vel_lims_validator = new QDoubleValidator(this); 
+    vel_lims_validator = new QDoubleValidator(this);
     vel_lims_validator->setRange(0 , 100);
 
     ui->pos_step->setValidator(vel_step_validator);
@@ -125,9 +136,9 @@ sliderOptions::~sliderOptions()
     emit sig_setPosSliderOptionSO(val_pos_choice, val_pos_custom_step);
     emit sig_setVelSliderOptionSO(val_vel_choice, val_vel_custom_step);
     emit sig_setTrqSliderOptionSO(val_trq_choice, val_trq_custom_step);
-    disconnect(this, SIGNAL(sig_setPosSliderOptionSO(int, double)), 0, 0);
-    disconnect(this, SIGNAL(sig_setVelSliderOptionSO(int, double)), 0, 0);
-    disconnect(this, SIGNAL(sig_setTrqSliderOptionSO(int, double)), 0, 0);
+    disconnect(this, SIGNAL(sig_setPosSliderOptionSO(int, double)), nullptr, nullptr);
+    disconnect(this, SIGNAL(sig_setVelSliderOptionSO(int, double)), nullptr, nullptr);
+    disconnect(this, SIGNAL(sig_setTrqSliderOptionSO(int, double)), nullptr, nullptr);
 
     delete pos_step_validator;
     delete vel_step_validator;
@@ -135,9 +146,3 @@ sliderOptions::~sliderOptions()
     delete vel_lims_validator;
     delete ui;
 }
-
-
-
-
-
-

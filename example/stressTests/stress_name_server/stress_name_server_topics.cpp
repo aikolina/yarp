@@ -1,10 +1,14 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <yarp/os/all.h>
+#include <mutex>
 
 using namespace yarp::os;
 
@@ -14,20 +18,20 @@ using namespace yarp::os;
 class Count {
 public:
     int counts[R];
-    Semaphore mutex;
+    std::mutex mutex;
 
-    Count() : mutex(1) {
+    Count() : mutex() {
         for (int i=0; i<R; i++) { counts[i] = 0; }
     }
 
     void count(int x) {
-        mutex.wait();
+        mutex.lock();
         counts[x]++;
-        mutex.post();
+        mutex.unlock();
     }
 
     void show() {
-        for (int i=0; i<R; i++) { 
+        for (int i=0; i<R; i++) {
             printf("Number %d: got %d (target %d)\n", i, counts[i], N*N);
         }
     }
@@ -40,7 +44,7 @@ public:
     Count *counter;
 
     virtual bool threadInit() {
-        p.open(ConstString("/test/pub/") + ConstString::toString(n));
+        p.open(std::string("/test/pub/") + std::string::toString(n));
         Network::connect(p.getName().c_str(),"topic://stressor");
         return true;
     }
@@ -49,7 +53,7 @@ public:
         for (int i=0; i<R; i++) {
             Bottle b;
             b.addString(p.getName());
-            b.addInt(i);
+            b.addInt32(i);
             printf("Writing %s\n", b.toString().c_str());
             p.write(b);
             Time::delay(3);
@@ -64,7 +68,7 @@ public:
     Count *counter;
 
     virtual bool threadInit() {
-        p.open(ConstString("/test/sub/") + ConstString::toString(n));
+        p.open(std::string("/test/sub/") + std::string::toString(n));
         Network::connect("topic://stressor",p.getName().c_str());
         return true;
     }
@@ -79,7 +83,7 @@ public:
             if (p.read(b)) {
                 printf("%s read %s\n", p.getName().c_str(),
                        b.toString().c_str());
-                counter->count(b.get(1).asInt());
+                counter->count(b.get(1).asInt32());
             }
         }
     }

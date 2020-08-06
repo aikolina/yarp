@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "stdoutwindow.h"
@@ -34,7 +42,7 @@ StdoutWindow::~StdoutWindow()
 void StdoutWindow::addMessage(QString text)
 {
     // ui->plainTextEdit->appendPlainText(text);
-    internalAddMessage(text);
+    emit internalAddMessage(text);
 }
 
 int StdoutWindow::getId()
@@ -45,7 +53,7 @@ int StdoutWindow::getId()
 void StdoutWindow::closeEvent(QCloseEvent * event)
 {
     Q_UNUSED(event);
-    closeStdOut(id);
+    emit closeStdOut(id);
 }
 
 void StdoutWindow::onInternalAddMessage(QString msg)

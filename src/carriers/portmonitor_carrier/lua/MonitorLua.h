@@ -1,19 +1,20 @@
 /*
- * Copyright (C) 2014 iCub Facility
- * Authors: Ali Paikan
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef MONITORLUA_INC
 #define MONITORLUA_INC
 
 #include <string>
-#include <yarp/os/ConstString.h>
-#include <yarp/os/RateThread.h>
-#include <yarp/os/RecursiveMutex.h>
+#include <string>
+#include <yarp/os/PeriodicThread.h>
 #include "MonitorBinding.h"
-#include "lua_swig.h"
+#include "swigluarun.h"
+#include <mutex>
 
 class MonitorTrigger;
 
@@ -21,68 +22,69 @@ class MonitorLua : public MonitorBinding
 {
 
 public:
-    MonitorLua(void);
-    virtual ~MonitorLua();
+    MonitorLua();
+    ~MonitorLua() override;
 
-    bool load(const yarp::os::Property& options);
-    bool setParams(const yarp::os::Property& params);
-    bool getParams(yarp::os::Property& params);
+    bool load(const yarp::os::Property& options) override;
+    bool setParams(const yarp::os::Property& params) override;
+    bool getParams(yarp::os::Property& params) override;
 
-    bool acceptData(yarp::os::Things& thing);
-    yarp::os::Things& updateData(yarp::os::Things& thing);
-    yarp::os::Things& updateReply(yarp::os::Things& thing);
+    bool acceptData(yarp::os::Things& thing) override;
+    yarp::os::Things& updateData(yarp::os::Things& thing) override;
+    yarp::os::Things& updateReply(yarp::os::Things& thing) override;
 
-    bool peerTrigged(void);
-    bool canAccept(void);
+    bool peerTrigged() override;
+    bool canAccept() override;
 
-    bool setAcceptConstraint(const char* constraint) {
-        if(!constraint)
-            return false;        
+    bool setAcceptConstraint(const char* constraint) override {
+        if(!constraint) {
+            return false;
+        }
         MonitorLua::constraint = constraint;
         trimString(MonitorLua::constraint);
         return true;
     }
 
-    const char* getAcceptConstraint(void) {
+    const char* getAcceptConstraint() override {
         return constraint.c_str();
     }
 
-    bool hasAccept() {
-        return bHasAcceptCallback; 
+    bool hasAccept() override {
+        return bHasAcceptCallback;
     }
 
-    bool hasUpdate() {
+    bool hasUpdate() override {
         return bHasUpdateCallback;
     }
 
-    bool hasUpdateReply() {
+    bool hasUpdateReply() override {
         return bHasUpdateReplyCallback;
     }
 
 private:
-    lua_State *L;   
+    lua_State *L;
     std::string constraint;
     bool bHasAcceptCallback;
     bool bHasUpdateCallback;
     bool bHasUpdateReplyCallback;
-    yarp::os::RecursiveMutex luaMutex;
+    std::recursive_mutex luaMutex;
 
 public:
     MonitorTrigger* trigger;
 
 private:
     bool getLocalFunction(const char *name);
-    bool registerExtraFunctions(void); 
+    bool registerExtraFunctions();
     void trimString(std::string& str);
-    void searchReplace(std::string& str, 
+    void searchReplace(std::string& str,
                        const std::string& oldStr, const std::string& newStr);
     bool isKeyword(const char* str);
 
-    /* lua accessible fucntion*/
+    /* lua accessible function*/
     static int setConstraint(lua_State* L);
     static int getConstraint(lua_State* L);
-    static int setEvent(lua_State* L); 
-    static int unsetEvent(lua_State* L); 
+    static int setEvent(lua_State* L);
+    static int unsetEvent(lua_State* L);
     static int setTrigInterval(lua_State* L);
 #if LUA_VERSION_NUM > 501
     static const struct luaL_Reg portMonitorLib[];
@@ -92,16 +94,16 @@ private:
 
 };
 
-class MonitorTrigger : public yarp::os::RateThread {
+class MonitorTrigger : public yarp::os::PeriodicThread {
 public:
-    MonitorTrigger(MonitorLua* monitor, int period)
-        : yarp::os::RateThread(period) {
+    MonitorTrigger(MonitorLua* monitor, double period)
+        : yarp::os::PeriodicThread(period) {
         MonitorTrigger::monitor = monitor;
     }
     virtual ~MonitorTrigger() { }
 
     // inherited from the yarp::os::RateThread
-    virtual void run () {
+    void run () override {
         monitor->peerTrigged();
     }
 
@@ -111,5 +113,3 @@ private:
 
 
 #endif //_MONITORLUA_INC_
-
-

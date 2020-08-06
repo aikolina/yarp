@@ -1,26 +1,29 @@
 /*
- * Copyright (C) 2007 RobotCub Consortium, Giacomo Spigler
- * Authors: Paul Fitzpatrick, Giacomo Spigler
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * Copyright (C) 2007 Giacomo Spigler
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #define FUSE_USE_VERSION 26
 
 #include <fuse/fuse.h>
 //#include <fuse/fuse_lowlevel.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
+#include <cstdio>
+#include <cstring>
+#include <cerrno>
 //#include <fcntl.h>
 
 #include <yarp/os/all.h>
 #include <yarp/os/impl/NameConfig.h>
 
 #include <string>
-#include <signal.h>
+#include <csignal>
 
-#include <ace/Containers_T.h>
+#include <set>
 
 using namespace yarp::os;
 using namespace yarp::os::impl;
@@ -39,7 +42,7 @@ int yarp_getattr(const char *path, struct stat *stbuf)
     YPath ypath(path);
 
     memset(stbuf, 0, sizeof(struct stat));
-    printf("Checking attr // port %d, stem %d, act %d, sym %d\n", 
+    printf("Checking attr // port %d, stem %d, act %d, sym %d\n",
            ypath.isPort(),
            ypath.isStem(),
            ypath.isAct(),
@@ -67,8 +70,8 @@ int yarp_getattr(const char *path, struct stat *stbuf)
 int yarp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                  off_t offset, struct fuse_file_info *fi)
 {
-    (void) offset;
-    (void) fi;
+    (void /* unused */) offset;
+    (void /* unused */) fi;
 
     printf(">>>>>>>>>>>READING DIR\n");
 
@@ -87,7 +90,7 @@ int yarp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     NameConfig nc;
 
-    ConstString name = nc.getNamespace();
+    std::string name = nc.getNamespace();
     Bottle msg, reply;
     msg.addString("bot");
     msg.addString("list");
@@ -97,7 +100,7 @@ int yarp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     printf("Got %s\n", reply.toString().c_str());
 
-    ACE_Ordered_MultiSet<ConstString> lines;
+    std::set<std::string> lines;
 
 
     for (int i=1; i<reply.size(); i++) {
@@ -107,13 +110,13 @@ int yarp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             rpath = rpath + "/";
         }
         if (entry!=NULL) {
-            ConstString name = entry->check("name",Value("")).asString();
+            std::string name = entry->check("name",Value("")).asString();
             if (name!="") {
                 if (strstr(name.c_str(),rpath.c_str())==
                            name.c_str()) {
                     printf(">>> %s is in path %s\n", name.c_str(),
                            rpath.c_str());
-                    ConstString part(name.c_str()+rpath.length());
+                    std::string part(name.c_str()+rpath.length());
                     if (part[0]=='/') {
                         part = part.substr(1,part.length()-1);
                     }
@@ -123,10 +126,9 @@ int yarp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                     if (brk!=NULL) {
                         *brk = '\0';
                     }
-                    ConstString item(part.c_str());
+                    std::string item(part.c_str());
                     printf("    %s is the item\n", item.c_str());
                     if (item!="") {
-                        lines.remove(item);
                         lines.insert(item);
                     }
                 }
@@ -135,12 +137,9 @@ int yarp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     }
 
     // return result in alphabetical order
-    ACE_Ordered_MultiSet_Iterator<ConstString> iter(lines);
-    iter.first();
-    while (!iter.done()) {
-        printf("adding item %s\n", (*iter).c_str());
-        filler(buf, (*iter).c_str(), NULL, 0);
-        iter.advance();
+    for (const auto& line : lines) {
+        printf("adding item %s\n", line.c_str());
+        filler(buf, line.c_str(), NULL, 0);
     }
 
     return 0;
@@ -174,7 +173,7 @@ int yarp_read(const char *path, char *buf, size_t size, off_t offset,
               struct fuse_file_info *fi)
 {
     size_t len;
-    (void) fi;
+    (void /* unused */) fi;
 
 
     YHandle *fh = YHANDLE(fi);
@@ -197,7 +196,7 @@ int yarp_write(const char *path, const char *buf, size_t size,
                off_t offset, struct fuse_file_info *fi)
 {
     size_t len;
-    (void) fi;
+    (void /* unused */) fi;
 
     YHandle *fh = YHANDLE(fi);
     if (fh==NULL) {
@@ -277,14 +276,14 @@ static struct fuse_operations yarp_oper;
 
 int main(int argc, char *argv[])
 {
-    yarp_oper.getattr	= yarp_getattr;
-    yarp_oper.readdir	= yarp_readdir;
-    yarp_oper.open	= yarp_open;
-    yarp_oper.release	= yarp_release;
-    yarp_oper.read	= yarp_read;
-    yarp_oper.write	= yarp_write;
-    yarp_oper.truncate	= yarp_truncate;
-    yarp_oper.init      = yarp_init;
+    yarp_oper.getattr  = yarp_getattr;
+    yarp_oper.readdir  = yarp_readdir;
+    yarp_oper.open     = yarp_open;
+    yarp_oper.release  = yarp_release;
+    yarp_oper.read     = yarp_read;
+    yarp_oper.write    = yarp_write;
+    yarp_oper.truncate = yarp_truncate;
+    yarp_oper.init     = yarp_init;
 
     //Linking & Renaming
     yarp_oper.readlink  = yarp_readlink;

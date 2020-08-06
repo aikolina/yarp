@@ -1,18 +1,30 @@
 /*
- * Copyright (C) 2013 iCub Facility
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <yarp/os/all.h>
+#include <yarp/os/Bottle.h>
+#include <yarp/os/LogComponent.h>
+#include <yarp/os/Network.h>
+#include <yarp/os/Node.h>
+#include <yarp/os/RpcClient.h>
 
-using namespace yarp::os;
+using yarp::os::Bottle;
+using yarp::os::Network;
+using yarp::os::Node;
+using yarp::os::RpcClient;
 
-int main(int argc, char *argv[]) {
-    if (argc!=3) {
-        fprintf(stderr,"Call as %s X Y\n", argv[0]);
+namespace {
+YARP_LOG_COMPONENT(CLIENT_V2, "yarp.example.ros.add_int_client_v2")
+}
+
+int main(int argc, char* argv[])
+{
+    if (argc != 3) {
+        yCError(CLIENT_V2, "Call as %s X Y", argv[0]);
         return 1;
     }
 
@@ -21,18 +33,19 @@ int main(int argc, char *argv[]) {
 
     RpcClient client;
     if (!client.open("add_two_ints")) {
-        fprintf(stderr,"Failed to open client\n");
+        yCError(CLIENT_V2, "Failed to open client");
         return 1;
     }
 
-    Bottle msg, reply;
-    msg.addInt(atoi(argv[1]));
-    msg.addInt(atoi(argv[2]));
-    if (!client.write(msg,reply)) {
-        fprintf(stderr,"Failed to call service\n");
+    Bottle msg;
+    Bottle reply;
+    msg.addInt32(atoi(argv[1]));
+    msg.addInt32(atoi(argv[2]));
+    if (!client.write(msg, reply)) {
+        yCError(CLIENT_V2, "Failed to call service");
         return 1;
     }
-    printf("Got %d\n", reply.get(0).asInt());
+    yCInfo(CLIENT_V2, "Got %d\n", reply.get(0).asInt32());
 
     return 0;
 }

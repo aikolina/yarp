@@ -1,6 +1,9 @@
-# Copyright: (C) 2010 RobotCub Consortium
-# Authors: Paul Fitzpatrick, Giorgio Metta, Lorenzo Natale, Ugo Pattacini
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 This directory is reserved for examples of the use of YARP and related
 libraries.
@@ -32,7 +35,7 @@ libraries.
 * property
 
     Reading config files and command line arguments in a way
-    that is compatible with configuring drivers and sending 
+    that is compatible with configuring drivers and sending
     network messages.
 
 * remote_check
@@ -41,7 +44,7 @@ libraries.
 
 * dev_check
 
-    Tests the YARP factories for producing interfaces to 
+    Tests the YARP factories for producing interfaces to
     device drivers.
 
 * game

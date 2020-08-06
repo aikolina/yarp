@@ -1,28 +1,29 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "TcpRosStream.h"
+#include "TcpRosLogComponent.h"
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include <yarp/os/NetType.h>
 #include <yarp/os/NetInt32.h>
 #include <yarp/os/Bottle.h>
 #include <yarp/os/Port.h>
 
-#include "WireBottle.h"
+#include <yarp/wire_rep_utils/WireBottle.h>
 
 using namespace yarp::os;
+using namespace yarp::wire_rep_utils;
 using namespace std;
 
-#define dbg_printf if (0) printf
-
-YARP_SSIZE_T TcpRosStream::read(const Bytes& b) {
+yarp::conf::ssize_t TcpRosStream::read(Bytes& b) {
     if (!setInitiative) {
         initiative = false;
         setInitiative = true;
@@ -40,7 +41,7 @@ YARP_SSIZE_T TcpRosStream::read(const Bytes& b) {
                 cursor = scan.get();
                 remaining = scan.length();
             } else {
-                cursor = NULL;
+                cursor = nullptr;
                 remaining = header.blobLen;
             }
         } else {
@@ -62,30 +63,30 @@ YARP_SSIZE_T TcpRosStream::read(const Bytes& b) {
         Bytes mlen_buf(mlen,4);
         int res = delegate->getInputStream().readFull(mlen_buf);
         if (res<4) {
-            dbg_printf("tcpros_carrier failed, %s %d\n", __FILE__, __LINE__);
+            yCTrace(TCPROSCARRIER, "tcpros_carrier failed, %s %d\n", __FILE__, __LINE__);
             phase = -1;
             return -1;
         }
         int len = NetType::netInt(mlen_buf);
-        dbg_printf("Unit length %d\n", len);
+        yCTrace(TCPROSCARRIER, "Unit length %d\n", len);
 
         // inhibit type scanning for now, it is unreliable
         if (raw==-1) raw = 2;
         if (raw==-2) {
             scan.allocate(len);
             int res = delegate->getInputStream().readFull(scan.bytes());
-            dbg_printf("Read %d bytes with raw==-2\n", res);
+            yCTrace(TCPROSCARRIER, "Read %d bytes with raw==-2\n", res);
             if (res<0) {
-                dbg_printf("tcpros_carrier failed, %s %d\n", __FILE__, __LINE__);
+                yCTrace(TCPROSCARRIER, "tcpros_carrier failed, %s %d\n", __FILE__, __LINE__);
                 phase = -1;
                 return -1;
             }
             int len_scan = scan.length();
             if (WireBottle::checkBottle(scan.get(),len_scan)) {
-                dbg_printf("Looks YARP-compatible\n");
+                yCTrace(TCPROSCARRIER, "Looks YARP-compatible\n");
                 raw = 1;
             } else {
-                dbg_printf("Looks strange, blobbing...\n");
+                yCTrace(TCPROSCARRIER, "Looks strange, blobbing...\n");
                 raw = 0;
             }
         }
@@ -97,11 +98,11 @@ YARP_SSIZE_T TcpRosStream::read(const Bytes& b) {
                 cursor = scan.get();
                 remaining = scan.length();
             } else {
-                cursor = NULL;
+                cursor = nullptr;
                 remaining = header.blobLen;
             }
         } else if (raw==2) {
-            cursor = NULL;
+            cursor = nullptr;
             remaining = header.blobLen;
             phase = 2;
         } else {
@@ -110,9 +111,9 @@ YARP_SSIZE_T TcpRosStream::read(const Bytes& b) {
             remaining = sizeof(header);
         }
     }
-    dbg_printf("phase %d remaining %d\n", phase, remaining);
+    yCTrace(TCPROSCARRIER, "phase %d remaining %d\n", phase, remaining);
     if (remaining>0) {
-        if (cursor!=NULL) {
+        if (cursor!=nullptr) {
             int allow = remaining;
             if ((int)b.length()<allow) {
                 allow = b.length();
@@ -120,14 +121,14 @@ YARP_SSIZE_T TcpRosStream::read(const Bytes& b) {
             memcpy(b.get(),cursor,allow);
             cursor+=allow;
             remaining-=allow;
-            dbg_printf("%d bytes of header\n", allow);
+            yCTrace(TCPROSCARRIER, "%d bytes of header\n", allow);
             return allow;
         } else {
             int result = delegate->getInputStream().read(b);
-            dbg_printf("Read %d bytes\n", result);
+            yCTrace(TCPROSCARRIER, "Read %d bytes\n", result);
             if (result>0) {
                 remaining-=result;
-                dbg_printf("%d bytes of meat\n", result);
+                yCTrace(TCPROSCARRIER, "%d bytes of meat\n", result);
                 return result;
             }
         }
@@ -142,7 +143,7 @@ void TcpRosStream::write(const Bytes& b) {
         initiative = true;
         setInitiative = true;
     }
-    dbg_printf("                   [[[[[ write %d bytes ]]]]]\n", (int)b.length());
+    yCTrace(TCPROSCARRIER, "                   [[[[[ write %d bytes ]]]]]\n", (int)b.length());
     delegate->getOutputStream().write(b);
 }
 
@@ -151,7 +152,7 @@ void TcpRosStream::updateKind(const char *kind, bool sender, bool reply) {
     string code = rosToKind(kind);
     if (code!="") {
         configureTwiddler(twiddler,code.c_str(),kind,sender,reply);
-        this->kind = code.c_str();
+        this->kind = code;
     } else {
         this->kind = "";
     }
@@ -174,7 +175,7 @@ std::map<std::string, std::string> TcpRosStream::rosToKind() {
 }
 
 std::string TcpRosStream::rosToKind(const char *rosname) {
-    if (ConstString(rosname)=="") return "";
+    if (std::string(rosname)=="") return {};
     std::map<std::string, std::string> kinds = rosToKind();
 
     if (kinds.find(rosname)!=kinds.end()) {
@@ -184,39 +185,37 @@ std::string TcpRosStream::rosToKind(const char *rosname) {
     port.openFake("yarpidl_rosmsg");
     if (port.addOutput("/typ")) {
         Bottle cmd, resp;
-        cmd.addString(ConstString("twiddle ") + rosname);
-        dbg_printf("QUERY yarpidl_rosmsg %s\n", cmd.toString().c_str());
+        cmd.addString(std::string("twiddle ") + rosname);
+        yCTrace(TCPROSCARRIER, "QUERY yarpidl_rosmsg %s\n", cmd.toString().c_str());
         port.write(cmd,resp);
-        dbg_printf("GOT yarpidl_rosmsg %s\n", resp.toString().c_str());
-        ConstString txt = resp.get(0).asString();
+        yCTrace(TCPROSCARRIER, "GOT yarpidl_rosmsg %s\n", resp.toString().c_str());
+        std::string txt = resp.get(0).asString();
         if (txt!="?") return txt;
     }
     port.close();
-    if (ConstString(rosname)!="") {
-        fprintf(stderr, "Do not know anything about type '%s'\n", rosname);
-        fprintf(stderr, "Could not connect to a type server to look up type '%s'\n", rosname);
+    if (std::string(rosname)!="") {
+        yCError(TCPROSCARRIER, "Do not know anything about type '%s'\n", rosname);
+        yCError(TCPROSCARRIER, "Could not connect to a type server to look up type '%s'\n", rosname);
         ::exit(1);
     }
-    return "";
+    return {};
 }
 
 
 bool TcpRosStream::configureTwiddler(WireTwiddler& twiddler, const char *txt, const char *prompt, bool sender, bool reply) {
-    dbg_printf("CONFIGURE AS %s [%s/%s]\n", txt,
+    yCTrace(TCPROSCARRIER, "CONFIGURE AS %s [%s/%s]\n", txt,
                sender?"sender":"receiver",
                reply?"reply":"main");
-    ConstString str(txt);
+    std::string str(txt);
     if (reply) {
         size_t idx = str.find("---");
-        if (idx!=ConstString::npos) {
+        if (idx!=std::string::npos) {
             str = str.substr(idx+3,str.length());
         }
     }
-    str = ConstString("skip int32 * ") + str;
+    str = std::string("skip int32 * ") + str;
     if (reply) {
-        str = ConstString("skip int8 * ") + str;
+        str = std::string("skip int8 * ") + str;
     }
     return twiddler.configure(str.c_str(),prompt);
 }
-
-

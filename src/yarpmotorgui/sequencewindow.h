@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- *         Francesco Nori <francesco.nori@iit.it>
- *         Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #ifndef SEQUENCEWINDOW_H
 #define SEQUENCEWINDOW_H
@@ -17,6 +26,7 @@
 #include <QDropEvent>
 #include <QDebug>
 #include <QItemDelegate>
+#include <yarp/conf/compiler.h>
 
 class SequenceTreeWidget;
 class SequenceItem;
@@ -42,7 +52,7 @@ public:
     void loadSequence(QList<SequenceItem>);
 
 protected:
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 
 private:
      QList<SequenceItem> getValuesFromList();
@@ -108,7 +118,7 @@ private:
     QStringList copyValues;
 
 protected:
-    void dropEvent(QDropEvent *event);
+    void dropEvent(QDropEvent *event) override;
 
 signals:
     void deletedItem(int index);
@@ -168,14 +178,6 @@ public:
         return speedsList;
     }
 
-    SequenceItem &operator =(const SequenceItem &other){
-        sequenceNumber = other.sequenceNumber;
-        timing = other.timing;
-        positionsList = other.positionsList;
-        speedsList = other.speedsList;
-        return *this;
-    }
-
 private:
 
     int sequenceNumber;
@@ -187,4 +189,3 @@ private:
 
 
 #endif // SEQUENCEWINDOW_H
-

@@ -1,3 +1,25 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
+/**
+ * Original license follows:
+ */
+
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
@@ -43,7 +65,7 @@
 #include "destinationportitem.h"
 #include "sourceportitem.h"
 
-#include <math.h>
+#include <cmath>
 
 #include <QPen>
 #include <QPainter>
@@ -58,34 +80,27 @@ const qreal Pi = 3.14;
 
 
 Arrow::Arrow(BuilderItem *startItem, BuilderItem *endItem,int id, Manager *safeManager,
-             bool isInApp,bool editingMode, BuilderItem *parent)
-    : BuilderItem(parent),textLbl("",this)
+             bool isInApp,bool editingMode, BuilderItem *parent) :
+    BuilderItem(parent),
+    manager(safeManager),
+    externalSelection(false),
+    editingMode(editingMode),
+    connected(false),
+    myStartItem(startItem),
+    myEndItem(endItem),
+    myColor(Qt::black),
+    textLbl("",this),
+    textWidth(0),
+    id(id)
 {
-    sigHandler = new ItemSignalHandler();
     itemType = ConnectionItemType;
-    connected = false;
-    myStartItem = startItem;
-    myEndItem = endItem;
-    this->manager = safeManager;
+    nestedInApp = isInApp;
+    sigHandler = new ItemSignalHandler();
     setFlag(ItemIsSelectable,true);
     setFlag(ItemClipsToShape,false);
-    myColor = Qt::black;
-    this->id = id;
-    this->nestedInApp = isInApp;
-    this->editingMode = editingMode;
-
-
-    externalSelection = false;
-
-    firstTime = true;
-
     setToolTip(QString("%1 --> %2").arg(myStartItem->itemName).arg(myEndItem->itemName));
-
     textLbl.setFlag(ItemIsMovable,!nestedInApp);
     textLbl.setFlag(ItemSendsGeometryChanges,!nestedInApp);
-
-
-
 }
 
 Arrow::~Arrow()
@@ -107,15 +122,19 @@ GraphicModel* Arrow::getModel()
     return &model;
 }
 
-void Arrow::setConnection(Connection conn)
+void Arrow::setConnection(const Connection& conn)
 {
     connection = conn;
-    QString label = conn.carrier();
+    QString label = connection.carrier();
     if(!label.isEmpty()){
         textLbl.setText(label);
     }
     QFontMetrics fontMetric(font);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    textWidth = fontMetric.horizontalAdvance(label);
+#else
     textWidth = fontMetric.width(label);
+#endif
 
     GraphicModel mod = connection.getModelBase();
     if(mod.points.size() > 0){
@@ -134,7 +153,7 @@ void Arrow::setConnection(Connection conn)
             for(unsigned int i=2; i<mod.points.size() - 1;i++){
                 GyPoint p = mod.points[i];
                 QPointF point(p.x,p.y);
-                LineHandle *handle = new LineHandle(point,this);
+                auto* handle = new LineHandle(point,this);
                 handleList.append(handle);
                 polyline.append(point);
                 qDebug() << "APPENDING " << handle;
@@ -152,14 +171,14 @@ void Arrow::updateCarrier(QString carrier)
     if(!editingMode){
         return;
     }
-    Application* mainApplication = NULL;
+    Application* mainApplication = nullptr;
     mainApplication = manager->getKnowledgeBase()->getApplication();
     manager->getKnowledgeBase()->removeConnectionFromApplication(mainApplication, connection);
 
     connection.setCarrier(carrier.toLatin1().data());
 
     connection = manager->getKnowledgeBase()->addConnectionToApplication(mainApplication, connection);
-    sigHandler->modified();
+    emit sigHandler->modified();
 }
 
 void Arrow::updateConnectionFrom(QString from)
@@ -167,7 +186,7 @@ void Arrow::updateConnectionFrom(QString from)
     if(!editingMode){
         return;
     }
-    Application* mainApplication = NULL;
+    Application* mainApplication = nullptr;
     mainApplication = manager->getKnowledgeBase()->getApplication();
     Connection updatedCon = connection;
     updatedCon.setFrom(from.toLatin1().data());
@@ -179,7 +198,7 @@ void Arrow::updateConnectionFrom(QString from)
 //    connection.setFrom(from.toLatin1().data());
 
 //    connection = manager->getKnowledgeBase()->addConnectionToApplication(mainApplication, connection);
-    sigHandler->modified();
+    emit sigHandler->modified();
 }
 
 void Arrow::updateConnectionTo(QString to)
@@ -187,7 +206,7 @@ void Arrow::updateConnectionTo(QString to)
     if(!editingMode){
         return;
     }
-    Application* mainApplication = NULL;
+    Application* mainApplication = nullptr;
     mainApplication = manager->getKnowledgeBase()->getApplication();
     Connection updatedCon = connection;
     updatedCon.setTo(to.toLatin1().data());
@@ -198,7 +217,7 @@ void Arrow::updateConnectionTo(QString to)
 
 //    connection.setTo(to.toLatin1().data());
 //    connection = manager->getKnowledgeBase()->addConnectionToApplication(mainApplication, connection);
-    sigHandler->modified();
+    emit sigHandler->modified();
 }
 
 void Arrow::updateGraphicModel()
@@ -220,7 +239,7 @@ void Arrow::updateGraphicModel()
     endPoint.x = (myEndItem->pos()).x();
     endPoint.y = (myEndItem->pos()).y();
 
-    Application* mainApplication = NULL;
+    Application* mainApplication = nullptr;
     mainApplication = manager->getKnowledgeBase()->getApplication();
     manager->getKnowledgeBase()->removeConnectionFromApplication(mainApplication, connection);
 
@@ -252,8 +271,8 @@ void Arrow::updateModel()
     updateGraphicModel();
     updatePosition();
 
-    sigHandler->modified();
-    signalHandler()->moved();
+    emit sigHandler->modified();
+    emit signalHandler()->moved();
 }
 
 void Arrow::setConnectionSelected(bool selected)
@@ -452,7 +471,7 @@ void Arrow::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
 
 void Arrow::addHandle(QPointF clickPos)
 {
-    LineHandle *handle = new LineHandle(clickPos,this);
+    auto* handle = new LineHandle(clickPos,this);
     handle->setSelected(true);
     if(handleList.isEmpty()){
         handleList.append(handle);
@@ -492,7 +511,7 @@ QVariant Arrow::itemChange(GraphicsItemChange change, const QVariant &value)
     }
     if (change == QGraphicsItem::ItemSelectedHasChanged) {
         if(!externalSelection){
-            sigHandler->connectctionSelected(this);
+            emit sigHandler->connectctionSelected(this);
         }
         externalSelection = false;
     }
@@ -517,7 +536,7 @@ LineHandle *Arrow::getLineHandle(int index)
     if(index >= 0 && index <= handleList.count() - 1){
         return handleList.at(index);
     }
-    return NULL;
+    return nullptr;
 }
 
 /******************************************************************/
@@ -543,17 +562,13 @@ LineHandle::LineHandle(QPointF center, Arrow *parent) : QGraphicsRectItem(parent
     qDebug() << "CENTER CREATED IN " << center;
 }
 
-LineHandle::~LineHandle()
-{
-    //parent->removeHandle(this);
-    //scene()->removeItem(this);
-}
+LineHandle::~LineHandle() = default;
 
 QPointF LineHandle::computeTopLeftGridPoint(const QPointF &pointP){
     int gridSize = 16;
     qreal xV = gridSize/2 + floor(pointP.x()/gridSize)*gridSize;
     qreal yV = gridSize/2 + floor(pointP.y()/gridSize)*gridSize;
-    return QPointF(xV, yV);
+    return {xV, yV};
 }
 
 
@@ -637,12 +652,12 @@ QVariant LineHandle::itemChange(GraphicsItemChange change, const QVariant &value
 
                 dist =  current_point.y() -  base_point.y();
 
-                if(::abs(dist) <= AUTOSNIPE_MARGINE){
+                if (::fabs(dist) <= AUTOSNIPE_MARGINE) {
                     modified = true;
                     current_point = QPointF(current_point.x(), current_point.y() -dist);
                 }
                 dist =  current_point.x() -  base_point.x();
-                if(::abs(dist) <= AUTOSNIPE_MARGINE){
+                if (::fabs(dist) <= AUTOSNIPE_MARGINE) {
                     modified = true;
                     //moveBy(-dist, 0);
                     current_point = QPointF(current_point.x()-dist, current_point.y());
@@ -658,12 +673,12 @@ QVariant LineHandle::itemChange(GraphicsItemChange change, const QVariant &value
                     base_point = mapToItem(parent,parent->mapFromItem(parent->endItem(),parent->endItem()->connectionPoint()));
                 }
                 dist =  current_point.y() -  base_point.y();
-                if(::abs(dist) <= AUTOSNIPE_MARGINE){
+                if (::fabs(dist) <= AUTOSNIPE_MARGINE) {
                     modified = true;
                     current_point = QPointF(current_point.x(), current_point.y() -dist);
                 }
                 dist =  current_point.x() -  base_point.x();
-                if(::abs(dist) <= AUTOSNIPE_MARGINE){
+                if (::fabs(dist) <= AUTOSNIPE_MARGINE) {
                     modified = true;
                     //moveBy(-dist, 0);
                     current_point = QPointF(current_point.x()-dist, current_point.y());
@@ -705,9 +720,9 @@ void LineHandle::paint(QPainter *painter, const QStyleOptionGraphicsItem *,
 Label::Label(QString label, QGraphicsItem *parent) : QGraphicsTextItem(label,parent)
 {
 
-    sigHandler = new ItemSignalHandler((QGraphicsItem*)this,ArrowLabelItemType,NULL);
+    sigHandler = new ItemSignalHandler((QGraphicsItem*)this,ArrowLabelItemType,nullptr);
     comboWidget = new QGraphicsProxyWidget(this);
-    QComboBox *combo = new QComboBox();
+    auto* combo = new QComboBox();
     combo->setEditable(true);
     parentArrow = (Arrow*)parent;
     QObject::connect(combo,SIGNAL(activated(QString)),
@@ -734,10 +749,8 @@ Label::Label(QString label, QGraphicsItem *parent) : QGraphicsTextItem(label,par
     parentArrow->update();
 
 }
-Label::~Label()
-{
-    //scene()->removeItem(this);
-}
+
+Label::~Label() = default;
 
 void Label::setHasMoved(bool moved)
 {
@@ -839,5 +852,5 @@ QPointF Label::computeTopLeftGridPoint(const QPointF &pointP){
     int gridSize = 16;
     qreal xV = gridSize/2 + floor(pointP.x()/gridSize)*gridSize;
     qreal yV = gridSize/2 + floor(pointP.y()/gridSize)*gridSize;
-    return QPointF(xV, yV);
+    return {xV, yV};
 }

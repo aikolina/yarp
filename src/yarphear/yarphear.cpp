@@ -1,23 +1,26 @@
 /*
- * Copyright (C) 2006, 2007 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
-
 
 #include <deque>
 
-#include <stdio.h>
-#include <math.h>
+#include <cstdio>
+#include <cmath>
+#include <mutex>
 
-#include <yarp/os/all.h>
 #include <yarp/os/Log.h>
 
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/AudioGrabberInterfaces.h>
 
 #include <yarp/sig/SoundFile.h>
+
+#include <yarp/os/impl/Terminal.h>
 
 using namespace yarp::os;
 using namespace yarp::sig;
@@ -29,25 +32,24 @@ int padding = 0;
 class Echo : public TypedReaderCallback<Sound> {
 private:
     PolyDriver poly;
-    IAudioRender *put;
+    IAudioRender *iAudioplay;
     BufferedPort<Sound> port;
-    Semaphore mutex;
+    std::mutex mutex;
     bool muted;
     bool saving;
     std::deque<Sound> sounds;
-    int samples;
-    int channels;
+    size_t samples;
+    size_t channels;
 
 public:
-    Echo() : mutex(1) {
-        put = NULL;
+    Echo() : mutex() {
+        iAudioplay = nullptr;
         port.useCallback(*this);
         port.setStrict();
         muted = false;
         saving = false;
         samples = 0;
         channels = 0;
-        put = NULL;
     }
 
     bool open(Searchable& p) {
@@ -64,8 +66,8 @@ public:
 
             if (!p.check("mute")) {
                 // Make sure we can write sound
-                poly.view(put);
-                if (put==NULL) {
+                poly.view(iAudioplay);
+                if (iAudioplay == nullptr) {
                     yError("cannot open interface\n");
                     return false;
                 }
@@ -87,7 +89,7 @@ public:
     }
 
     using TypedReaderCallback<Sound>::onRead;
-    void onRead(Sound& sound)
+    void onRead(Sound& sound) override
      {
         #ifdef TEST
         //this block can be used to measure time elapsed between two sound packets
@@ -105,7 +107,7 @@ public:
             yWarning("Dropping sound packet -- %d packet(s) behind\n", ct);
             port.read();
         }
-        mutex.wait();
+        mutex.lock();
         /*
           if (muted) {
           for (int i=0; i<sound.getChannels(); i++) {
@@ -116,28 +118,28 @@ public:
           }
         */
         if (!muted) {
-            if (put!=NULL) {
-                put->renderSound(sound);
+            if (iAudioplay != nullptr) {
+                iAudioplay->renderSound(sound);
             }
         }
         if (saving) {
             saveFrame(sound);
         }
 
-        mutex.post();
+        mutex.unlock();
         Time::yield();
     }
 
     void mute(bool muteFlag=true) {
-        mutex.wait();
+        mutex.lock();
         muted = muteFlag;
-        mutex.post();
+        mutex.unlock();
     }
 
     void save(bool saveFlag=true) {
-        mutex.wait();
+        mutex.lock();
         saving = saveFlag;
-        mutex.post();
+        mutex.unlock();
     }
 
     void saveFrame(Sound& sound) {
@@ -150,7 +152,7 @@ public:
     }
 
     bool saveFile(const char *name) {
-        mutex.wait();
+        mutex.lock();
         saving = false;
 
         Sound total;
@@ -158,8 +160,8 @@ public:
         long int at = 0;
         while (!sounds.empty()) {
             Sound& tmp = sounds.front();
-            for (int i=0; i<channels; i++) {
-                for (int j=0; j<tmp.getSamples(); j++) {
+            for (size_t i=0; i<channels; i++) {
+                for (size_t j=0; j<tmp.getSamples(); j++) {
                     total.set(tmp.get(j,i),at+j,i);
                 }
             }
@@ -167,7 +169,7 @@ public:
             at += tmp.getSamples();
             sounds.pop_front();
         }
-        mutex.post();
+        mutex.unlock();
         bool ok = write(total,name);
         if (ok) {
             yDebug("Wrote audio to %s\n", name);
@@ -179,7 +181,7 @@ public:
 
     bool close() {
         port.close();
-        mutex.wait(); // onRead never gets called again once it finishes
+        mutex.lock(); // onRead never gets called again once it finishes
         return true;
     }
 };
@@ -193,10 +195,9 @@ int main(int argc, char *argv[]) {
         p.fromCommand(argc,argv);
     }
 
-    // otherwise default device is "portaudio"
+    // otherwise default device is "portaudioPlayer"
     if (!p.check("device")) {
-        p.put("device","portaudio");
-        p.put("write",1);
+        p.put("device","portaudioPlayer");
         p.put("delay",1);
     }
 
@@ -208,7 +209,7 @@ int main(int argc, char *argv[]) {
     bool muted = false;
     bool saving = false;
     bool help = false;
-    ConstString fname = "audio_%06d.wav";
+    std::string fname = "audio_%06d.wav";
     int ct = 0;
     bool done = false;
     while (!done) {
@@ -225,9 +226,9 @@ int main(int argc, char *argv[]) {
             yInfo("Type \"help\" for usage\n");
         }
 
-        ConstString keys = Network::readString();
+        std::string keys = yarp::os::impl::Terminal::readString(nullptr);
         Bottle b(keys);
-        ConstString cmd = b.get(0).asString();
+        std::string cmd = b.get(0).asString();
         if (b.size()==0) {
             muted = !muted;
             echo.mute(muted);
@@ -252,7 +253,7 @@ int main(int argc, char *argv[]) {
         } else if (cmd=="q"||cmd=="quit") {
             done = true;
         } else if (cmd=="buf"||cmd=="b") {
-            padding = b.get(1).asInt();
+            padding = b.get(1).asInt32();
             yInfo("Buffering at %d\n", padding);
         }
     }

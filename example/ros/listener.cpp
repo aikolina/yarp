@@ -1,38 +1,51 @@
 /*
- * Copyright (C) 2016 iCub Facility
- * Authors: Lorenzo Natale
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
-#include <iostream>
-#include <yarp/os/all.h>
+#include <yarp/os/LogComponent.h>
+#include <yarp/os/LogStream.h>
+#include <yarp/os/Network.h>
+#include <yarp/os/Node.h>
+#include <yarp/os/Subscriber.h>
 
-using namespace yarp::os;
-using namespace std;
+#include <yarp/rosmsg/std_msgs/String.h>
 
-/* Make sure you run yarpidl_rosmsg std_msg/String */
-/* to generate String.h  */
-#include "String.h"
+using yarp::os::Network;
+using yarp::os::Node;
+using yarp::os::Subscriber;
 
-int main(int argc, char *argv[]) {
+namespace {
+YARP_LOG_COMPONENT(LISTENER, "yarp.example.ros.listener")
+}
+
+
+int main(int argc, char* argv[])
+{
+    YARP_UNUSED(argc);
+    YARP_UNUSED(argv);
+
     Network yarp;
-    
+
     /* creates a node called /yarp/listener */
     Node node("/yarp/listener");
-    
+
     /* subscribe to topic chatter */
-    yarp::os::Subscriber<String> subscriber;
+    yarp::os::Subscriber<yarp::rosmsg::std_msgs::String> subscriber;
     if (!subscriber.topic("/chatter")) {
-        cerr<< "Failed to subscriber to /chatter\n";
+        yCError(LISTENER) << "Failed to subscriber to /chatter";
         return -1;
     }
 
     /* read data from the topic */
     while (true) {
-        String data;
+        yarp::rosmsg::std_msgs::String data;
         subscriber.read(data);
-        cout << "Received:" << data.data << " " << endl;
+        yCInfo(LISTENER) << "Received:" << data.data;
     }
-  
+
     return 0;
 }

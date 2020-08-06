@@ -1,14 +1,16 @@
 #!/bin/bash
 
-# Copyright: (C) 2010 RobotCub Consortium
-# Authors: Lorenzo Natale
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
-
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 export ACE_ROOT=/home/icub/Code/ACE_wrappers
 export YARP_DIR=/home/icub/Code/yarp2
 export YARP_ROOT=$YARP_DIR
-export YARP_CONF=$YARP_DIR/conf
+export YARP_CONFIG_DIR=$YARP_DIR/conf
 export ICUB_DIR=/home/icub/Code/iCub
 export ICUB_ROOT=$ICUB_DIR
 export ICUB_CONF=$ICUB_DIR/conf
@@ -34,7 +36,7 @@ for rate in $RATES
     echo "Starting client"
     ../port_latency --client --name end --nframes $NFRAMES &
     jobClient=$!
-	echo $jobClient
+    echo $jobClient
 
     yarp wait $CLIENT_PORT
     yarp connect $SERVER_PORT $CLIENT_PORT $protocol
@@ -50,4 +52,3 @@ for rate in $RATES
     mv timing.txt $reportFile
   done
 done
-

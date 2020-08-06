@@ -1,15 +1,20 @@
-/* 
- * Copyright (C) 2009 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Author Lorenzo Natale
- * email:   lorenzo.natale@robotcub.org
- * website: www.robotcub.org
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
  *
- * Modified by: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef IMGPORT
@@ -45,12 +50,12 @@ public:
 
 #ifdef YARP_LITTLE_ENDIAN
     using yarp::os::TypedReaderCallback<yarp::sig::ImageOf<yarp::sig::PixelBgra> >::onRead;
-    void onRead(yarp::sig::ImageOf<yarp::sig::PixelBgra> &img);
+    void onRead(yarp::sig::ImageOf<yarp::sig::PixelBgra> &img) override;
 #else
     using yarp::os::TypedReaderCallback<yarp::sig::ImageOf<yarp::sig::PixelRgb> >::onRead;
-    void onRead(yarp::sig::ImageOf<yarp::sig::PixelRgba> &img);
+    void onRead(yarp::sig::ImageOf<yarp::sig::PixelRgba> &img) override;
 #endif
- 
+
 private:
     int counter;
     SignalHandler *sigHandler;

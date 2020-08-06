@@ -1,9 +1,12 @@
 /*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  * Copyright (C) 2010 Ze Ji
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
- 
+
  /*
  * Yarp Driver for Dynamixel AX-12, controlled using USB to Dynamixel Adapter
  * The default IDs for the motors are for Kaspar robot. As different robots would have different settings,
@@ -12,10 +15,10 @@
  * SENSORINDEX 16 101 116 132 102 117 133 103 118 134 107 119 135 106 104 105 108
  * This needs to be done by running configure(), before opening the device
  *
- * As it is using libftdi library, it is not possible to identify a device by specifying the serial port number, such as 
+ * As it is using libftdi library, it is not possible to identify a device by specifying the serial port number, such as
  * /dev/ttyUSB0
- * Instead, this driver requires precise information of the ftdi device, such as the dynamixel usb manufacture id, serial number, etc. See class FtdiDeviceSettings for details. 
- * 
+ * Instead, this driver requires precise information of the ftdi device, such as the dynamixel usb manufacture id, serial number, etc. See class FtdiDeviceSettings for details.
+ *
  * The motor does not support Torque control, but provide torque feedback. Therefore, several functions
  * have been implemented for such purpose, though not very rigorous.
  *
@@ -32,23 +35,17 @@
 #include <yarp/dev/DeviceDriver.h>
 #include <yarp/dev/ControlBoardInterfaces.h>
 
-#include <ace/OS_NS_stdio.h>
-#include <ace/Vector_T.h>
-
-#include <stdio.h> 
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <cmath>
-#include <string.h>
+#include <cstring>
 #include <ftdi.h>
 //#include <libftdi/ftdi.h>
 #include <usb.h>
 #include <iostream>
-#include <ace/DEV_Connector.h>
-#include <ace/TTY_IO.h>
-#include <ace/OS_NS_stdio.h>
 #include <yarp/os/Time.h>
 
-#include <yarp/os/Semaphore.h>
+#include <mutex>
 
 #define MOTION_COMPLETION_TOLERANCE 3
 
@@ -81,23 +78,23 @@
 
 /** defines for device parameters - RAM ********************************/
 
-#define CT_TORQUE_ENABLE	24
-#define CT_CW_COMP_MARGIN	26
-#define CT_CWW_COMP_MARGIN	27
-#define CT_CW_COMP_SLOPE	28
-#define CT_CWW_COMP_SLOPE	29
-#define CT_GOAL_POSITION	30
-#define CT_MOVING_SPEED		32
-#define CT_TORQUE_LIMIT		34
-#define CT_PRESENT_POSITION	0x24
-#define CT_PRESENT_SPEED	0x26
-#define CT_PRESENT_LOAD		0x28
-#define CT_PRESENT_VOLTAGE	42
-#define CT_PRESENT_TEMPERATURE	43
-#define CT_REG_INSTRUCTION	44
-#define CT_MOVING		46
-#define CT_LOCK			47
-#define CT_PUNCH		48
+#define CT_TORQUE_ENABLE        24
+#define CT_CW_COMP_MARGIN       26
+#define CT_CWW_COMP_MARGIN      27
+#define CT_CW_COMP_SLOPE        28
+#define CT_CWW_COMP_SLOPE       29
+#define CT_GOAL_POSITION        30
+#define CT_MOVING_SPEED         32
+#define CT_TORQUE_LIMIT         34
+#define CT_PRESENT_POSITION     0x24
+#define CT_PRESENT_SPEED        0x26
+#define CT_PRESENT_LOAD         0x28
+#define CT_PRESENT_VOLTAGE      42
+#define CT_PRESENT_TEMPERATURE  43
+#define CT_REG_INSTRUCTION      44
+#define CT_MOVING               46
+#define CT_LOCK                 47
+#define CT_PUNCH                48
 
 enum ErrorCode {
     VOLTAGE_ERROR,
@@ -110,13 +107,6 @@ enum ErrorCode {
     OK
 };
 
-namespace yarp {
-    namespace dev {
-        class DynamixelAX12FtdiDriver;
-        class FtdiDeviceSettings;
-    }
-}
-
 using namespace yarp::os;
 using namespace yarp::dev;
 
@@ -125,7 +115,8 @@ using namespace yarp::dev;
  * Such a device can contain information:
  * such as: Manufacturer: FTDI, Description: FT232R USB UART, Serial A7003MhG
  */
-class yarp::dev::FtdiDeviceSettings {
+class FtdiDeviceSettings
+{
 public:
     int vendor; //0x0403 normally. Can be found by lsusb on linux
     int product; //0x6001   Can be found by lsusb on linux
@@ -143,7 +134,12 @@ public:
     unsigned int read_chunksize; // ftdi_read_data_set_chunksize(&ftdic, 256);
 };
 
-class yarp::dev::DynamixelAX12FtdiDriver : public DeviceDriver, public IPositionControl, public ITorqueControl, public IEncoders {
+class DynamixelAX12FtdiDriver :
+        public yarp::dev::DeviceDriver,
+        public yarp::dev::IPositionControl,
+        public yarp::dev::ITorqueControl,
+        public yarp::dev::IEncoders
+{
 private:
     /** Handle to FTDI device */
     struct ftdi_context ftdic;
@@ -152,7 +148,7 @@ private:
 
     ErrorCode checkAnswerPacket(unsigned char* packet, const char*& message);
 
-    yarp::os::Semaphore mutex;
+    std::mutex mutex;
 
     unsigned char *jointNumbers;
 
@@ -172,32 +168,32 @@ public:
 
     /** Open device
         Opens and configures the device.
-      
+
         @param config Config file containing string pairs for parameters
         @return true on success
      */
-    virtual bool open(yarp::os::Searchable& config);
+    bool open(yarp::os::Searchable& config) override;
 
     /** Close device
         Closes the device and shuts down connection.
-      
+
         @return true on success
      */
-    virtual bool close(void);
+    bool close() override;
 
     /** Configure device online
         Configures parts of the device that can be configures online.
-      
+
         @param config Config file containing string pairs for parameters
         @return true on success
      */
-    virtual bool configure(yarp::os::Searchable& config);
+    bool configure(yarp::os::Searchable& config) override;
 
     /** Send instruction to device
         Send an instruction to a device of given ID. The instruction has to be a byte arry containing
         the AX12 instruction code beginning with the instruction, the address and the parameters.
         Header and checksum are written automatically.
-      
+
         @param id The hex id of the device to be contacted
         @param inst Byte array containing the instruction body (instruction, address, parameters)
         @return The content of the return packet of the device
@@ -206,42 +202,42 @@ public:
 
     /** Read parameter from motor
         Requests the value of a parameter from motor.
-      
+
         @param id The id of the device to be contacted
         @param param encodes address in control table and size of parameter (2 Bytes => address + 100, 1 byte => address)
         @return value if read successful or -1
      */
     virtual int readParameter(unsigned char id, unsigned char param);
 
-    bool getAxes(int *ax);
+    bool getAxes(int *ax) override;
 
     /**
      * @param refs should be in range [1 300]
      */
-    bool positionMove(int j, double ref);
-    bool positionMove(const double *refs);
-    bool relativeMove(int j, double delta);
-    bool relativeMove(const double *deltas);
-    bool checkMotionDone(int j, bool *flag);
-    bool checkMotionDone(bool *flag);
-    bool setRefSpeed(int j, double sp);
-    bool setRefSpeeds(const double *spds);
-    bool setRefAcceleration(int j, double acc);
-    bool setRefAccelerations(const double *accs);
-    bool getRefSpeed(int j, double *ref);
-    bool getRefSpeeds(double *spds);
-    bool getRefAcceleration(int j, double *acc);
-    bool getRefAccelerations(double *accs);
-    bool stop(int j);
-    bool stop();
+    bool positionMove(int j, double ref) override;
+    bool positionMove(const double *refs) override;
+    bool relativeMove(int j, double delta) override;
+    bool relativeMove(const double *deltas) override;
+    bool checkMotionDone(int j, bool *flag) override;
+    bool checkMotionDone(bool *flag) override;
+    bool setRefSpeed(int j, double sp) override;
+    bool setRefSpeeds(const double *spds) override;
+    bool setRefAcceleration(int j, double acc) override;
+    bool setRefAccelerations(const double *accs) override;
+    bool getRefSpeed(int j, double *ref) override;
+    bool getRefSpeeds(double *spds) override;
+    bool getRefAcceleration(int j, double *acc) override;
+    bool getRefAccelerations(double *accs) override;
+    bool stop(int j) override;
+    bool stop() override;
 
-    bool getRefTorques(double *t);
-    bool getRefTorque(int j, double *t);
+    bool getRefTorques(double *t) override;
+    bool getRefTorque(int j, double *t) override;
     bool setTorques(const double *t);
     bool setTorque(int j, double t);
     bool setTorquePid(int j, const Pid &pid);
-    bool getTorque(int j, double *t);
-    bool getTorques(double *t);
+    bool getTorque(int j, double *t) override;
+    bool getTorques(double *t) override;
     bool setTorquePids(const Pid *pids);
     bool setTorqueErrorLimit(int j, double limit);
     bool setTorqueErrorLimits(const double *limits);
@@ -261,27 +257,38 @@ public:
     bool getBemfParam(int j, double *bemf);
     bool setBemfParam(int j, double bemf);
 
-    bool resetEncoder(int j);
-    bool resetEncoders();
+    bool resetEncoder(int j) override;
+    bool resetEncoders() override;
 
-    bool setEncoder(int j, double val);
-    bool setEncoders(const double *vals);
+    bool setEncoder(int j, double val) override;
+    bool setEncoders(const double *vals) override;
     /**
      * Get the angle of servo.
      */
-    bool getEncoder(int j, double *v);
-    bool getEncoders(double *encs);
-    bool getEncoderSpeed(int j, double *sp);
-    bool getEncoderSpeeds(double *spds);
-    bool getEncoderAcceleration(int j, double *spds);
-    bool getEncoderAccelerations(double *accs);
+    bool getEncoder(int j, double *v) override;
+    bool getEncoders(double *encs) override;
+    bool getEncoderSpeed(int j, double *sp) override;
+    bool getEncoderSpeeds(double *spds) override;
+    bool getEncoderAcceleration(int j, double *spds) override;
+    bool getEncoderAccelerations(double *accs) override;
 
     using yarp::dev::ITorqueControl::setRefTorques;
-    bool setRefTorques(const double* t);
+    bool setRefTorques(const double* t) override;
 
-    bool setRefTorque(int j, double t);
-    bool getTorqueRange(int j, double* min, double* max);
-    bool getTorqueRanges(double* min, double* max);
+    bool setRefTorque(int j, double t) override;
+    bool getTorqueRange(int j, double* min, double* max) override;
+    bool getTorqueRanges(double* min, double* max) override;
+
+    // multiple joint version
+    bool positionMove(const int n_joint, const int *joints, const double *refs) override;
+    bool relativeMove(const int n_joint, const int *joints, const double *deltas) override;
+    bool checkMotionDone(const int n_joint, const int *joints, bool *flag) override;
+    bool setRefSpeeds(const int n_joint, const int *joints, const double *spds) override;
+    bool setRefAccelerations(const int n_joint, const int *joints, const double *accs) override;
+    bool getRefSpeeds(const int n_joint, const int *joints, double *spds) override;
+    bool getRefAccelerations(const int n_joint, const int *joints, double *accs) override;
+    bool stop(const int n_joint, const int *joints) override;
+
 private:
 
     double *positions;

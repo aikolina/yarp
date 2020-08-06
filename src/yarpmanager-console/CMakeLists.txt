@@ -1,42 +1,36 @@
-#  Yarp Modules Manager
-#  Copyright: (C) 2011 Robotics, Brain and Cognitive Sciences - Italian Institute of Technology (IIT)
-#  Authors: Ali Paikan <ali.paikan@iit.it>
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
 #
-#  Copy Policy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-if(CREATE_YARPMANAGER_CONSOLE)
+if(YARP_COMPILE_yarpmanager-console)
+  add_executable(yarpmanager-console)
 
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_manager_INCLUDE_DIRS TARGET YARP_manager PROPERTY INCLUDE_DIRS)
+  set(yarpmanager_console_SRCS yarpmanager.cpp
+                               ymanager.cpp)
+  set(yarpmanager_console_HDRS ymanager.h)
 
 
-  file(GLOB folder_source *.cpp)
-  file(GLOB folder_header *.h)
-  source_group("Source Files" FILES ${folder_source})
-  source_group("Header Files" FILES ${folder_header})
+  target_sources(yarpmanager-console PRIVATE ${yarpmanager_console_SRCS}
+                                             ${yarpmanager_console_HDRS})
 
-  include_directories(${YARP_OS_INCLUDE_DIRS})
-  include_directories(${YARP_manager_INCLUDE_DIRS})
-  include_directories(${ACE_INCLUDE_DIRS})
+  target_link_libraries(yarpmanager-console PRIVATE YARP::YARP_init
+                                                    YARP::YARP_os
+                                                    YARP::YARP_manager)
 
-  if (YARP_HAS_LIBEDIT)
-    add_definitions( -DWITH_LIBEDIT )
-    include_directories(${Libedit_INCLUDE_DIR})
+  if(MSVC)
+    target_include_directories(yarpmanager-console SYSTEM PRIVATE ${dirent_INCLUDE_DIRS})
   endif()
 
-  add_executable(yarpmanager-console ${folder_source} ${folder_header} )
-
-  target_link_libraries(yarpmanager-console YARP_init
-                                            YARP_OS
-                                            YARP_manager
-                                            ${ACE_LIBRARIES})
-
-  if(YARP_HAS_LIBEDIT)
-    target_link_libraries(yarpmanager-console Libedit::libedit)
+  if(YARP_HAS_Libedit)
+    target_compile_definitions(yarpmanager-console PRIVATE YARP_HAS_Libedit)
+    target_link_libraries(yarpmanager-console PRIVATE Libedit::libedit)
   endif()
 
   install(TARGETS yarpmanager-console
           COMPONENT utilities
           DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+  set_property(TARGET yarpmanager-console PROPERTY FOLDER "Command Line Tools")
 endif()

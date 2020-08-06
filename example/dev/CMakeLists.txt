@@ -1,22 +1,42 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Paul Fitzpatrick, Giacomo Spigler
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-FIND_PACKAGE(YARP REQUIRED)
-LINK_LIBRARIES(${YARP_LIBRARIES})
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
+foreach(example_name audio_test
+                     double_server
+                     fake_grabber
+                     fake_motor
+                     file_grabber
+                     grabber_client
+                     motortest
+                     RGBD)
 
-ADD_EXECUTABLE(grabber_client grabber_client.cpp)
-ADD_EXECUTABLE(grabber_client_alternate grabber_client_alternate.cpp)
-ADD_EXECUTABLE(fake_grabber fake_grabber.cpp FakeFrameGrabber.h)
-ADD_EXECUTABLE(fake_grabber_net fake_grabber_net.cpp FakeFrameGrabber.h)
-ADD_EXECUTABLE(fake_grabber_net2 fake_grabber_net2.cpp FakeFrameGrabber2.h)
-ADD_EXECUTABLE(file_grabber file_grabber.cpp FileFrameGrabber.h)
-ADD_EXECUTABLE(file_grabber_net file_grabber_net.cpp FileFrameGrabber.h)
-ADD_EXECUTABLE(audio_test audio_test.cpp)
-ADD_EXECUTABLE(double_server double_server.cpp)
-ADD_EXECUTABLE(fake_motor fake_motor.cpp)
-ADD_EXECUTABLE(simple_motor_client simple_motor_client.cpp)
-ADD_EXECUTABLE(motortest motortest.cpp)
+  if(YARP_COMPILE_EXAMPLES)
+    add_subdirectory(${example_name})
+  endif()
+
+  if(YARP_ENABLE_EXAMPLES_AS_TESTS)
+    add_test(NAME examples::dev::${example_name}
+             COMMAND ${CMAKE_CTEST_COMMAND} -VV
+                                            --build-and-test "${CMAKE_CURRENT_SOURCE_DIR}/${example_name}"
+                                                             "${CMAKE_CURRENT_BINARY_DIR}/tests/${example_name}"
+                                            ${build_generator}
+                                            --build-project  ${example_name}
+                                            --build-options ${build_options}
+             WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+    set_tests_properties(examples::dev::${example_name} PROPERTIES LABELS "examples::dev")
+    list(APPEND EXAMPLES_BUILD_DIRS "${CMAKE_CURRENT_BINARY_DIR}/tests/${example_name}")
+    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_MAKE_CLEAN_FILES "${CMAKE_CURRENT_BINARY_DIR}/tests/${example_name}")
+
+  endif()
+
+endforeach()

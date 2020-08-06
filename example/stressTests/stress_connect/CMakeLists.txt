@@ -1,13 +1,14 @@
-# Copyright: (C) 2010 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
 
-find_package(YARP REQUIRED)
+find_package(YARP COMPONENTS os REQUIRED)
 
-include_directories(${YARP_INCLUDE_DIRS})
-
-link_libraries(${YARP_LIBRARIES})
-
-add_executable(stress_connect stress_connect.cpp)
+add_executable(stress_connect)
+target_sources(stress_connect PRIVATE stress_connect.cpp)
+target_link_libraries(stress_connect PRIVATE ${YARP_LIBRARIES})

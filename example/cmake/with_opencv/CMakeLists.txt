@@ -1,34 +1,31 @@
-# Copyright: (C) 2010 RobotCub Consortium
-# Author: Lorenzo Natale, Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
-
-# execute YarpConfig.cmake
-find_package(YARP)
-
-# pick up YARP find scripts
-list(APPEND CMAKE_MODULE_PATH ${YARP_MODULE_PATH})
-
-# now FindOpenCV.cmake is in CMAKE_MODULE_PATH
-find_package(OpenCV)
-
-# searches for all .cpp and .h files in the current directory and add them
-# to the current project
-file(GLOB folder_source *.cpp)
-file(GLOB folder_header *.h)
-source_group("Source Files" FILES ${folder_source})
-source_group("Header Files" FILES ${folder_header})
-
-# add the current directory in the include path
-include_directories(${CMAKE_SOURCE_DIR})
-# add YARP include directories
-include_directories(${YARP_INCLUDE_DIRS})
-# add OpenCV include directories
-include_directories(${OPENCV_INCLUDE_DIR})
+cmake_minimum_required(VERSION 3.12)
 
 # create the program "foo"
-add_executable(foo ${folder_source} ${folder_header})
+add_executable(foo)
 
-# link opencv and YARP libraries
-target_link_libraries(foo ${OPENCV_LIBRARIES} ${YARP_LIBRARIES})
+# add sources
+target_sources(foo PRIVATE main.cpp)
+
+# add the current directory in the include path
+target_include_directories(foo PRIVATE ${CMAKE_SOURCE_DIR})
+
+
+# execute YarpConfig.cmake
+find_package(YARP COMPONENTS os REQUIRED)
+# link YARP libraries
+target_link_libraries(foo PRIVATE YARP::YARP_os
+                                   YARP::YARP_init)
+
+# now FindOpenCV.cmake is in CMAKE_MODULE_PATH
+find_package(OpenCV REQUIRED)
+# add OpenCV include directories
+target_include_directories(foo PRIVATE ${OPENCV_INCLUDE_DIR})
+# link OpenCV libraries
+target_link_libraries(foo PRIVATE ${OPENCV_LIBRARIES}

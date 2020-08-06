@@ -1,34 +1,39 @@
-# Copyright: (C) 2016 iCub Facility - Istituto Italiano di Tecnologia
-# Author: Alberto Cardellino
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 yarp_prepare_plugin(fakeMotionControl
                     CATEGORY device
-                    TYPE yarp::dev::FakeMotionControl
+                    TYPE FakeMotionControl
                     INCLUDE fakeMotionControl.h
                     EXTRA_CONFIG WRAPPER=controlboardwrapper2
-                    DEPENDS CREATE_DEVICE_LIBRARY_MODULES)
+                    DEPENDS "TARGET YARP::YARP_math")
 
 if(NOT SKIP_fakeMotionControl)
-  set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_sig_INCLUDE_DIRS TARGET YARP_sig PROPERTY INCLUDE_DIRS)
-  get_property(YARP_dev_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_sig_INCLUDE_DIRS}
-                      ${YARP_dev_INCLUDE_DIRS})
-  yarp_add_plugin(yarp_fakeMotionControl fakeMotionControl.cpp
-                                         fakeMotionControl.h)
-  target_link_libraries(yarp_fakeMotionControl YARP_OS
-                                               YARP_sig
-                                               YARP_dev)
-  yarp_install(TARGETS yarp_fakeMotionControl
-               EXPORT YARP
-               COMPONENT runtime
-               LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
-               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR})
-  yarp_install(FILES fakeMotionControl.ini
-               COMPONENT runtime
-               DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
-endif()
+  yarp_add_plugin(yarp_fakeMotionControl)
 
+  target_sources(yarp_fakeMotionControl PRIVATE fakeMotionControl.cpp
+                                                fakeMotionControl.h)
+
+  target_link_libraries(yarp_fakeMotionControl PRIVATE YARP::YARP_os
+                                                       YARP::YARP_sig
+                                                       YARP::YARP_dev
+                                                       YARP::YARP_math)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS YARP_os
+                                                      YARP_sig
+                                                      YARP_dev
+                                                      YARP_math)
+
+  yarp_install(TARGETS yarp_fakeMotionControl
+               EXPORT YARP_${YARP_PLUGIN_MASTER}
+               COMPONENT ${YARP_PLUGIN_MASTER}
+               LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
+               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
+               YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+
+  set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
+
+  set_property(TARGET yarp_fakeMotionControl PROPERTY FOLDER "Plugins/Device/Fake")
+endif()

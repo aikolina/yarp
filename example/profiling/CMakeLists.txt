@@ -1,42 +1,80 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Lorenzo Natale, Paul Fitzpatrick, Giorgio Metta
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- 
-cmake_minimum_required(VERSION 2.8.9)
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-PROJECT (Profiling)
+cmake_minimum_required(VERSION 3.12)
+project(Profiling)
 
 # replace "..." with the path to your YARP binaries if needed
-SET(YARP_DIR "${CMAKE_SOURCE_DIR}/../.." CACHE LOCATION "where is yarp?")
-SET(USE_PARALLEL_PORT FALSE CACHE BOOL "Do you want to use the parallel port?")
+set(YARP_DIR "${CMAKE_SOURCE_DIR}/../.." CACHE LOCATION "where is yarp?")
+set(USE_PARALLEL_PORT FALSE CACHE BOOL "Do you want to use the parallel port?")
 
 # profiling flags for linux
-SET(CMAKE_CXX_FLAGS_PROFILING "-pg" CACHE STRING "profiling flags")
+set(CMAKE_CXX_FLAGS_PROFILING "-pg" CACHE STRING "profiling flags")
 # To use, set "CMAKE_BUILD_TYPE" in ccmake to "PROFILING"
 # Then run program as normal, e.g. "./bottle_test"
 # Then run with gprof prefix, e.g. "gprof ./bottle_test > result.txt"
 # Look at output and think.
 
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
-LINK_LIBRARIES(${YARP_LIBRARIES})
+find_package(YARP COMPONENTS os REQUIRED)
 
-FIND_PACKAGE(ICUB)
+if(USE_PARALLEL_PORT)
+  find_package(PPEVENTDEBUGGER)
+endif()
 
-IF (USE_PARALLEL_PORT)
-  FIND_PACKAGE(PPEVENTDEBUGGER)
-  LINK_LIBRARIES(
-    ${PPEVENTDEBUGGER_LIBRARIES}
-    )
-  INCLUDE_DIRECTORIES(
-    ${PPEVENTDEBUGGER_INCLUDE_DIRS}
-    )
-  ADD_DEFINITIONS(-DUSE_PARALLEL_PORT)  
-ENDIF(USE_PARALLEL_PORT)
+add_executable(bottle_test)
+target_sources(bottle_test PRIVATE bottle_test.cpp)
+target_link_libraries(bottle_test PRIVATE YARP::YARP_os YARP::YARP_init)
+if(USE_PARALLEL_PORT)
+  target_include_directories(bottle_test PRIVATE ${PPEVENTDEBUGGER_INCLUDE_DIRS})
+  target_link_libraries(bottle_test PRIVATE ${PPEVENTDEBUGGER_LIBRARIES})
+  target_compile_definitions(bottle_test PRIVATE USE_PARALLEL_PORT)
+endif()
 
-ADD_EXECUTABLE(bottle_test bottle_test.cpp)
-ADD_EXECUTABLE(port_latency  port_latency.cpp)
-ADD_EXECUTABLE(port_latency_st  port_latency_st.cpp)
-ADD_EXECUTABLE(thread_latency  thread_latency.cpp)
-ADD_EXECUTABLE(timers  timers.cpp)
-ADD_EXECUTABLE(rateThreadTiming rateThreadTiming.cpp)
+add_executable(port_latency)
+target_sources(port_latency PRIVATE port_latency.cpp)
+target_link_libraries(port_latency PRIVATE YARP::YARP_os YARP::YARP_init)
+if(USE_PARALLEL_PORT)
+  target_include_directories(port_latency PRIVATE ${PPEVENTDEBUGGER_INCLUDE_DIRS})
+  target_link_libraries(port_latency PRIVATE ${PPEVENTDEBUGGER_LIBRARIES})
+  target_compile_definitions(port_latency PRIVATE USE_PARALLEL_PORT)
+endif()
+
+add_executable(port_latency_st)
+target_sources(port_latency_st PRIVATE port_latency_st.cpp)
+target_link_libraries(port_latency_st PRIVATE YARP::YARP_os YARP::YARP_init)
+if(USE_PARALLEL_PORT)
+  target_include_directories(port_latency_st PRIVATE ${PPEVENTDEBUGGER_INCLUDE_DIRS})
+  target_link_libraries(port_latency_st PRIVATE ${PPEVENTDEBUGGER_LIBRARIES})
+  target_compile_definitions(port_latency_st PRIVATE USE_PARALLEL_PORT)
+endif()
+
+add_executable(thread_latency)
+target_sources(thread_latency PRIVATE thread_latency.cpp)
+target_link_libraries(thread_latency PRIVATE YARP::YARP_os YARP::YARP_init)
+if(USE_PARALLEL_PORT)
+  target_include_directories(thread_latency PRIVATE ${PPEVENTDEBUGGER_INCLUDE_DIRS})
+  target_link_libraries(thread_latency PRIVATE ${PPEVENTDEBUGGER_LIBRARIES})
+  target_compile_definitions(thread_latency PRIVATE USE_PARALLEL_PORT)
+endif()
+
+add_executable(timers)
+target_sources(timers PRIVATE timers.cpp)
+target_link_libraries(timers PRIVATE YARP::YARP_os YARP::YARP_init)
+if(USE_PARALLEL_PORT)
+  target_include_directories(timers PRIVATE ${PPEVENTDEBUGGER_INCLUDE_DIRS})
+  target_link_libraries(timers PRIVATE ${PPEVENTDEBUGGER_LIBRARIES})
+  target_compile_definitions(timers PRIVATE USE_PARALLEL_PORT)
+endif()
+
+add_executable(rateThreadTiming)
+target_sources(rateThreadTiming PRIVATE rateThreadTiming.cpp)
+target_link_libraries(rateThreadTiming PRIVATE YARP::YARP_os YARP::YARP_init)
+if(USE_PARALLEL_PORT)
+  target_include_directories(rateThreadTiming PRIVATE ${PPEVENTDEBUGGER_INCLUDE_DIRS})
+  target_link_libraries(rateThreadTiming PRIVATE ${PPEVENTDEBUGGER_LIBRARIES})
+  target_compile_definitions(rateThreadTiming PRIVATE USE_PARALLEL_PORT)
+endif()

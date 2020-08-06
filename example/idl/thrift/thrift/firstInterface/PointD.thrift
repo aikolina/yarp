@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
+ */
+
 namespace yarp yarp.test
 
 struct PointD {
@@ -9,7 +17,7 @@ struct PointD {
 struct PointDLists{
   1: string name ="pointLists";
   2: list<PointD> firstList;
-  3: list<PointD> secondList; 
+  3: list<PointD> secondList;
 }
 
 enum PointQuality{
@@ -29,4 +37,3 @@ struct Vector {
   yarp.name = "yarp::sig::Vector"
   yarp.includefile="yarp/sig/Vector.h"
 )
-

@@ -1,21 +1,23 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "RosHeader.h"
+#include "TcpRosLogComponent.h"
 
-#include <stdio.h>
-#include <string.h>
+#include <cstdio>
+#include <cstring>
 #include <yarp/os/Bytes.h>
 #include <yarp/os/NetType.h>
 
 using namespace yarp::os;
 using namespace std;
 
-void RosHeader::appendInt(char *&buf,int x) {
+void RosHeader::appendInt32(char *&buf,int x) {
     Bytes bytes(buf,4);
     NetType::netInt(x,bytes);
     buf += 4;
@@ -28,10 +30,9 @@ void RosHeader::appendString(char *&buf,const string& str) {
 
 
 string RosHeader::showMessage(string s) {
-    string result = "";
-    for (unsigned int i=0; i<s.length(); i++) {
+    string result;
+    for (char ch : s) {
         char buf[256];
-        char ch = s[i];
         sprintf(buf, "%c (%#x) ", (ch>=' ')?ch:'.', *reinterpret_cast<unsigned char*>(&ch));
         result += buf;
     }
@@ -40,19 +41,17 @@ string RosHeader::showMessage(string s) {
 
 string RosHeader::writeHeader() {
     size_t len = 0;
-    for (map<string,string>::iterator it = data.begin();
-         it!=data.end(); it++) {
-        string key = it->first;
-        string val = it->second;
+    for (auto& it : data) {
+        string key = it.first;
+        string val = it.second;
         len += 4 + key.length() + 1 + val.length();
     }
     string result(len,'\0');
     char *buf = (char *)result.c_str();
-    for (map<string,string>::iterator it = data.begin();
-         it!=data.end(); it++) {
-        string key = it->first;
-        string val = it->second;
-        appendInt(buf,key.length()+1+val.length());
+    for (auto& it : data) {
+        string key = it.first;
+        string val = it.second;
+        appendInt32(buf,key.length()+1+val.length());
         appendString(buf,key);
         appendString(buf,string("="));
         appendString(buf,val);
@@ -73,13 +72,13 @@ bool RosHeader::readHeader(const string& bin) {
         at += 4;
         len -= 4;
         string keyval(at,slen);
-        size_t delim = keyval.find_first_of("=",0);
+        size_t delim = keyval.find_first_of('=',0);
         if (delim == string::npos) {
-            fprintf(stderr, "warning: corrupt ROS header\n");
+            yCWarning(TCPROSCARRIER, "Corrupt ROS header");
         }
         string key = keyval.substr(0,delim);
         string val = keyval.substr(delim+1);
-        //printf("key %s => val %s\n", key.c_str(), val.c_str());
+        yCTrace(TCPROSCARRIER, "key %s => val %s\n", key.c_str(), val.c_str());
         data[key] = val;
         at += slen;
         len -= slen;
@@ -89,11 +88,10 @@ bool RosHeader::readHeader(const string& bin) {
 
 
 std::string RosHeader::toString() const {
-    string result = "";
-    for (map<string,string>::const_iterator it = data.begin();
-         it!=data.end(); it++) {
-        string key = it->first;
-        string val = it->second;
+    string result;
+    for (const auto& it : data) {
+        string key = it.first;
+        string val = it.second;
         result += key;
         result += "->";
         result += val;
@@ -101,6 +99,3 @@ std::string RosHeader::toString() const {
     }
     return result;
 }
-
-
-

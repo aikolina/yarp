@@ -1,8 +1,7 @@
 /**
-*
-@page yarp_resource_finder_advanced The ResourceFinder Class (advanced)
+\page yarp_resource_finder_advanced The ResourceFinder Class (advanced)
 
-\author Lorenzo Natale and Elena Ceseracciu
+\tableofcontents
 
 In this tutorial we show more details of how to use the yarp::os::ResourceFinder to locate files.
 
@@ -35,7 +34,6 @@ The main function will be something like:
 
 \code
 ResourceFinder rf;
-rf.setVerbose();
 rf.setDefaultConfigFile("or.ini");
 rf.configure(argc, argv);
 \endcode
@@ -45,13 +43,13 @@ This creates an instance of the ResourceFinder, and configures it from data from
 This code shows how to query the value of the parameters:
 
 \code
-ConstString robotName=rf.find("robot").asString();
+std::string robotName=rf.find("robot").asString();
 \endcode
 
 Now we can read the file specified in the parameter 'model' by calling:
 
 \code
-ConstString model=rf.findFile("model");
+std::string model=rf.findFile("model");
 \endcode
 
 RF searches the file 'bottle.ppm' in the current initialization context. If successful "model" is a string
@@ -115,5 +113,5 @@ See also the yarp::os::ResourceFinder class documentation.
 \section sec_code Code
 
 See code in: example/resourceFinder/tutorial_rf_advanced.cpp
-*
-**/
+
+*/

@@ -1,20 +1,31 @@
-# Copyright: (C) 2012 Robotics Brain and Cognitive Sciences, Istituto Italiano di Tecnologia
-# Authors: Elena Ceseracciu
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-SET(PROJECTNAME Demo)
-PROJECT(${PROJECTNAME})
-include_directories(${YARP_INCLUDE_DIRS} ${generated_libs_include_dir})
+project(Demo)
 
-ADD_EXECUTABLE (${PROJECTNAME}Server DemoServer.cpp)
-TARGET_LINK_LIBRARIES(${PROJECTNAME}Server ${YARP_LIBRARIES} generatedDemoLibrary)
+add_executable(DemoServer)
+target_sources(DemoServer PRIVATE DemoServer.cpp)
+target_include_directories(DemoServer PRIVATE ${generated_libs_include_dir})
+target_link_libraries(DemoServer PRIVATE ${YARP_LIBRARIES}
+                                         generatedDemoLibrary)
 
-ADD_EXECUTABLE (${PROJECTNAME}ServerExtended DemoServerExtended.cpp)
-TARGET_LINK_LIBRARIES(${PROJECTNAME}ServerExtended ${YARP_LIBRARIES} generatedDemoLibrary)
+add_executable(DemoServerExtended)
+target_sources(DemoServerExtended PRIVATE DemoServerExtended.cpp)
+target_include_directories(DemoServerExtended PRIVATE ${generated_libs_include_dir})
+target_link_libraries(DemoServerExtended PRIVATE ${YARP_LIBRARIES}
+                                                 generatedDemoLibrary)
 
-ADD_EXECUTABLE (${PROJECTNAME}ServerModule DemoServerModule.cpp)
-TARGET_LINK_LIBRARIES(${PROJECTNAME}ServerModule ${YARP_LIBRARIES} generatedDemoLibrary)
+add_executable(DemoServerModule)
+target_sources(DemoServerModule PRIVATE DemoServerModule.cpp)
+target_include_directories(DemoServerModule PRIVATE ${generated_libs_include_dir})
+target_link_libraries(DemoServerModule PRIVATE ${YARP_LIBRARIES}
+                                               generatedDemoLibrary)
 
-ADD_EXECUTABLE (${PROJECTNAME}Client DemoClient.cpp)
-TARGET_LINK_LIBRARIES(${PROJECTNAME}Client ${YARP_LIBRARIES} generatedDemoLibrary)
-
+add_executable(DemoClient)
+target_sources(DemoClient PRIVATE DemoClient.cpp)
+target_include_directories(DemoClient PRIVATE ${generated_libs_include_dir})
+target_link_libraries(DemoClient PRIVATE ${YARP_LIBRARIES}
+                                         generatedDemoLibrary)

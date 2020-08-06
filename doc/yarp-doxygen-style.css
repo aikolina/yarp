@@ -29,6 +29,17 @@
     padding: 0px 0px;
 }
 
+#projectname_footer {
+    font-size: 150%;
+    font-family: Moonhouse, Roboto, sans-serif;
+    font-weight: bold;
+    font-stretch: ultra-expanded;
+    font-style: oblique;
+    color: #5991ac;
+    text-shadow: 0 2px 2px rgba(135,181,204,0.9);
+    padding: 0px 0px;
+}
+
 #projectbrief
 {
     font-size: 120%;
@@ -42,10 +53,30 @@
 
 #projectnumber
 {
-    font-size: 20%;
     font-family: monospace, fixed;
-    color: #19c2d8;
+    font-size: 10px;
+    color: #195370;
     text-shadow: 0 2px 2px rgba(135,181,204,0.9);
+}
+
+#projectnumber select {
+    color: #195370;
+/*     background-color:rgba(0,0,0,0.1); */
+/*   background: transparent; */
+
+    font-family: monospace, fixed;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 2px;
+    padding-left: 20px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: #c4cfe5;
+    border-radius: 12px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: url('yarp-favicon.ico') 7px / 13px no-repeat rgba(135,181,204,0.9);
 }
 
 #titlearea {
@@ -72,8 +103,12 @@ h1, h2, h3, h4 {
     text-shadow: 0 2px 2px rgba(135,181,204,0.9);
 }
 
-h1, h2, h3 {
+h1, h2 {
     font-variant: small-caps;
+}
+
+h4 {
+    padding-left: 10px;
 }
 
 /* Header for groups of functions */
@@ -143,12 +178,61 @@ p.definition {
 
 /* "<code>" elements (usually the "#include <...>" in the documentation */
 code {
-    border: 1px solid #C4CFE5;
-    background-color: #FBFCFD;
+    border: 1px solid #23749c;
+    color: #f6fbfd;
+    background-color: #19526e;
+    padding: 1px 3px;
+    line-height: 1.0;
+    font-size: 90%;
+    border-radius: 4px;
+}
+code a.el {
+    color: #d6dbdd;
+}
+
+code a.el:visited {
+    color: #d6dbdd;
+}
+
+/* /verbatim elements */
+pre.fragment {
+    border: 1px solid #23749c;
+    color: #f6fbfd;
+    background-color: #19526e;
+    line-height: 1.0;
+    font-size: 90%;
+    border-radius: 4px;
+}
+
+/* /code elements */
+div.fragment {
     padding: 4px 6px;
     margin: 4px 8px 4px 2px;
-    font-size:  9pt;
-    line-height: 125%;
-    font-size: 105%;
+    border: 1px solid #23749c;
+/*    color: #f6fbfd;*/
+/*    background-color: #19526e;*/
+    line-height: 1.0;
+    font-size: 90%;
     border-radius: 4px;
+}
+
+/* Tweak syntax highlighting in code elements */
+span.stringliteral {
+    color: #ff2080;
+}
+span.charliteral {
+    color: #ff8080
+}
+
+/* Line numbers in /code{lineno} blocks */
+span.lineno {
+    color: #1d6082;
+    background-color: #f6fbfd;
+    border-right-width: 1px;
+    border-right-color: #23749c;
+}
+
+span.lineno a {
+    color: #0d5072;
+    background-color: #e6ebed;
 }

@@ -1,18 +1,28 @@
 /*
- *  Yarp Modules Manager
- *  Copyright: (C) 2011 Robotics, Brain and Cognitive Sciences - Italian Institute of Technology (IIT)
- *  Authors: Ali Paikan <ali.paikan@iit.it>
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- *  Copy Policy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
  *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "ymanager.h"
 
-#include <cstring>
 #include <yarp/manager/xmlapploader.h>
 #include <yarp/manager/application.h>
-#include <yarp/manager/ymm-dir.h>
+#include <dirent.h>
+#include <yarp/conf/filesystem.h>
+#include <yarp/os/ResourceFinder.h>
 
 /*
  * TODO: using stringstream should be avoided to keep
@@ -20,40 +30,45 @@
  */
 #include <sstream>
 
-#include <yarp/os/ResourceFinder.h>
+#include <cstring>
+#include <csignal>
 
 using namespace yarp::os;
 using namespace yarp::manager;
+using namespace std;
 
-#if defined(WIN32)
-    #include <yarp/os/impl/PlatformSignal.h>
-    #define HEADER      ""
-    #define OKBLUE      ""
-    #define OKGREEN     ""
-    #define WARNING     ""
-    #define FAIL        ""
-    #define INFO        ""
-    #define ENDC        ""
+#if defined(_WIN32)
+# define HEADER      ""
+# define OKBLUE      ""
+# define OKGREEN     ""
+# define WARNING     ""
+# define FAIL        ""
+# define INFO        ""
+# define ENDC        ""
 #else
-    #include <unistd.h>
-    #include <sys/types.h>
-    #include <sys/wait.h>
-    #include <errno.h>
-    #include <sys/types.h>
-    #include <signal.h>
-
-    string HEADER = "";
-    string OKBLUE = "";
-    string OKGREEN = "";
-    string WARNING = "";
-    string FAIL = "";
-    string INFO = "";
-    string ENDC = "";
+# include <unistd.h>
+# include <cerrno>
+# if defined(YARP_HAS_SYS_TYPES_H)
+#  include <sys/types.h>
+# endif
+# if defined(YARP_HAS_SYS_WAIT_H)
+#  include <sys/wait.h>
+# endif
+# if defined(YARP_HAS_SYS_PRCTL_H)
+#  include <sys/prctl.h>
+# endif
+    std::string HEADER;
+    std::string OKBLUE;
+    std::string OKGREEN;
+    std::string WARNING;
+    std::string FAIL;
+    std::string INFO;
+    std::string ENDC;
 #endif
 
 
 #define CMD_COUNTS          24
-#ifdef WITH_LIBEDIT
+#ifdef YARP_HAS_Libedit
     #include <editline/readline.h>
     const char* commands[CMD_COUNTS] = {"help", "exit","list mod", "list app", "list res", "add mod",
                   "add app", "add res", "load app", "run", "stop", "kill",
@@ -63,7 +78,7 @@ using namespace yarp::manager;
     char* command_generator (const char* text, int state);
     char* appname_generator (const char* text, int state);
     char ** my_completion (const char* text, int start, int end);
-    vector<string> appnames;
+    std::vector<std::string> appnames;
 #endif
 
 #define DEF_CONFIG_FILE     "ymanager.ini"
@@ -81,7 +96,7 @@ __   __\n\
 
 #define HELP_MESSAGE        "\
 Usage:\n\
-      yarpmanager [option...]\n\n\
+      yarpmanager-console [option...]\n\n\
 Options:\n\
   --application <app>     Load a specific application identified by its xml file\n\
   --run                   Run the current application (should be used with --application)\n\
@@ -100,7 +115,7 @@ Options:\n\
   --help                  Show help\n"
 
 
-#if defined(WIN32)
+#if defined(_WIN32)
 static Manager* __pManager = NULL;
 #endif
 
@@ -124,7 +139,7 @@ static Manager* __pManager = NULL;
 YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
 {
 
-#if defined(WIN32)
+#if defined(_WIN32)
     __pManager = (Manager*) this;
 #endif
 
@@ -132,7 +147,6 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
 
     // Setup resource finder
     yarp::os::ResourceFinder rf;
-    rf.setVerbose(false);
     rf.setDefaultContext("yarpmanager");
     rf.setDefaultConfigFile(DEF_CONFIG_FILE);
     rf.configure(argc, argv);
@@ -156,14 +170,14 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
      *  preparing default options
      */
 
-    std::string inifile=rf.findFile("from").c_str();
-    std::string inipath="";
-    size_t lastSlash=inifile.rfind("/");
+    std::string inifile=rf.findFile("from");
+    std::string inipath;
+    size_t lastSlash=inifile.rfind('/');
     if (lastSlash!=std::string::npos)
         inipath=inifile.substr(0, lastSlash+1);
     else
     {
-        lastSlash=inifile.rfind("\\");
+        lastSlash=inifile.rfind('\\');
         if (lastSlash!=std::string::npos)
             inipath=inifile.substr(0, lastSlash+1);
     }
@@ -236,12 +250,12 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
     if(config.check("modpath"))
     {
         string strPath;
-        stringstream modPaths(config.find("modpath").asString().c_str());
+        stringstream modPaths(config.find("modpath").asString());
         while (getline(modPaths, strPath, ';'))
         {
             trimString(strPath);
             if (!isAbsolute(strPath.c_str()))
-                strPath=inipath+strPath;
+                strPath = std::string(inipath).append(strPath);
             addModules(strPath.c_str());
         }
     }
@@ -249,12 +263,12 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
     if(config.check("respath"))
     {
         string strPath;
-        stringstream resPaths(config.find("respath").asString().c_str());
+        stringstream resPaths(config.find("respath").asString());
         while (getline(resPaths, strPath, ';'))
         {
             trimString(strPath);
             if (!isAbsolute(strPath.c_str()))
-                strPath=inipath+strPath;
+                strPath = std::string(inipath).append(strPath);
             addResources(strPath.c_str());
         }
     }
@@ -263,12 +277,12 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
     if(config.check("apppath"))
     {
         string strPath;
-        stringstream appPaths(config.find("apppath").asString().c_str());
+        stringstream appPaths(config.find("apppath").asString());
         while (getline(appPaths, strPath, ';'))
         {
             trimString(strPath);
             if (!isAbsolute(strPath.c_str()))
-                strPath=inipath+strPath;
+                strPath = std::string(inipath).append(strPath);
             if(config.find("load_subfolders").asString() == "yes")
             {
                 if(!loadRecursiveApplications(strPath.c_str()))
@@ -281,15 +295,15 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
 
     reportErrors();
 
-#ifdef WITH_LIBEDIT
+#ifdef YARP_HAS_Libedit
     updateAppNames(&appnames);
 #endif
 
 
-#if defined(WIN32)
-    ACE_OS::signal(SIGINT, (ACE_SignalHandler) YConsoleManager::onSignal);
-    ACE_OS::signal(SIGBREAK, (ACE_SignalHandler) YConsoleManager::onSignal);
-    ACE_OS::signal(SIGTERM, (ACE_SignalHandler) YConsoleManager::onSignal);
+#if defined(_WIN32)
+    ::signal(SIGINT, YConsoleManager::onSignal);
+    ::signal(SIGBREAK, YConsoleManager::onSignal);
+    ::signal(SIGTERM, YConsoleManager::onSignal);
 #else
     struct sigaction new_action, old_action;
 
@@ -298,15 +312,15 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
     sigemptyset (&new_action.sa_mask);
     new_action.sa_flags = 0;
 
-    sigaction (SIGINT, NULL, &old_action);
+    sigaction (SIGINT, nullptr, &old_action);
     if (old_action.sa_handler != SIG_IGN)
-        sigaction (SIGINT, &new_action, NULL);
-    sigaction (SIGHUP, NULL, &old_action);
+        sigaction (SIGINT, &new_action, nullptr);
+    sigaction (SIGHUP, nullptr, &old_action);
     if (old_action.sa_handler != SIG_IGN)
-        sigaction (SIGHUP, &new_action, NULL);
-    sigaction (SIGTERM, NULL, &old_action);
+        sigaction (SIGHUP, &new_action, nullptr);
+    sigaction (SIGTERM, nullptr, &old_action);
     if (old_action.sa_handler != SIG_IGN)
-        sigaction (SIGTERM, &new_action, NULL);
+        sigaction (SIGTERM, &new_action, nullptr);
 #endif
 
     if(config.check("application"))
@@ -321,7 +335,7 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
                 if(!getKnowledgeBase()->getApplication(application->getName()))
                     getKnowledgeBase()->addApplication(application);
 
-                #ifdef WITH_LIBEDIT
+                #ifdef YARP_HAS_Libedit
                 updateAppNames(&appnames);
                 #endif
 
@@ -386,15 +400,13 @@ YConsoleManager::YConsoleManager(int argc, char* argv[]) : Manager()
         YConsoleManager::myMain();
 }
 
-YConsoleManager::~YConsoleManager()
-{
-}
+YConsoleManager::~YConsoleManager() = default;
 
 
 
 void YConsoleManager::onSignal(int signum)
 {
-#if defined(WIN32)
+#if defined(_WIN32)
     cout<<INFO<<"[force exit] yarpmanager will terminate all of the running modules on exit.";
     if( __pManager)
         __pManager->kill();
@@ -404,11 +416,11 @@ void YConsoleManager::onSignal(int signum)
 }
 
 
-void YConsoleManager::myMain(void)
+void YConsoleManager::myMain()
 {
 
 
-#ifdef WITH_LIBEDIT
+#ifdef YARP_HAS_Libedit
     rl_attempted_completion_function = my_completion;
 #endif
 
@@ -416,12 +428,12 @@ void YConsoleManager::myMain(void)
     {
         string temp;
 
-#ifdef WITH_LIBEDIT
-        static char* szLine = (char*)NULL;
+#ifdef YARP_HAS_Libedit
+        static char* szLine = (char*)nullptr;
         if(szLine)
         {
             free(szLine);
-            szLine = (char*)NULL;
+            szLine = (char*)nullptr;
         }
 
         szLine = readline(">>");
@@ -461,7 +473,7 @@ void YConsoleManager::myMain(void)
         }
     }
 
-#if defined(WIN32)
+#if defined(_WIN32)
     if(bShouldRun)
     {
         kill();
@@ -472,7 +484,7 @@ void YConsoleManager::myMain(void)
 
 }
 
-bool YConsoleManager::exit(void)
+bool YConsoleManager::exit()
 {
     if(!bShouldRun)
         return true;
@@ -517,7 +529,7 @@ bool YConsoleManager::process(const vector<string> &cmdList)
          if(addApplication(cmdList[2].c_str()))
             cout<<INFO<<cmdList[2]<<" is successfully added."<<ENDC<<endl;
          reportErrors();
-        #ifdef WITH_LIBEDIT
+        #ifdef YARP_HAS_Libedit
         updateAppNames(&appnames);
         #endif
          return true;
@@ -717,7 +729,7 @@ bool YConsoleManager::process(const vector<string> &cmdList)
         (cmdList[0] == "check") && (cmdList[1] == "state"))
     {
         ExecutablePContainer modules = getExecutables();
-        unsigned int id = (unsigned int)atoi(cmdList[2].c_str());
+        auto id = (unsigned int)atoi(cmdList[2].c_str());
         if(id>=modules.size())
         {
             cout<<FAIL<<"ERROR:   "<<INFO<<"Module id is out of range."<<ENDC<<endl;
@@ -751,7 +763,7 @@ bool YConsoleManager::process(const vector<string> &cmdList)
     {
 
         CnnContainer connections  = getConnections();
-        unsigned int id = (unsigned int)atoi(cmdList[2].c_str());
+        auto id = (unsigned int)atoi(cmdList[2].c_str());
         if(id>=connections.size())
         {
             cout<<FAIL<<"ERROR:   "<<INFO<<"Connection id is out of range."<<ENDC<<endl;
@@ -776,7 +788,7 @@ bool YConsoleManager::process(const vector<string> &cmdList)
         return true;
     }
 
-
+    const std::string directorySeparator{yarp::conf::filesystem::preferred_separator};
 
     /**
      *  list available modules
@@ -787,18 +799,18 @@ bool YConsoleManager::process(const vector<string> &cmdList)
         KnowledgeBase* kb = getKnowledgeBase();
         ModulePContainer mods =  kb->getModules();
         int id = 0;
-        for(ModulePIterator itr=mods.begin(); itr!=mods.end(); itr++)
+        for(auto& mod : mods)
         {
             string fname;
-            string fpath = (*itr)->getXmlFile();
+            string fpath = mod->getXmlFile();
 
-            size_t pos = fpath.rfind(PATH_SEPERATOR);
+            size_t pos = fpath.rfind(directorySeparator);
             if(pos!=string::npos)
                 fname = fpath.substr(pos);
             else
                 fname = fpath;
             cout<<INFO<<"("<<id++<<") ";
-            cout<<OKBLUE<<(*itr)->getName()<<ENDC;
+            cout<<OKBLUE<<mod->getName()<<ENDC;
             cout<<INFO<<" ["<<fname<<"]"<<ENDC<<endl;
         }
         return true;
@@ -814,18 +826,18 @@ bool YConsoleManager::process(const vector<string> &cmdList)
         KnowledgeBase* kb = getKnowledgeBase();
         ApplicaitonPContainer apps =  kb->getApplications();
         int id = 0;
-        for(ApplicationPIterator itr=apps.begin(); itr!=apps.end(); itr++)
+        for(auto& app : apps)
         {
             string fname;
-            string fpath = (*itr)->getXmlFile();
+            string fpath = app->getXmlFile();
 
-            size_t pos = fpath.rfind(PATH_SEPERATOR);
+            size_t pos = fpath.rfind(directorySeparator);
             if(pos!=string::npos)
                 fname = fpath.substr(pos);
             else
                 fname = fpath;
             cout<<INFO<<"("<<id++<<") ";
-            cout<<OKBLUE<<(*itr)->getName()<<ENDC;
+            cout<<OKBLUE<<app->getName()<<ENDC;
             cout<<INFO<<" ["<<fname<<"]"<<ENDC<<endl;
         }
         return true;
@@ -840,14 +852,14 @@ bool YConsoleManager::process(const vector<string> &cmdList)
         KnowledgeBase* kb = getKnowledgeBase();
         ResourcePContainer resources = kb->getResources();
         int id = 0;
-        for(ResourcePIterator itr=resources.begin(); itr!=resources.end(); itr++)
+        for(auto& resource : resources)
         {
-            Computer* comp = dynamic_cast<Computer*>(*itr);
+            auto* comp = dynamic_cast<Computer*>(resource);
             if(comp)
             {
                 string fname;
                 string fpath = comp->getXmlFile();
-                size_t pos = fpath.rfind(PATH_SEPERATOR);
+                size_t pos = fpath.rfind(directorySeparator);
                 if(pos!=string::npos)
                     fname = fpath.substr(pos);
                 else
@@ -900,8 +912,8 @@ bool YConsoleManager::process(const vector<string> &cmdList)
      if((cmdList.size() == 3) &&
         (cmdList[0] == "set"))
      {
-         config.unput(cmdList[1].c_str());
-         config.put(cmdList[1].c_str(), cmdList[2].c_str());
+         config.unput(cmdList[1]);
+         config.put(cmdList[1], cmdList[2]);
 
         if(cmdList[1] == string("watchdog"))
         {
@@ -947,10 +959,10 @@ bool YConsoleManager::process(const vector<string> &cmdList)
      if((cmdList.size() == 2) &&
         (cmdList[0] == "get"))
      {
-         if(config.check(cmdList[1].c_str()))
+         if(config.check(cmdList[1]))
          {
             cout<<OKBLUE<<cmdList[1]<<INFO<<" = ";
-            cout<<OKGREEN<<config.find(cmdList[1].c_str()).asString()<<ENDC<<endl;
+            cout<<OKGREEN<<config.find(cmdList[1]).asString()<<ENDC<<endl;
          }
          else
             cout<<FAIL<<"ERROR:   "<<INFO<<"'"<<cmdList[1].c_str()<<"' not found."<<ENDC<<endl;
@@ -972,7 +984,7 @@ bool YConsoleManager::process(const vector<string> &cmdList)
 }
 
 
-void YConsoleManager::help(void)
+void YConsoleManager::help()
 {
     cout<<"Here is a list of Yarp manager keywords.\n"<<endl;
     cout<<OKGREEN<<"help"<<INFO<<"                    : show help."<<ENDC<<endl;
@@ -1006,7 +1018,7 @@ void YConsoleManager::help(void)
 }
 
 
-void YConsoleManager::which(void)
+void YConsoleManager::which()
 {
     ExecutablePContainer modules = getExecutables();
     CnnContainer connections  = getConnections();
@@ -1046,7 +1058,7 @@ void YConsoleManager::which(void)
     cout<<endl;
 }
 
-void YConsoleManager::checkStates(void)
+void YConsoleManager::checkStates()
 {
     ExecutablePContainer modules = getExecutables();
     ExecutablePIterator moditr;
@@ -1068,7 +1080,7 @@ void YConsoleManager::checkStates(void)
     }
 }
 
-void YConsoleManager::checkConnections(void)
+void YConsoleManager::checkConnections()
 {
     CnnContainer connections  = getConnections();
     CnnIterator cnnitr;
@@ -1087,7 +1099,7 @@ void YConsoleManager::checkConnections(void)
     }
 }
 
-void YConsoleManager::reportErrors(void)
+void YConsoleManager::reportErrors()
 {
     ErrorLogger* logger  = ErrorLogger::Instance();
     if(logger->errorCount() || logger->warningCount())
@@ -1110,7 +1122,7 @@ void YConsoleManager::onExecutableDied(void* which) { }
 
 void YConsoleManager::onExecutableFailed(void* which)
 {
-    Executable* exe = (Executable*) which;
+    auto* exe = (Executable*) which;
     if(config.find("module_failure").asString() == "prompt")
         cout<<exe->getCommand()<<" from "<<exe->getHost()<<" is failed!"<<endl;
 
@@ -1133,7 +1145,7 @@ void YConsoleManager::onCnnStablished(void* which) { }
 
 void YConsoleManager::onCnnFailed(void* which)
 {
-    Connection* cnn = (Connection*) which;
+    auto* cnn = (Connection*) which;
     if(config.check("connection_failure") &&
      config.find("connection_failure").asString() == "prompt")
         cout<<endl<<"connection failed between "<<cnn->from()<<" and "<<cnn->to()<<endl;
@@ -1151,14 +1163,15 @@ void YConsoleManager::onCnnFailed(void* which)
 
 bool YConsoleManager::loadRecursiveApplications(const char* szPath)
 {
+    const std::string directorySeparator{yarp::conf::filesystem::preferred_separator};
     string strPath = szPath;
-    if((strPath.rfind(PATH_SEPERATOR)==string::npos) ||
-            (strPath.rfind(PATH_SEPERATOR)!=strPath.size()-1))
-            strPath = strPath + string(PATH_SEPERATOR);
+    if((strPath.rfind(directorySeparator)==string::npos) ||
+            (strPath.rfind(directorySeparator)!=strPath.size()-1))
+            strPath = strPath + string(directorySeparator);
 
     DIR *dir;
     struct dirent *entry;
-    if ((dir = opendir(strPath.c_str())) == NULL)
+    if ((dir = opendir(strPath.c_str())) == nullptr)
         return false;
 
     addApplications(strPath.c_str());
@@ -1183,8 +1196,8 @@ void YConsoleManager::updateAppNames(vector<string>* names)
     names->clear();
     KnowledgeBase* kb = getKnowledgeBase();
     ApplicaitonPContainer apps =  kb->getApplications();
-    for(ApplicationPIterator itr=apps.begin(); itr!=apps.end(); itr++)
-        names->push_back((*itr)->getName());
+    for(auto& app : apps)
+        names->push_back(app->getName());
 }
 
 
@@ -1192,7 +1205,7 @@ void YConsoleManager::updateAppNames(vector<string>* names)
 void YConsoleManager::setColorTheme(ColorTheme theme)
 {
 
-#if defined(WIN32)
+#if defined(_WIN32)
     // do nothing here
 #else
     switch(theme) {
@@ -1233,7 +1246,7 @@ void YConsoleManager::setColorTheme(ColorTheme theme)
 
 
 
-#ifdef WITH_LIBEDIT
+#ifdef YARP_HAS_Libedit
 
 char* dupstr(char* s)
 {
@@ -1251,7 +1264,7 @@ char ** my_completion (const char* text, int start, int end)
 {
     char **matches;
 
-    matches = (char **)NULL;
+    matches = (char **)nullptr;
 
   /* If this word is at the start of the line, then it is a command
      to complete.  Otherwise it is the name of a file in the current
@@ -1292,7 +1305,7 @@ char* command_generator (const char* text, int state)
     }
 
   /* if no names matched, then return null. */
-  return ((char *)NULL);
+  return ((char *)nullptr);
 }
 
 
@@ -1315,7 +1328,7 @@ char* appname_generator (const char* text, int state)
         return (dupstr(name));
     }
 
-  return ((char *)NULL);
+  return ((char *)nullptr);
 }
 
 #endif

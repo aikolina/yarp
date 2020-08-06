@@ -1,15 +1,7 @@
-
-/*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- *
- */
-
 /**
- * @page persistent_connections Persistent connections
+\page persistent_connections Persistent connections
 
-\author Paul Fitzpatrick
+\tableofcontents
 
 When a connection is made between two YARP ports, that connection
 lasts until it is explicitly disconnected by user action, or until one
@@ -193,6 +185,4 @@ style.persistent = true;
 Network::connect("/foo","/bar",style);
 \endcode
 
- *
- */
-
+*/

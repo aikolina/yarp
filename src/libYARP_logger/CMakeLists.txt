@@ -1,58 +1,14 @@
-#  Yarp Logger
-#  Copyright: (C) 2014 iCub Facility - Istituto Italiano di Tecnologia (IIT)
-#  Authors: Marco Randazzo <marco.randazzo@iit.it>
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
 #
-#  Copy Policy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
-#
-
-get_property(YARP_TREE_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 project(YARP_logger)
 
-set(YARP_logger_HDRS include/yarp/logger/YarpLogger.h)
+add_subdirectory(src)
 
-set(YARP_logger_IMPL_HDRS )
-
-set(YARP_logger_SRCS src/YarpLogger.cpp)
-
-source_group("Source Files" FILES ${YARP_logger_SRCS})
-source_group("Header Files" FILES ${YARP_logger_HDRS})
-source_group("Implementation Header Files" FILES ${YARP_logger_impl_HDRS})
-
-set_property(GLOBAL APPEND PROPERTY YARP_TREE_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/include")
-get_property(YARP_TREE_INCLUDE_DIRS GLOBAL PROPERTY YARP_TREE_INCLUDE_DIRS)
-
-include_directories(${YARP_TREE_INCLUDE_DIRS})
-
-
-if(CREATE_LIB_MATH)
-  add_definitions( -DWITH_YARPMATH )
-endif()
-
-
-# FIXME All API should use a YARP_logger_API for __declspec(dllimport/dllexport)
-# For now always build the library as STATIC
-add_library(YARP_logger STATIC ${YARP_logger_SRCS}
-                                ${YARP_logger_HDRS}
-                                ${YARP_logger_IMPL_HDRS})
-
-target_link_libraries(YARP_logger LINK_PRIVATE YARP_sig YARP_OS)
-
-if(CREATE_LIB_MATH)
-  target_link_libraries(YARP_logger LINK_PRIVATE YARP_math)
-endif()
-
-set_property(TARGET YARP_logger PROPERTY PUBLIC_HEADER ${YARP_logger_HDRS})
-set_property(TARGET YARP_logger PROPERTY PRIVATE_HEADER ${YARP_logger_IMPL_HDRS})
-
-install(TARGETS YARP_logger
-        EXPORT YARP
-        COMPONENT runtime
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/yarp/logger"
-        PRIVATE_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/yarp/logger/impl")
-
-set_property(GLOBAL APPEND PROPERTY YARP_LIBS YARP_logger)
-set_property(TARGET YARP_logger PROPERTY INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/include)
+include(YarpInstallBasicPackageFiles)
+yarp_install_basic_package_files(YARP_logger
+                                 DEPENDENCIES ${YARP_logger_PUBLIC_DEPS}
+                                 PRIVATE_DEPENDENCIES ${YARP_logger_PRIVATE_DEPS})

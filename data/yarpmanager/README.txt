@@ -1,6 +1,8 @@
-#  Copyright: (C) 2011 Robotics, Brain and Cognitive Sciences - Italian Institute of Technology (IIT)
-#  Copy Policy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
 #
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 Some quick unofficial notes on usage.
 
@@ -19,7 +21,7 @@ each of these concepts.
 
 Configuration
 =============
-An example of (g)yarpmanager configuration file can be found in
+An example of yarpmanager configuration file can be found in
 ./tests/ymanager.ini.
 
 'apppath', 'modpath', 'respath' respectively point to the folder where
@@ -102,4 +104,3 @@ Leaving <node></node> empty, later you can use the load balancer of yarpmanager
 to automatically assign module a a node which has less processor load. Notice that,
 available nodes should be  listed using Resource XML file.
 See ./xml/resources/cluster_nodes.xml for an example.
-

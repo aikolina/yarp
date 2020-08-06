@@ -1,23 +1,24 @@
 /*
- * Copyright (C) 2007 RobotCub Consortium, Giacomo Spigler
- * Authors: Paul Fitzpatrick, Giacomo Spigler
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * Copyright (C) 2007 Giacomo Spigler
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <fuse/fuse.h>
 //#include <fuse/fuse_lowlevel.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
+#include <cstdio>
+#include <cstring>
+#include <cerrno>
 
 #include <yarp/os/all.h>
 #include <yarp/os/impl/NameConfig.h>
 
 #include <string>
-#include <signal.h>
-
-#include <ace/Containers_T.h>
+#include <csignal>
 
 #include "yarputils.h"
 #include "yarpfns.h"
@@ -26,7 +27,7 @@
 int yarp_readlink(const char *path, char *buf, size_t size) {
 
     YPath ypath(path);
-    if (!ypath.isSymLink()) { 
+    if (!ypath.isSymLink()) {
         return -ENOENT;
     }
 
@@ -65,7 +66,7 @@ int yarp_symlink(const char *to, const char *from) {
     // special symlink entry
     //Contact src = Network::queryName(to);
     Contact dest(from, "symlink", "none", 1);
-    printf("Planning to register %s / %d / %d\n", 
+    printf("Planning to register %s / %d / %d\n",
            dest.toString().c_str(),
            dest.isValid(),
            dest.getPort());
@@ -78,7 +79,7 @@ int yarp_symlink(const char *to, const char *from) {
 
 int yarp_link(const char *from, const char *to) {
     //TODO: will it ever be possible to hard link ports?
-    //  If possible, it might be an alias for yarp_simlink, as with YARP 
+    //  If possible, it might be an alias for yarp_simlink, as with YARP
     //  there isn't a sym/hard linking difference
 
     //Create the new Contact
@@ -93,5 +94,3 @@ int yarp_link(const char *from, const char *to) {
 
     return 0;
 }
-
-

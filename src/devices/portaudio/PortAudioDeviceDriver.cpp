@@ -1,22 +1,61 @@
 /*
- * Copyright (C) 2013 iCub Facility - Istituto Italiano di Tecnologia
- * Authors: Marco Randazzo, Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include <PortAudioDeviceDriver.h>
+#include "PortAudioDeviceDriver.h"
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <portaudio.h>
+#include <yarp/dev/DeviceDriver.h>
+#include <yarp/dev/api.h>
 
 #include <yarp/os/Time.h>
+#include <yarp/os/LogComponent.h>
+#include <yarp/os/LogStream.h>
 
 using namespace yarp::os;
 using namespace yarp::dev;
 
 #define SLEEP_TIME 0.005f
+
+#if 0
+#define PA_SAMPLE_TYPE  paFloat32
+typedef float SAMPLE;
+#define SAMPLE_SILENCE  (0.0f)
+#elif 1
+#define PA_SAMPLE_TYPE  paInt16
+typedef short SAMPLE;
+#define SAMPLE_SILENCE  (0)
+#elif 1
+#define PA_SAMPLE_TYPE  paInt8
+typedef char SAMPLE;
+#define SAMPLE_SILENCE  (0)
+#else
+#define PA_SAMPLE_TYPE  paUInt8
+typedef unsigned char SAMPLE;
+#define SAMPLE_SILENCE  (128)
+#define SAMPLE_UNSIGNED
+#endif
+
+namespace {
+YARP_LOG_COMPONENT(PORTAUDIO, "yarp.devices.portaudio")
+}
 
 /* This routine will be called by the PortAudio engine when audio is needed.
 ** It may be called at interrupt level on some machines so don't do anything
@@ -28,49 +67,61 @@ static int bufferIOCallback( const void *inputBuffer, void *outputBuffer,
                          PaStreamCallbackFlags statusFlags,
                          void *userData )
 {
-    circularDataBuffers* dataBuffers = static_cast<circularDataBuffers*>(userData);
-    circularBuffer *playdata = dataBuffers->playData;
-    circularBuffer *recdata  = dataBuffers->recData;
-    int num_channels         = dataBuffers->numChannels;
+    auto* dataBuffers = static_cast<circularDataBuffers*>(userData);
+    CircularAudioBuffer_16t *playdata = dataBuffers->playData;
+    CircularAudioBuffer_16t *recdata  = dataBuffers->recData;
+    int num_rec_channels     = dataBuffers->numRecChannels;
+    int num_play_channels    = dataBuffers->numPlayChannels;
     int finished = paComplete;
 
     if (dataBuffers->canRec)
     {
-        const SAMPLE *rptr = (const SAMPLE*)inputBuffer;
+        const auto* rptr = (const SAMPLE*)inputBuffer;
         unsigned int framesToCalc;
         unsigned int i;
-        unsigned long framesLeft = recdata->getMaxSize()-recdata->size();
+        size_t framesLeft = (recdata->getMaxSize().getSamples()* recdata->getMaxSize().getChannels()) -
+                            (recdata->size().getSamples()      * recdata->size().getChannels());
 
-        (void) outputBuffer; // just to prevent unused variable warnings
-        (void) timeInfo;
-        (void) statusFlags;
-        (void) userData;
+        YARP_UNUSED(outputBuffer);
+        YARP_UNUSED(timeInfo);
+        YARP_UNUSED(statusFlags);
+        YARP_UNUSED(userData);
 
-        if( framesLeft/num_channels < framesPerBuffer )
+        if( framesLeft/ num_rec_channels < framesPerBuffer )
         {
-            framesToCalc = framesLeft/num_channels;
+            framesToCalc = framesLeft/ num_rec_channels;
+#ifdef STOP_REC_ON_EMPTY_BUFFER
+            //if we return paComplete, then the callback is not called anymore.
+            //method Pa_IsStreamActive() will return 1.
+            //user needs to call Pa_StopStream() before starting a new recording session
             finished = paComplete;
+#else
+            finished = paContinue;
+#endif
         }
         else
         {
             framesToCalc = framesPerBuffer;
+            //if we return paContinue, then the callback will be invoked again later
+            //method Pa_IsStreamActive() will return 0
             finished = paContinue;
         }
 
-        if( inputBuffer == NULL )
+        if( inputBuffer == nullptr )
         {
             for( i=0; i<framesToCalc; i++ )
             {
                 recdata->write(0); // left
-                if( num_channels == 2 ) recdata->write(0);  // right
+                if(num_rec_channels == 2 ) recdata->write(0);  // right
             }
         }
         else
         {
+            yCTrace(PORTAUDIO) << "Writing" << framesToCalc*2*2 << "bytes in the circular buffer";
             for( i=0; i<framesToCalc; i++ )
             {
                 recdata->write(*rptr++);  // left
-                if( num_channels == 2 ) recdata->write(*rptr++);  // right
+                if(num_rec_channels == 2 ) recdata->write(*rptr++);  // right
             }
         }
         //note: you can record or play but not simultaneously (for now)
@@ -79,60 +130,78 @@ static int bufferIOCallback( const void *inputBuffer, void *outputBuffer,
 
     if (dataBuffers->canPlay)
     {
-        SAMPLE *wptr = (SAMPLE*)outputBuffer;
+        auto* wptr = (SAMPLE*)outputBuffer;
         unsigned int i;
 
-        unsigned int framesLeft = playdata->size();
+        size_t framesLeft = playdata->size().getSamples()* playdata->size().getChannels();
 
-        (void) inputBuffer; // just to prevent unused variable warnings
-        (void) timeInfo;
-        (void) statusFlags;
-        (void) userData;
+        YARP_UNUSED(inputBuffer); // just to prevent unused variable warnings
+        YARP_UNUSED(timeInfo);
+        YARP_UNUSED(statusFlags);
+        YARP_UNUSED(userData);
 
-        if( framesLeft/num_channels < framesPerBuffer )
+        if( framesLeft/ num_play_channels < framesPerBuffer )
         {
             // final buffer
-            for( i=0; i<framesLeft/num_channels; i++ )
+            for( i=0; i<framesLeft/ num_play_channels; i++ )
             {
-                *wptr++ = playdata->read();  // left 
-                if( num_channels == 2 ) *wptr++ = playdata->read();  // right 
+                *wptr++ = playdata->read();  // left
+                if( num_play_channels == 2 ) *wptr++ = playdata->read();  // right
+                for (int chs=2; chs<num_play_channels; chs++) playdata->read(); //remove all additional channels > 2
             }
             for( ; i<framesPerBuffer; i++ )
             {
-                *wptr++ = 0;  // left 
-                if( num_channels == 2 ) *wptr++ = 0;  // right 
+                *wptr++ = 0;  // left
+                if(num_play_channels == 2 ) *wptr++ = 0;  // right
             }
+#ifdef STOP_PLAY_ON_EMPTY_BUFFER
+            //if we return paComplete, then the callback is not called anymore.
+            //method Pa_IsStreamActive() will return 1.
+            //user needs to call Pa_StopStream() before starting a new recording session
             finished = paComplete;
+#else
+            finished = paContinue;
+#endif
         }
         else
         {
+#if 1
+            yCDebug(PORTAUDIO) << "Reading" << framesPerBuffer*2 << "bytes from the circular buffer";
+#endif
             for( i=0; i<framesPerBuffer; i++ )
             {
-                *wptr++ = playdata->read();  // left 
-                if( num_channels == 2 ) *wptr++ = playdata->read();  // right 
+                *wptr++ = playdata->read();  // left
+                if( num_play_channels == 2 ) *wptr++ = playdata->read();  // right
+                for (int chs=2; chs<num_play_channels; chs++) playdata->read(); //remove all additional channels > 2
             }
+            //if we return paContinue, then the callback will be invoked again later
+            //method Pa_IsStreamActive() will return 0
             finished = paContinue;
         }
         //note: you can record or play but not simultaneously (for now)
         return finished;
     }
 
-    printf("No read/write operations requested, aborting\n");
+    yCError(PORTAUDIO, "No read/write operations requested, aborting");
     return paAbort;
 }
 
-PortAudioDeviceDriver::PortAudioDeviceDriver()
+PortAudioDeviceDriver::PortAudioDeviceDriver() :
+    stream(nullptr),
+    err(paNoError),
+    numSamples(0),
+    numBytes(0),
+    m_system_resource(nullptr),
+    m_numPlaybackChannels(0),
+    m_numRecordChannels(0),
+    m_frequency(0),
+    m_loopBack(false),
+    m_getSoundIsNotBlocking(true),
+    renderMode(RENDER_APPEND)
 {
-    system_resource = NULL;
-    numSamples = 0;
-    numChannels = 0;
-    loopBack = false;
-    frequency = 0;
-    err = paNoError;
-    dataBuffers.playData = 0;
-    dataBuffers.recData = 0;
-    renderMode = RENDER_APPEND;
-    stream = 0;
+    memset(&inputParameters, 0, sizeof(PaStreamParameters));
+    memset(&outputParameters, 0, sizeof(PaStreamParameters));
+    memset(&m_driverConfig, 0, sizeof(PortAudioDeviceDriverSettings));
 }
 
 PortAudioDeviceDriver::~PortAudioDeviceDriver()
@@ -143,22 +212,23 @@ PortAudioDeviceDriver::~PortAudioDeviceDriver()
 
 bool PortAudioDeviceDriver::open(yarp::os::Searchable& config)
 {
-    driverConfig.rate = config.check("rate",Value(0),"audio sample rate (0=automatic)").asInt();
-    driverConfig.samples = config.check("samples",Value(0),"number of samples per network packet (0=automatic). For chunks of 1 second of recording set samples=rate. Channels number is handled internally.").asInt();
-    driverConfig.channels = config.check("channels",Value(0),"number of audio channels (0=automatic, max is 2)").asInt();
-    driverConfig.wantRead = (bool)config.check("read","if present, just deal with reading audio (microphone)");
-    driverConfig.wantWrite = (bool)config.check("write","if present, just deal with writing audio (speaker)");
-    driverConfig.deviceNumber = config.check("id",Value(-1),"which portaudio index to use (-1=automatic)").asInt();
-    
-    if (!(driverConfig.wantRead||driverConfig.wantWrite))
+    m_driverConfig.rate = config.check("rate",Value(0),"audio sample rate (0=automatic)").asInt32();
+    m_driverConfig.samples = config.check("samples",Value(0),"number of samples per network packet (0=automatic). For chunks of 1 second of recording set samples=rate. Channels number is handled internally.").asInt32();
+    m_driverConfig.playChannels = config.check("channels",Value(0),"number of audio channels (0=automatic, max is 2)").asInt32();
+    m_driverConfig.recChannels = config.check("channels", Value(0), "number of audio channels (0=automatic, max is 2)").asInt32();
+    m_driverConfig.wantRead = (bool)config.check("read","if present, just deal with reading audio (microphone)");
+    m_driverConfig.wantWrite = (bool)config.check("write","if present, just deal with writing audio (speaker)");
+    m_driverConfig.deviceNumber = config.check("id",Value(-1),"which portaudio index to use (-1=automatic)").asInt32();
+
+    if (!(m_driverConfig.wantRead|| m_driverConfig.wantWrite))
     {
-        driverConfig.wantRead = driverConfig.wantWrite = true;
+        m_driverConfig.wantRead = m_driverConfig.wantWrite = true;
     }
 
     if (config.check("loopback","if present, send audio read from microphone immediately back to speaker"))
     {
-        printf ("WARN: loopback not yet implemented\n");
-        loopBack = true;
+        yCError(PORTAUDIO, "loopback not yet implemented");
+        m_loopBack = true;
     }
 
     if (config.check("render_mode_append"))
@@ -170,75 +240,83 @@ bool PortAudioDeviceDriver::open(yarp::os::Searchable& config)
         renderMode = RENDER_IMMEDIATE;
     }
 
-    return open(driverConfig);
+    return open(m_driverConfig);
 }
 
 bool PortAudioDeviceDriver::open(PortAudioDeviceDriverSettings& config)
 {
     int rate = config.rate;
     int samples = config.samples;
-    int channels = config.channels;
+    int playChannels = config.playChannels;
+    int recChannels = config.recChannels;
     bool wantRead = config.wantRead;
     bool wantWrite = config.wantWrite;
     int deviceNumber = config.deviceNumber;
 
-    if (channels==0) channels = DEFAULT_NUM_CHANNELS;
-    numChannels = channels;
+    if (playChannels==0) playChannels = DEFAULT_NUM_CHANNELS;
+    if (recChannels == 0) recChannels = DEFAULT_NUM_CHANNELS;
+    m_numPlaybackChannels = playChannels;
+    m_numRecordChannels = recChannels;
+
     if (rate==0) rate = DEFAULT_SAMPLE_RATE;
-    frequency = rate;
+    m_frequency = rate;
 
     if (samples==0)
-        numSamples = frequency; //  by default let's stream chunks of 1 second
+        numSamples = m_frequency; //  by default let's stream chunks of 1 second
     else
         numSamples = samples;
 
-    //buffer.allocate(num_samples*num_channels*sizeof(SAMPLE));
-    numBytes = numSamples * sizeof(SAMPLE) * numChannels;
-    int twiceTheBuffer = numBytes * 2;
-    dataBuffers.numChannels=numChannels;
-    if (dataBuffers.playData==0)
-        dataBuffers.playData = new circularBuffer(twiceTheBuffer);
-    if (dataBuffers.recData==0)
-        dataBuffers.recData = new circularBuffer(twiceTheBuffer);
+//     size_t numPlayBytes = numSamples * sizeof(SAMPLE) * m_numPlaybackChannels;
+//     size_t numRecBytes = numSamples * sizeof(SAMPLE) * m_numRecordChannels;
+//     int twiceTheBuffer = 2;
+    AudioBufferSize playback_buffer_size(numSamples, m_numPlaybackChannels, sizeof(SAMPLE));
+    AudioBufferSize rec_buffer_size (numSamples, m_numRecordChannels, sizeof(SAMPLE));
+    dataBuffers.numPlayChannels = m_numPlaybackChannels;
+    dataBuffers.numRecChannels = m_numRecordChannels;
+    if (dataBuffers.playData==nullptr)
+        dataBuffers.playData = new CircularAudioBuffer_16t("portatudio_play", playback_buffer_size);
+    if (dataBuffers.recData==nullptr)
+        dataBuffers.recData = new CircularAudioBuffer_16t("portatudio_rec", rec_buffer_size);
     if (wantRead) dataBuffers.canRec = true;
     if (wantWrite) dataBuffers.canPlay = true;
 
     err = Pa_Initialize();
-    if( err != paNoError ) {
-        printf("portaudio system failed to initialize\n");
+    if( err != paNoError )
+    {
+        yCError(PORTAUDIO, "portaudio system failed to initialize");
         return false;
     }
 
     inputParameters.device = (deviceNumber==-1)?Pa_GetDefaultInputDevice():deviceNumber;
-    printf("Device number %d\n", inputParameters.device);
-    inputParameters.channelCount = numChannels;
+    yCInfo(PORTAUDIO, "Device number %d", inputParameters.device);
+    inputParameters.channelCount = m_numRecordChannels;
     inputParameters.sampleFormat = PA_SAMPLE_TYPE;
-    if ((Pa_GetDeviceInfo( inputParameters.device ))!=0) {
+    if ((Pa_GetDeviceInfo( inputParameters.device ))!=nullptr) {
         inputParameters.suggestedLatency = Pa_GetDeviceInfo( inputParameters.device )->defaultLowInputLatency;
     }
-    inputParameters.hostApiSpecificStreamInfo = NULL;
+    inputParameters.hostApiSpecificStreamInfo = nullptr;
 
     outputParameters.device = (deviceNumber==-1)?Pa_GetDefaultOutputDevice():deviceNumber;
-    outputParameters.channelCount = numChannels;
+    outputParameters.channelCount = m_numPlaybackChannels;
     outputParameters.sampleFormat = PA_SAMPLE_TYPE;
     outputParameters.suggestedLatency = Pa_GetDeviceInfo( outputParameters.device )->defaultLowOutputLatency;
-    outputParameters.hostApiSpecificStreamInfo = NULL;
+    outputParameters.hostApiSpecificStreamInfo = nullptr;
 
     err = Pa_OpenStream(
               &stream,
-              wantRead?(&inputParameters):NULL,
-              wantWrite?(&outputParameters):NULL,
-              frequency,
+              wantRead?(&inputParameters):nullptr,
+              wantWrite?(&outputParameters):nullptr,
+              m_frequency,
               DEFAULT_FRAMES_PER_BUFFER,
-              paClipOff,      
+              paClipOff,
               bufferIOCallback,
               &dataBuffers );
 
     if( err != paNoError )
     {
-        fprintf( stderr, "An error occurred while using the portaudio stream\n" );
-        fprintf( stderr, "Error number: %d\n", err );
-        fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) ); 
+        yCError(PORTAUDIO, "An error occurred while using the portaudio stream");
+        yCError(PORTAUDIO, "Error number: %d", err);
+        yCError(PORTAUDIO, "Error message: %s", Pa_GetErrorText(err));
     }
 
     //start the thread
@@ -253,9 +331,9 @@ void streamThread::handleError()
     Pa_Terminate();
     if( err != paNoError )
     {
-        fprintf( stderr, "An error occurred while using the portaudio stream\n" );
-        fprintf( stderr, "Error number: %d\n", err );
-        fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) );
+        yCError(PORTAUDIO, "An error occurred while using the portaudio stream");
+        yCError(PORTAUDIO, "Error number: %d", err);
+        yCError(PORTAUDIO, "Error message: %s\n", Pa_GetErrorText(err));
     }
 }
 
@@ -266,35 +344,35 @@ void PortAudioDeviceDriver::handleError()
 
     if( err != paNoError )
     {
-        fprintf( stderr, "An error occurred while using the portaudio stream\n" );
-        fprintf( stderr, "Error number: %d\n", err );
-        fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) );
+        yCError(PORTAUDIO, "An error occurred while using the portaudio stream");
+        yCError(PORTAUDIO, "Error number: %d", err);
+        yCError(PORTAUDIO, "Error message: %s", Pa_GetErrorText(err));
     }
 }
 
-bool PortAudioDeviceDriver::close(void)
+bool PortAudioDeviceDriver::close()
 {
     pThread.stop();
-    if (stream != 0)
+    if (stream != nullptr)
     {
         err = Pa_CloseStream( stream );
         if( err != paNoError )
         {
-            fprintf( stderr, "An error occurred while closing the portaudio stream\n" );
-            fprintf( stderr, "Error number: %d\n", err );
-            fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) );
+            yCError(PORTAUDIO, "An error occurred while closing the portaudio stream");
+            yCError(PORTAUDIO, "Error number: %d", err);
+            yCError(PORTAUDIO, "Error message: %s", Pa_GetErrorText(err));
         }
     }
 
-    if (this->dataBuffers.playData != 0)
+    if (this->dataBuffers.playData != nullptr)
     {
         delete this->dataBuffers.playData;
-        this->dataBuffers.playData = 0;
+        this->dataBuffers.playData = nullptr;
     }
-    if (this->dataBuffers.recData != 0)
+    if (this->dataBuffers.recData != nullptr)
     {
         delete this->dataBuffers.recData;
-        this->dataBuffers.recData = 0;
+        this->dataBuffers.recData = nullptr;
     }
 
     return (err==paNoError);
@@ -316,47 +394,67 @@ bool PortAudioDeviceDriver::stopRecording()
     return true;
 }
 
-bool PortAudioDeviceDriver::getSound(yarp::sig::Sound& sound)
+bool PortAudioDeviceDriver::getSound(yarp::sig::Sound& sound, size_t min_number_of_samples, size_t max_number_of_samples, double max_samples_timeout_s)
 {
     if (pThread.something_to_record == false)
     {
         this->startRecording();
     }
-    
-    int buff_size = 0;
-    static int buff_size_wdt = 0;
-    while (buff_size<this->numSamples*this->numChannels)
+
+    size_t buff_size = 0;
+    int buff_size_wdt = 0;
+    do
     {
-         buff_size = dataBuffers.recData->size();
-         if (buff_size == 0 && buff_size_wdt++ == 100) break;
-         yarp::os::Time::delay(SLEEP_TIME);
+        buff_size = dataBuffers.recData->size().getSamples();
+
+        if (buff_size_wdt > 100)
+        {
+            if (buff_size == 0)
+            {
+                yCError(PORTAUDIO) << "PortAudioDeviceDriver::getSound() Buffer size is still zero after 100 iterations, returning";
+                return false;
+            }
+            else
+            {
+                yCDebug(PORTAUDIO) << "PortAudioDeviceDriver::getSound() Buffer size is " << buff_size << "/" << this->numSamples <<" after 100 iterations";
+                if (m_getSoundIsNotBlocking)
+                {
+                    yCError(PORTAUDIO) << "PortAudioDeviceDriver::getSound() is in not-blocking mode, returning";
+                    return false;
+                }
+            }
+        }
+        buff_size_wdt++;
+        yarp::os::SystemClock::delaySystem(SLEEP_TIME);
     }
+    while (buff_size < this->numSamples);
+
     buff_size_wdt = 0;
 
-    if (sound.getChannels()!=this->numChannels && sound.getSamples() != this->numSamples)
+    if (sound.getChannels()!=this->m_numRecordChannels && sound.getSamples() != this->numSamples)
     {
-        sound.resize(this->numSamples,this->numChannels);
+        sound.resize(this->numSamples,this->m_numRecordChannels);
     }
-    sound.setFrequency(this->driverConfig.rate);
+    sound.setFrequency(this->m_frequency);
 
-    for (int i=0; i<this->numSamples; i++)
-        for (int j=0; j<this->numChannels; j++)
-            {
-                SAMPLE s = dataBuffers.recData->read();
-                sound.set(s,i,j);
-            }
+    for (size_t i=0; i<this->numSamples; i++)
+        for (size_t j=0; j<this->m_numRecordChannels; j++)
+        {
+            SAMPLE s = dataBuffers.recData->read();
+            sound.set(s,i,j);
+        }
     return true;
 }
 
-bool PortAudioDeviceDriver::abortSound(void)
+bool PortAudioDeviceDriver::abortSound()
 {
-    printf("\n=== Stopping and clearing stream.===\n"); fflush(stdout);
+    yCInfo(PORTAUDIO, "=== Stopping and clearing stream.==="); fflush(stdout);
     err = Pa_StopStream( stream );
     if( err != paNoError )
     {
-        fprintf( stderr, "abortSound: error occurred while stopping the portaudio stream\n" );
-        fprintf( stderr, "Error number: %d\n", err );
-        fprintf( stderr, "Error message: %s\n", Pa_GetErrorText( err ) );
+        yCError(PORTAUDIO, "abortSound: error occurred while stopping the portaudio stream" );
+        yCError(PORTAUDIO, "Error number: %d", err );
+        yCError(PORTAUDIO, "Error message: %s", Pa_GetErrorText( err ) );
     }
 
     dataBuffers.playData->clear();
@@ -385,22 +483,48 @@ void streamThread::run()
             something_to_play = false;
             err = Pa_StartStream( stream );
             if( err != paNoError ) {handleError(); return;}
-        
+
             while( ( err = Pa_IsStreamActive( stream ) ) == 1 )
-                {yarp::os::Time::delay(SLEEP_TIME);}
-            if( err < 0 ) {handleError(); return;}
+            {
+                yarp::os::SystemClock::delaySystem(SLEEP_TIME);
+            }
+            if (err == 0)
+            {
+                yCDebug(PORTAUDIO) << "The playback stream has been stopped";
+            }
+            if( err < 0 )
+            {
+                handleError();
+                return;
+            }
 
             err = Pa_StopStream( stream );
             //err = Pa_AbortStream( stream );
-            if( err < 0 ) {handleError(); return;}
-        
+            if( err < 0 )
+            {
+                handleError();
+                return;
+            }
+
         }
-        
+
         if (something_to_record)
         {
-            while( ( err = Pa_IsStreamActive( stream ) ) == 1 ) 
-                {yarp::os::Time::delay(SLEEP_TIME);}
-            if( err < 0 ) {handleError(); return;}
+            while( ( err = Pa_IsStreamActive( stream ) ) == 1 )
+            {
+                yarp::os::SystemClock::delaySystem(SLEEP_TIME);
+            }
+            if (err == 0)
+            {
+                Pa_StopStream(stream);
+                yCDebug(PORTAUDIO) << "The recording stream has been stopped";
+                something_to_record = false;
+            }
+            if( err < 0 )
+            {
+                handleError();
+                return;
+            }
         }
 
         yarp::os::Time::delay(SLEEP_TIME);
@@ -408,46 +532,46 @@ void streamThread::run()
     return;
 }
 
-bool PortAudioDeviceDriver::immediateSound(yarp::sig::Sound& sound)
+bool PortAudioDeviceDriver::immediateSound(const yarp::sig::Sound& sound)
 {
     dataBuffers.playData->clear();
-    
-    //unsigned char* dataP= sound.getRawData();
-    int num_bytes = sound.getBytesPerSample();
-    int num_channels = sound.getChannels();
-    int num_samples = sound.getRawDataSize()/num_channels/num_bytes;
-    // memcpy(data.samplesBuffer,dataP,num_samples/**num_bytes*num_channels*/);
-    
-    for (int i=0; i<num_samples; i++)
-        for (int j=0; j<num_channels; j++)
+
+//     size_t num_bytes = sound.getBytesPerSample();
+    size_t num_channels = sound.getChannels();
+    size_t num_samples = sound.getSamples();
+
+    for (size_t i=0; i<num_samples; i++)
+        for (size_t j=0; j<num_channels; j++)
             dataBuffers.playData->write (sound.get(i,j));
 
     pThread.something_to_play = true;
     return true;
 }
 
-bool PortAudioDeviceDriver::renderSound(yarp::sig::Sound& sound)
+bool PortAudioDeviceDriver::renderSound(const yarp::sig::Sound& sound)
 {
     int freq  = sound.getFrequency();
-    int chans = sound.getChannels();
-    if (freq  != this->frequency ||
-        chans != this->numChannels)
+    size_t chans = sound.getChannels();
+    if (freq  != this->m_frequency ||
+        chans != this->m_numPlaybackChannels)
     {
         //wait for current playback to finish
-        while (Pa_IsStreamStopped(stream )==0) 
+        while (Pa_IsStreamStopped(stream )==0)
         {
             yarp::os::Time::delay(SLEEP_TIME);
         }
 
         //reset the driver
-        printf("***** driver configuration changed, resetting *****\n");
+        yCInfo(PORTAUDIO, "***** audio driver configuration changed, resetting");
+        yCInfo(PORTAUDIO) << "changing from: " << this->m_numPlaybackChannels << "channels, " <<  this->m_frequency << " Hz, ->" <<
+                                                    chans << "channels, " <<  freq << " Hz";
         this->close();
-        driverConfig.channels = chans;
-        driverConfig.rate = freq;
-        bool ok = open(driverConfig);
+        m_driverConfig.playChannels = (int)(chans);
+        m_driverConfig.rate = (int)(freq);
+        bool ok = open(m_driverConfig);
         if (ok == false)
         {
-            printf("error occurred during driver reconfiguration, aborting\n");
+            yCError(PORTAUDIO, "error occurred during audio driver reconfiguration, aborting");
             return false;
         }
     }
@@ -460,20 +584,64 @@ bool PortAudioDeviceDriver::renderSound(yarp::sig::Sound& sound)
     return false;
 }
 
-bool PortAudioDeviceDriver::appendSound(yarp::sig::Sound& sound)
+bool PortAudioDeviceDriver::appendSound(const yarp::sig::Sound& sound)
 {
-    //unsigned char* dataP= sound.getRawData();
-    int num_bytes = sound.getBytesPerSample();
-    int num_channels = sound.getChannels();
-    int num_samples = sound.getRawDataSize()/num_channels/num_bytes;
-    // memcpy(data.samplesBuffer,dataP,num_samples/**num_bytes*num_channels*/);
-    
-    for (int i=0; i<num_samples; i++)
-        for (int j=0; j<num_channels; j++)
+//     size_t num_bytes = sound.getBytesPerSample();
+    size_t num_channels = sound.getChannels();
+    size_t num_samples = sound.getSamples();
+
+    for (size_t i=0; i<num_samples; i++)
+        for (size_t j=0; j<num_channels; j++)
             dataBuffers.playData->write (sound.get(i,j));
 
     pThread.something_to_play = true;
     return true;
 }
 
+bool PortAudioDeviceDriver::getPlaybackAudioBufferCurrentSize(yarp::dev::AudioBufferSize& size)
+{
+    size = this->dataBuffers.playData->size();
+    return true;
+}
 
+bool PortAudioDeviceDriver::getPlaybackAudioBufferMaxSize(yarp::dev::AudioBufferSize& size)
+{
+    size = this->dataBuffers.playData->getMaxSize();
+    return true;
+}
+
+bool PortAudioDeviceDriver::resetPlaybackAudioBuffer()
+{
+    this->dataBuffers.playData->clear();
+    return true;
+}
+
+bool PortAudioDeviceDriver::getRecordingAudioBufferCurrentSize(yarp::dev::AudioBufferSize& size)
+{
+    size = this->dataBuffers.recData->size();
+    return true;
+}
+
+bool PortAudioDeviceDriver::getRecordingAudioBufferMaxSize(yarp::dev::AudioBufferSize& size)
+{
+    size = this->dataBuffers.recData->getMaxSize();
+    return true;
+}
+
+bool PortAudioDeviceDriver::resetRecordingAudioBuffer()
+{
+    this->dataBuffers.recData->clear();
+    return true;
+}
+
+bool PortAudioDeviceDriver::startPlayback()
+{
+    pThread.something_to_play = true;
+    return true;
+}
+
+bool PortAudioDeviceDriver::stopPlayback()
+{
+    pThread.something_to_play = false;
+    return true;
+}

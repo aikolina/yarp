@@ -1,27 +1,25 @@
-# Copyright: 2012 iCub Facility, Istituto Italiano di Tecnologia
-# Author: Lorenzo Natale
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
 project(resourceFinder)
 
-find_package(YARP REQUIRED)
-list(APPEND CMAKE_MODULE_PATH ${YARP_MODULE_PATH})
+find_package(YARP COMPONENTS os REQUIRED)
 
-include_directories(${YARP_INCLUDE_DIRS})
+add_executable(rf_basic)
+target_sources(rf_basic PRIVATE tutorial_rf_basic.cpp)
+target_link_libraries(rf_basic PRIVATE ${YARP_LIBRARIES})
 
-add_executable(rf_basic tutorial_rf_basic.cpp)
-target_link_libraries(rf_basic ${YARP_LIBRARIES})
-
-add_executable(rf_advanced tutorial_rf_advanced.cpp)
-target_link_libraries(rf_advanced ${YARP_LIBRARIES})
-
+add_executable(rf_advanced)
+target_sources(rf_advanced PRIVATE tutorial_rf_advanced.cpp)
+target_link_libraries(rf_advanced PRIVATE ${YARP_LIBRARIES})
 
 # to install data files:
-include(YarpInstallationHelpers)
 set(conf randomMotion/config.ini)
 # alternatively, if you are too lazy to list all files explicitly, you can "GLOB" them with:
 # file(GLOB conf conf/*.ini)
 
 yarp_install(FILES ${conf} DESTINATION ${YARP_CONTEXTS_INSTALL_DIR}/randomMotion)
-

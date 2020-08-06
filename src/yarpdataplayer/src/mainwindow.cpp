@@ -1,3 +1,21 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "include/mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QFileDialog>
@@ -7,9 +25,10 @@
 #include <include/aboutdlg.h>
 #include <QMessageBox>
 #include "include/log.h"
-#include <signal.h>
+#include <csignal>
+#include <yarp/conf/version.h>
 
-#if defined(WIN32)
+#if defined(_WIN32)
     #pragma warning (disable : 4099)
     #pragma warning (disable : 4250)
     #pragma warning (disable : 4520)
@@ -32,11 +51,9 @@
  #define APP_NAME "yarpdataplayer"
 #endif
 
-#ifndef APP_VERSION
- #define APP_VERSION "1.0"
-#endif
-
 using namespace std;
+using namespace yarp::os;
+
 void sighandler(int sig)
 {
     LOG("\n\nCaught ctrl-c, please quit within gui for clean exit\n\n");
@@ -50,15 +67,15 @@ MainWindow::MainWindow(yarp::os::ResourceFinder &rf, QWidget *parent) :
 {
     ui->setupUi(this);
     setWindowTitle(APP_NAME);
-    utilities = NULL;
+    utilities = nullptr;
     pressed = false;
-    initThread = NULL;
+    initThread = nullptr;
 
     moduleName =  QString("%1").arg(rf.check("name", Value("yarpdataplayer"), "module name (string)").asString().c_str());
 
     if (rf.check("withExtraTimeCol")){
         withExtraTimeCol = true;
-        column = rf.check("withExtraTimeCol",Value(1)).asInt();
+        column = rf.check("withExtraTimeCol",Value(1)).asInt32();
 
         if (column < 1 || column > 2 ){
             column = 1;
@@ -75,19 +92,19 @@ MainWindow::MainWindow(yarp::os::ResourceFinder &rf, QWidget *parent) :
     createUtilities();
 
     subDirCnt = 0;
-    utilities = NULL;
+    utilities = nullptr;
     setWindowTitle(moduleName);
     setupActions();
     setupSignals();
 
     QString port = QString("/%1/rpc:i").arg(moduleName);
     rpcPort.open( port.toLatin1().data() );
-    
+
     ::signal(SIGINT, sighandler);
     ::signal(SIGTERM, sighandler);
-    
+
     attach(rpcPort);
-    
+
     quitFromCmd = false;
 
     connect(ui->mainWidget,SIGNAL(itemDoubleClicked(QTreeWidgetItem*,int)),this,SLOT(onItemDoubleClicked(QTreeWidgetItem*,int)));
@@ -99,13 +116,14 @@ MainWindow::MainWindow(yarp::os::ResourceFinder &rf, QWidget *parent) :
     connect(this,SIGNAL(internalSetFrame(std::string,int)),this,SLOT(onInternalSetFrame(std::string,int)),Qt::BlockingQueuedConnection);
     connect(this,SIGNAL(internalGetFrame(std::string, int*)),this,SLOT(onInternalGetFrame(std::string,int*)),Qt::BlockingQueuedConnection);
     connect(this,SIGNAL(internalQuit()),this,SLOT(onInternalQuit()),Qt::QueuedConnection);
-    
+    connect(this,SIGNAL(internalGetSliderPercentage(int*)),this,SLOT(onInternalGetSliderPercentage(int*)),Qt::BlockingQueuedConnection);
+
     QShortcut *openShortcut = new QShortcut(QKeySequence("Ctrl+O"), parent);
     QObject::connect(openShortcut, SIGNAL(activated()), this, SLOT(onInternalLoad(QString)));
-    
+
     QShortcut *closeShortcut = new QShortcut(QKeySequence("Ctrl+Q"), parent);
     QObject::connect(closeShortcut, SIGNAL(activated()), this, SLOT(onInternalQuit()));
-    
+
 }
 
 /**********************************************************/
@@ -140,7 +158,7 @@ bool MainWindow::attach(RpcServer &source)
 bool MainWindow::step()
 {
     Bottle reply;
-    internalStep(&reply);
+    emit internalStep(&reply);
     if (reply.toString() == "error"){
         return false;
     }
@@ -159,7 +177,7 @@ void MainWindow::onInternalStep(Bottle *reply)
 /**********************************************************/
 bool MainWindow::setFrame(const string &name, const int frameNum)
 {
-    internalSetFrame(name,frameNum);
+    emit internalSetFrame(name,frameNum);
     return true;
 }
 
@@ -173,7 +191,7 @@ void MainWindow::onInternalSetFrame(const string &name, const int frameNum)
 int MainWindow::getFrame(const string &name)
 {
     int frame = 0;
-    internalGetFrame(name,&frame);
+    emit internalGetFrame(name,&frame);
     if (frame < 1){
         return -1;
     } else {
@@ -188,9 +206,27 @@ void MainWindow::onInternalGetFrame(const string &name, int *frame)
 }
 
 /**********************************************************/
+int MainWindow::getSliderPercentage()
+{
+    int percentage = 0;
+    emit internalGetSliderPercentage(&percentage);
+    if (percentage < 1){
+        return -1;
+    } else {
+        return percentage;
+    }
+}
+
+/**********************************************************/
+void MainWindow::onInternalGetSliderPercentage(int *percentage)
+{
+    *percentage = ui->playSlider->value();
+}
+
+/**********************************************************/
 bool MainWindow::load(const string &path)
 {
-    string cmdPath = path.c_str();
+    string cmdPath = path;
     QString sPath = QString("%1").arg(path.c_str());
 
     size_t slashErr = cmdPath.find('/');
@@ -198,8 +234,8 @@ bool MainWindow::load(const string &path)
     if (slashErr == string::npos){
         LOG_ERROR("Error, please make sure you are using forward slashes '/' in path.\n");
         return false;
-    }else{
-        internalLoad(sPath);
+    } else {
+        emit internalLoad(sPath);
     }
 
     waitMutex.lock();
@@ -227,7 +263,7 @@ void  MainWindow::onInternalLoad(QString sPath)
 /**********************************************************/
 bool MainWindow::play()
 {
-    internalPlay();
+    emit internalPlay();
     return true;
 }
 
@@ -240,7 +276,7 @@ void MainWindow::onInternalPlay()
 /**********************************************************/
 bool MainWindow::pause()
 {
-    internalPause();
+    emit internalPause();
     return true;
 }
 
@@ -253,7 +289,7 @@ void MainWindow::onInternalPause()
 /**********************************************************/
 bool MainWindow::stop()
 {
-    internalStop();
+    emit internalStop();
     return true;
 }
 
@@ -267,7 +303,7 @@ void MainWindow::onInternalStop()
 bool MainWindow::quit()
 {
     quitFromCmd = true;
-    internalQuit();
+    emit internalQuit();
     return true;
 }
 
@@ -287,9 +323,9 @@ bool MainWindow::updateFrameNumber(const char* part, int frameNum)
         //if (frameNum == 0)
             //frameNum = 1;
 
-        for (std::map<const char*,int>::iterator itr=partMap.begin(); itr != partMap.end(); itr++){
-            utilities->masterThread->virtualTime = utilities->partDetails[(*itr).second].timestamp[utilities->partDetails[(*itr).second].currFrame];
-            utilities->partDetails[(*itr).second].currFrame = frameNum;
+        for (auto& itr : partMap){
+            utilities->masterThread->virtualTime = utilities->partDetails[itr.second].timestamp[utilities->partDetails[itr.second].currFrame];
+            utilities->partDetails[itr.second].currFrame = frameNum;
         }
         utilities->masterThread->virtualTime = utilities->partDetails[0].timestamp[utilities->partDetails[0].currFrame];
         return true;
@@ -302,9 +338,9 @@ bool MainWindow::updateFrameNumber(const char* part, int frameNum)
 void MainWindow::getFrameCmd( const char* part , int *frame)
 {
     if (subDirCnt > 0){
-        for (std::map<const char*,int>::iterator itr=partMap.begin(); itr != partMap.end(); itr++){
-            if (strcmp (part,(*itr).first) == 0){
-                *frame = utilities->partDetails[(*itr).second].currFrame;
+        for (auto& itr : partMap) {
+            if (strcmp (part, itr.first) == 0) {
+                *frame = utilities->partDetails[itr.second].currFrame;
             }
         }
     }
@@ -322,7 +358,7 @@ void MainWindow::stepFromCommand(Bottle &reply)
 }
 
 /**********************************************************/
-bool MainWindow::cmdSafeExit(void)
+bool MainWindow::cmdSafeExit()
 {
     quitFromCmd = true;
     if(utilities){
@@ -330,12 +366,12 @@ bool MainWindow::cmdSafeExit(void)
         if (utilities->masterThread->isSuspended()){
             utilities->masterThread->resume();
         }
-        
+
         utilities->masterThread->stop();
         LOG( "done stopping!\n");
         for (int i=0; i < subDirCnt; i++)
             utilities->partDetails[i].currFrame = 1;
-        
+
         LOG( "Module closing...\nCleaning up...\n");
         for (int x=0; x < subDirCnt; x++){
             utilities->partDetails[x].worker->release();
@@ -355,19 +391,19 @@ bool MainWindow::cmdSafeExit(void)
 }
 
 /**********************************************************/
-bool MainWindow::safeExit(void)
+bool MainWindow::safeExit()
 {
     if(utilities){
         LOG( "asking the threads to stop...\n");
         if (utilities->masterThread->isSuspended()){
             utilities->masterThread->resume();
         }
-        
+
         utilities->masterThread->stop();
         LOG( "done stopping!\n");
         for (int i=0; i < subDirCnt; i++)
             utilities->partDetails[i].currFrame = 1;
-        
+
         LOG( "Module closing...\nCleaning up...\n");
         for (int x=0; x < subDirCnt; x++){
             utilities->partDetails[x].worker->release();
@@ -401,14 +437,14 @@ void MainWindow::clearUtilities()
 {
     if(utilities){
         delete utilities;
-        utilities = NULL;
+        utilities = nullptr;
     }
 }
 
 /**********************************************************/
 bool MainWindow::getPartActivation(const char* szName)
 {
-    QTreeWidgetItem *row = NULL;
+    QTreeWidgetItem *row = nullptr;
     row = getRowByPart(QString("%1").arg(szName));
 
 
@@ -428,7 +464,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         QMessageBox::StandardButton resBtn = QMessageBox::question( this, APP_NAME,
                                                                "Quitting, Are you sure?\n",
                                                                QMessageBox::No | QMessageBox::Yes, QMessageBox::Yes);
-        
+
         if (resBtn != QMessageBox::Yes) {
             event->ignore();
 
@@ -485,23 +521,20 @@ bool  MainWindow::doGuiSetup(QString newPath)
     //look for folders and log files associated with them
     LOG("the full path is %s \n", newPath.toLatin1().data());
     subDirCnt = 0;
-    partsName.clear();
-    partsFullPath.clear();
-    partsInfoPath.clear();
-    partsLogPath.clear();
+    rowInfoVec.clear();
 
 
     itr = 0;
     partMap.clear();
 
     if(!initThread){
-        initThread = new InitThread(utilities,newPath,&partsName,&partsFullPath,&partsInfoPath,&partsLogPath,this);
+        initThread = new InitThread(utilities,newPath,rowInfoVec,this);
         connect(initThread,SIGNAL(initDone(int)),this,SLOT(onInitDone(int)),Qt::QueuedConnection);
         initThread->start();
     }else{
         if(!initThread->isRunning()){
             delete initThread;
-            initThread = new InitThread(utilities,newPath,&partsName,&partsFullPath,&partsInfoPath,&partsLogPath,this);
+            initThread = new InitThread(utilities,newPath,rowInfoVec,this);
             connect(initThread,SIGNAL(initDone(int)),this,SLOT(onInitDone(int)),Qt::QueuedConnection);
             initThread->start();
         }
@@ -566,9 +599,9 @@ void MainWindow::onInitDone(int subDirCount)
 void MainWindow::addPart(const char* szName, const char* type, int frames, const char* portName, const char* szFileName )
 {
     partMap[szName] = itr;
-    QTreeWidgetItem *item = new QTreeWidgetItem();
+    auto* item = new QTreeWidgetItem();
     ui->mainWidget->addTopLevelItem(item);
-    QCheckBox *checkBox = new QCheckBox();
+    auto* checkBox = new QCheckBox();
     checkBox->setChecked(true);
     ui->mainWidget->setItemWidget(item,ACTIVE,checkBox);
     if(szName){
@@ -586,8 +619,8 @@ void MainWindow::addPart(const char* szName, const char* type, int frames, const
         item->setText(PORT,QString("%1").arg(portName));
         ui->mainWidget->resizeColumnToContents(PORT);
     }
-    
-    QProgressBar *progress = new QProgressBar();
+
+    auto* progress = new QProgressBar();
     progress->setMaximum(100);
     progress->setValue(0);
     progress->setAlignment(Qt::AlignCenter);
@@ -599,7 +632,7 @@ void MainWindow::addPart(const char* szName, const char* type, int frames, const
 /**********************************************************/
 bool MainWindow::setInitialPartProgress(const char* szName, int percentage)
 {
-    QTreeWidgetItem *row = NULL;
+    QTreeWidgetItem *row = nullptr;
     row = getRowByPart(QString("%1").arg(szName));
 
 
@@ -617,7 +650,7 @@ bool MainWindow::setInitialPartProgress(const char* szName, int percentage)
 /**********************************************************/
 bool MainWindow::setPartProgress(const char* szName, int percentage)
 {
-    QTreeWidgetItem *row = NULL;
+    QTreeWidgetItem *row = nullptr;
     row = getRowByPart(QString("%1").arg(szName));
     if(row){
         QProgressBar *progress = ((QProgressBar*)ui->mainWidget->itemWidget(row,PERCENT));
@@ -638,7 +671,7 @@ QTreeWidgetItem * MainWindow::getRowByPart(QString szName )
             return ui->mainWidget->topLevelItem(i);
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 /**********************************************************/
@@ -650,7 +683,7 @@ void MainWindow::onMenuFileOpen()
         utilities->repeat = false;
         ui->actionRepeat->setChecked(false);
     }
-    
+
     if (ui->actionStrict->isChecked())
     {
         LOG("send strict mode is activated, setting it to false\n");
@@ -667,7 +700,7 @@ void MainWindow::onMenuFileOpen()
         ui->mainWidget->clear();
         for (int x=0; x < subDirCnt; x++)
             utilities->closePorts(utilities->partDetails[x]);
-        
+
         doGuiSetup(dir);
     }
 }
@@ -708,10 +741,10 @@ void MainWindow::onErrorMessage(QString msg)
 /**********************************************************/
 void MainWindow::onMenuHelpAbout()
 {
-    QString copyright = "2014 (C) iCub Facility \nIstituto Italiano di Tecnologia";
+    QString copyright = "Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)";
     QString name = APP_NAME;
-    QString version = APP_VERSION;
-    AboutDlg dlg(name,version,copyright,"http://www.icub.org/");
+    QString version = YARP_VERSION;
+    AboutDlg dlg(name,version,copyright,"https://www.iit.it/");
     dlg.exec();
 }
 
@@ -742,14 +775,14 @@ void MainWindow::onMenuPlayBackPlay()
             }
         }
 
-        if ( utilities->masterThread->isRunning() ) {
+        if ( utilities->masterThread->isSuspended() ) {
             LOG("asking the thread to resume\n");
 
             for (int i=0; i < subDirCnt; i++)
                 utilities->partDetails[i].worker->resetTime();
 
             utilities->masterThread->resume();
-        } else {
+        } else if (!utilities->masterThread->isRunning()) {
             LOG("asking the thread to start\n");
             LOG("initializing the workers...\n");
 
@@ -913,7 +946,7 @@ void MainWindow::onSliderReleased()
 /**********************************************************/
 bool MainWindow::getPartPort(const char* szName, QString *dest)
 {
-    QTreeWidgetItem *row = NULL;
+    QTreeWidgetItem *row = nullptr;
     row = getRowByPart(QString("%1").arg(szName));
     if(row){
         *dest = row->text(PORT);
@@ -927,7 +960,7 @@ bool MainWindow::getPartPort(const char* szName, QString *dest)
 /**********************************************************/
 bool MainWindow::setFrameRate(const char* szName, int frameRate)
 {
-    QTreeWidgetItem *row = NULL;
+    QTreeWidgetItem *row = nullptr;
     row = getRowByPart(QString("%1").arg(szName));
     if(row){
         row->setText(SAMPLERATE,QString("%1 ms").arg(frameRate));
@@ -940,13 +973,13 @@ bool MainWindow::setFrameRate(const char* szName, int frameRate)
 /**********************************************************/
 bool MainWindow::setTimeTaken(const char* szName, double time)
 {
-    QTreeWidgetItem *row = NULL;
+    QTreeWidgetItem *row = nullptr;
     row = getRowByPart(QString("%1").arg(szName));
     if(row){
         row->setText(TIMETAKEN,QString("%1 s").arg(time, 0, 'f', 3));
         return true;
     }
-    
+
     return false;
 }
 
@@ -973,7 +1006,7 @@ void MainWindow::onUpdateGuiRateThread()
                 if (utilities->partDetails[i].currFrame <= utilities->partDetails[i].maxFrame){
                     int rate = (int)utilities->partDetails[i].worker->getFrameRate();
                     setFrameRate(utilities->partDetails[i].name.c_str(),rate);
-                    
+
                     double time = utilities->partDetails[i].worker->getTimeTaken();
 
                     if (time > 700000){ //value of a time stamp...
@@ -1009,27 +1042,21 @@ void MainWindow::onClose()
 
 /**********************************************************/
 InitThread::InitThread(Utilities *utilities,
-                       QString newPath,
-                       std::vector<std::string>    *partsName,
-                       std::vector<std::string>    *partsFullPath,
-                       std::vector<std::string>    *partsInfoPath,
-                       std::vector<std::string>    *partsLogPath,
-                       QObject *parent) : QThread(parent)
+                       QString  newPath,
+                       std::vector<RowInfo>& rowInfoVec,
+                       QObject *parent) : QThread(parent),
+                                          utilities(utilities),
+                                          newPath(std::move(newPath)),
+                                          mainWindow(dynamic_cast<QMainWindow*> (parent)),
+                                          rowInfoVec(rowInfoVec)
 {
-    this->utilities = utilities;
-    this->newPath = newPath;
-    this->partsName = partsName;
-    this->partsFullPath = partsFullPath;
-    this->partsInfoPath = partsInfoPath;
-    this->partsLogPath = partsLogPath;
-    this->mainWindow = (QMainWindow*)parent;
 }
 
 /**********************************************************/
 void InitThread::run()
 {
     utilities->resetMaxTimeStamp();
-    int subDirCnt = utilities->getRecSubDirList(newPath.toLatin1().data(), *partsName, *partsInfoPath, *partsLogPath, *partsFullPath, 1);
+    int subDirCnt = utilities->getRecSubDirList(newPath.toLatin1().data(), rowInfoVec, 1);
     LOG("the size of subDirs is: %d\n", subDirCnt);
     //reset totalSent to 0
     utilities->totalSent = 0;
@@ -1041,10 +1068,10 @@ void InitThread::run()
 
     //fill in parts with all data
     for (int x=0; x < subDirCnt; x++){
-        utilities->partDetails[x].name = partsName->at(x);
-        utilities->partDetails[x].infoFile = partsInfoPath->at(x);
-        utilities->partDetails[x].logFile = partsLogPath->at(x);
-        utilities->partDetails[x].path = partsFullPath->at(x);
+        utilities->partDetails[x].name = rowInfoVec[x].name;
+        utilities->partDetails[x].infoFile = rowInfoVec[x].info;
+        utilities->partDetails[x].logFile = rowInfoVec[x].log;
+        utilities->partDetails[x].path = rowInfoVec[x].path;
 
         utilities->setupDataFromParts(utilities->partDetails[x]);
 
@@ -1056,7 +1083,7 @@ void InitThread::run()
     if (subDirCnt > 0){
         utilities->getMaxTimeStamp();
     }
-    
+
     if (subDirCnt > 0){
         utilities->getMinTimeStamp();
     }
@@ -1064,23 +1091,23 @@ void InitThread::run()
     //set initial frames for all parts depending on first timestamps
     for (int x=0; x < subDirCnt; x++){
         utilities->initialFrame.push_back( utilities->partDetails[x].currFrame);
-        
+
         double totalTime = 0.0;
         double final = utilities->partDetails[x].timestamp[utilities->partDetails[x].timestamp.length()-1];
         double initial = utilities->partDetails[x].timestamp[utilities->partDetails[x].currFrame];
-        
+
         //LOG("initial timestamp is = %lf\n", initial);
         //LOG("final timestamp is  = %lf\n", final);
-        
+
         totalTime = final - initial;
-        
+
         LOG("The part %s, should last for: %lf with %d frames\n", utilities->partDetails[x].name.c_str(), totalTime, utilities->partDetails[x].maxFrame);
-        
+
     }
 
     utilities->masterThread = new MasterThread(utilities, subDirCnt, mainWindow);
     //connect(utilities->masterThread,SIGNAL(updateGuiRateThread()),this,SLOT(onUpdateGuiRateThread()),Qt::QueuedConnection);
     utilities->masterThread->stepfromCmd = false;
 
-    initDone(subDirCnt);
+    emit initDone(subDirCnt);
 }

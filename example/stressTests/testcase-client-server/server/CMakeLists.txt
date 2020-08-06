@@ -1,33 +1,25 @@
-# Copyright: (C) 2010 RobotCub Consortium
-# Author: Lorenzo Natale
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-SET(PROJECTNAME collatzServer)
-PROJECT(${PROJECTNAME})
-
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+project(collatzServer)
 
 # Add Yarp to the "packages" used by this project.
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
-LINK_LIBRARIES(${YARP_LIBRARIES})
+find_package(YARP COMPONENTS os REQUIRED)
 
 # Find .cpp and .h automatically. This is a bit lazy,
 # and in principle it would be better to list these files
 # manually.
-FILE(GLOB folder_source src/*.cpp)
-FILE(GLOB folder_header include/*.hpp include/*.h ../common/*.hpp ../common/*.h)
-
-# Declare groups of source and header, makes tings pretty in VisualStudio.
-SOURCE_GROUP("Source Files" FILES ${folder_source})
-SOURCE_GROUP("Header Files" FILES ${folder_header})
+file(GLOB folder_source src/*.cpp)
+file(GLOB folder_header include/*.h ../common/*.h)
 
 # Create everything needed to build our executable.
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/../common)
-ADD_EXECUTABLE(${PROJECTNAME} ${folder_source} ${folder_header})
-
-# Make VisualStudio a bit quieter with warnings.
-IF(MSVC)
-  SET_TARGET_PROPERTIES(${PROJECTNAME} PROPERTIES COMPILE_FLAGS /wd4996)
-ENDIF(MSVC)
-
+add_executable(collatzServer)
+target_sources(collatzServer PRIVATE ${folder_source} ${folder_header})
+target_include_directories(collatzServer PRIVATE ${PROJECT_SOURCE_DIR}/include
+                                                 ${PROJECT_SOURCE_DIR}/../common)
+target_link_libraries(collatzServer PRIVATE ${YARP_LIBRARIES})

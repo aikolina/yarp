@@ -1,24 +1,25 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-# Make sure that YARP_DIR is set in your environment to wherever you 
+# Make sure that YARP_DIR is set in your environment to wherever you
 # compiled YARP.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+project(PortPower)
 
-PROJECT(PortPower)
+find_package(YARP COMPONENTS os REQUIRED)
 
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
-LINK_LIBRARIES(${YARP_LIBRARIES})
+file(GLOB_RECURSE examples *.cpp)
 
-FILE(GLOB_RECURSE examples *.cpp)
-
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR})
-
-FOREACH(example ${examples})
-	# get name without extension
-	GET_FILENAME_COMPONENT(example_we "${example}" NAME_WE)
-	ADD_EXECUTABLE(${example_we} ${example})
-ENDFOREACH(example ${examples})
+foreach(example ${examples})
+  # get name without extension
+  get_filename_component(example_we "${example}" NAME_WE)
+  add_executable(${example_we})
+  target_sources(${example_we} PRIVATE ${example})
+  target_include_directories(${example_we} PRIVATE ${PROJECT_SOURCE_DIR})
+  target_link_libraries(${example_we} PRIVATE ${YARP_LIBRARIES})
+endforeach(example ${examples})

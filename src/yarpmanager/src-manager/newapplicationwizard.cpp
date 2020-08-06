@@ -1,8 +1,29 @@
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
+
 #include "newapplicationwizard.h"
 #include <QGridLayout>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QMessageBox>
 
-#include <yarp/manager/ymm-dir.h>
+#include <dirent.h>
+#include <yarp/conf/filesystem.h>
 
 using namespace std;
 using namespace yarp::manager;
@@ -21,9 +42,9 @@ inline bool absolute(const char *path) {  //copied from yarp_OS ResourceFinder.c
 }
 
 
-NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config)
+NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config, bool _saveAs):alreadyExists(false), saveAs(_saveAs)
 {
-    CustomWizardPage *page = new CustomWizardPage;
+    auto* page = new CustomWizardPage;
 
     this->m_config = config;
     page->setTitle("Application Properties");
@@ -43,7 +64,6 @@ NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config)
 
     versionLbl = new QLabel("Version: ");
     versionLbl->setWordWrap(true);
-
     versionEdit = new QLineEdit();
     versionEdit->setPlaceholderText("1.0");
 
@@ -64,15 +84,17 @@ NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config)
 
     folderCombo = new QComboBox();
     folderCombo->setEditable(false);
+    folderCombo->setDisabled(saveAs);
 
 
 
     browseBtn = new QPushButton("...");
+    browseBtn->setDisabled(saveAs);
 
 
 
 
-    QGridLayout *layout = new QGridLayout;
+    auto* layout = new QGridLayout;
     layout->addWidget(nameLbl,0,0);
     layout->addWidget(nameEdit,0,1);
 
@@ -99,22 +121,23 @@ NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config)
 
 
 
+    const std::string directorySeparator{yarp::conf::filesystem::preferred_separator};
     if(m_config->check("apppath")){
-        string basepath=m_config->check("ymanagerini_dir", yarp::os::Value("")).asString().c_str();
-        string appPaths(m_config->find("apppath").asString().c_str());
+        string basepath=m_config->check("ymanagerini_dir", yarp::os::Value("")).asString();
+        string appPaths(m_config->find("apppath").asString());
         string strPath;
 
         do
         {
-            string::size_type pos=appPaths.find(";");
+            string::size_type pos=appPaths.find(';');
             strPath=appPaths.substr(0, pos);
             trimString(strPath);
             if (!absolute(strPath.c_str()))
                 strPath=basepath+strPath;
 
-            if((strPath.rfind(PATH_SEPERATOR)==string::npos) ||
-                    (strPath.rfind(PATH_SEPERATOR)!=strPath.size()-1))
-                strPath = strPath + string(PATH_SEPERATOR);
+            if((strPath.rfind(directorySeparator)==string::npos) ||
+                    (strPath.rfind(directorySeparator)!=strPath.size()-1))
+                strPath = strPath + string(directorySeparator);
             folderCombo->addItem(QString("%1").arg(strPath.c_str()));
 
             if (pos==string::npos)
@@ -124,10 +147,10 @@ NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config)
         while (appPaths!="");
     }
     if (m_config->check("yarpdatahome")){
-       string appPaths(m_config->find("apppath").asString().c_str());
-       string homePath=m_config->find("yarpdatahome").asString().c_str();
+       string appPaths(m_config->find("apppath").asString());
+       string homePath=m_config->find("yarpdatahome").asString();
 
-       homePath +=  string(PATH_SEPERATOR) + string("applications");
+       homePath +=  string(directorySeparator) + string("applications");
 
        if (appPaths.find(homePath)==string::npos)
            folderCombo->addItem(QString("%1").arg(homePath.c_str()));
@@ -140,17 +163,67 @@ NewApplicationWizard::NewApplicationWizard(yarp::os::Property *config)
 
     connect(browseBtn,SIGNAL(clicked()),this,SLOT(onBrowse()));
     connect(nameEdit,SIGNAL(textChanged(QString)),this,SLOT(onNameChanged(QString)));
+    connect(folderCombo, SIGNAL(activated(int)), this, SLOT(onSwitchCall()));
 
 }
+
+void NewApplicationWizard::checkFileAlreadyExists(){
+    buildFileName();
+    if (fileExists(this->fileName))
+    {
+        fileEdit->setStyleSheet("color: #FF0000");
+        alreadyExists = true;
+    }
+    else
+    {
+        fileEdit->setStyleSheet("color: #000000");
+        alreadyExists = false;
+    }
+
+}
+
 
 void NewApplicationWizard::onNameChanged(QString name)
 {
-    if(!name.isEmpty()){
+    if (!name.isEmpty())
+    {
         fileEdit->setText(QString("%1.xml").arg(name.toLatin1().data()));
-    }else{
+        checkFileAlreadyExists();
+    }
+    else
+    {
         fileEdit->setText("");
     }
 }
+
+void NewApplicationWizard::onSwitchCall()
+{
+    checkFileAlreadyExists();
+}
+
+bool NewApplicationWizard::fileExists(QString path) {
+    QFileInfo check_file(path);
+    // check if file exists
+    if (check_file.exists() && check_file.isFile())
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+void NewApplicationWizard::buildFileName(){
+    QString sep="";
+    //checking if the path terminate with / or not
+    if (folderCombo->currentText().at(folderCombo->currentText().size()-1) != '/')
+    {
+        sep = QString{yarp::conf::filesystem::preferred_separator};
+    }
+    this->fileName = QString("%1"+sep+"%2").arg(folderCombo->currentText().toLatin1().data()).arg(fileEdit->text().toLatin1().data());
+}
+
 
 void NewApplicationWizard::onBrowse( )
 {
@@ -163,6 +236,7 @@ void NewApplicationWizard::onBrowse( )
     if(!dir.isEmpty()){
         folderCombo->addItem(dir);
         folderCombo->setCurrentText(dir);
+        emit folderCombo->activated(folderCombo->count());
     }
 
 }
@@ -170,24 +244,31 @@ void NewApplicationWizard::onBrowse( )
 
 void NewApplicationWizard::accept()
 {
-    if(nameEdit->text().isEmpty()){
+    if (nameEdit->text().isEmpty()){
         name = nameEdit->placeholderText();
     }else{
         name = nameEdit->text();
     }
-    if(descrEdit->text().isEmpty()){
+    if (descrEdit->text().isEmpty()){
         description = descrEdit->placeholderText();
     }else{
         description = descrEdit->text();
     }
-    if(versionEdit->text().isEmpty()){
+    if (versionEdit->text().isEmpty()){
         version = versionEdit->placeholderText();
     }else{
         version = versionEdit->text();
     }
-
-    this->fileName = QString("%1/%2").arg(folderCombo->currentText().toLatin1().data()).arg(fileEdit->text().toLatin1().data());
+    buildFileName();
+    if (alreadyExists)
+    {
+        QMessageBox::StandardButton reply;
+        reply = QMessageBox::question(this, "Quit", "The file chosen already exists, do you want to overwrite it?", QMessageBox::Yes|QMessageBox::No);
+        if (reply == QMessageBox::No)
+        {
+            QDialog::reject();
+            return;
+        }
+    }
     QDialog::accept();
 }
-
-

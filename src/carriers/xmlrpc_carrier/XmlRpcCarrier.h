@@ -1,21 +1,17 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef YARP_XMLRPC_CARRIER_XMLRPCCARRIER_H
 #define YARP_XMLRPC_CARRIER_XMLRPCCARRIER_H
 
 #include <yarp/os/Carrier.h>
+#include <yarp/os/ConnectionState.h>
 #include "XmlRpcStream.h"
-
-namespace yarp {
-    namespace os {
-        class XmlRpcCarrier;
-    }
-}
 
 /**
  *
@@ -39,13 +35,14 @@ namespace yarp {
  * will produce the output "30" if the server still exists.
  *
  */
-class yarp::os::XmlRpcCarrier : public Carrier
+class XmlRpcCarrier :
+        public yarp::os::Carrier
 {
 private:
     bool firstRound;
     bool sender;
-    Contact host;
-    ConstString http;
+    yarp::os::Contact host;
+    std::string http;
     bool interpretRos;
 public:
     XmlRpcCarrier() :
@@ -55,62 +52,62 @@ public:
     {
     }
 
-    virtual Carrier *create()
+    Carrier *create() const override
     {
         return new XmlRpcCarrier();
     }
 
-    virtual ConstString getName()
+    std::string getName() const override
     {
         return "xmlrpc";
     }
 
-    virtual bool isConnectionless()
+    bool isConnectionless() const override
     {
         return false;
     }
 
-    virtual bool canAccept()
+    bool canAccept() const override
     {
         return true;
     }
 
-    virtual bool canOffer()
+    bool canOffer() const override
     {
         return true;
     }
 
-    virtual bool isTextMode()
+    bool isTextMode() const override
     {
         return true;
     }
 
-    virtual bool canEscape()
+    bool canEscape() const override
     {
         return true;
     }
 
-    virtual bool requireAck()
+    bool requireAck() const override
     {
         return false;
     }
 
-    virtual bool supportReply()
+    bool supportReply() const override
     {
         return true;
     }
 
-    virtual bool isLocal()
+    bool isLocal() const override
     {
         return false;
     }
 
-    virtual ConstString toString()
+    std::string toString() const override
     {
         return "xmlrpc_carrier";
     }
 
-    virtual void getHeader(const Bytes& header)
+    void getHeader(yarp::os::Bytes& header) const override
     {
         const char *target = "POST /RP";
         for (size_t i=0; i<8 && i<header.length(); i++) {
@@ -118,7 +115,7 @@ public:
         }
     }
 
-    virtual bool checkHeader(const Bytes& header)
+    bool checkHeader(const yarp::os::Bytes& header) override
     {
         if (header.length()!=8) {
             return false;
@@ -132,7 +129,7 @@ public:
         return true;
     }
 
-    virtual void setParameters(const Bytes& header)
+    void setParameters(const yarp::os::Bytes& header) override
     {
         // no parameters - no carrier variants
     }
@@ -140,37 +137,37 @@ public:
 
     // Now, the initial hand-shaking
 
-    virtual bool prepareSend(ConnectionState& proto)
+    bool prepareSend(yarp::os::ConnectionState& proto) override
     {
         // nothing special to do
         return true;
     }
 
-    virtual bool sendHeader(ConnectionState& proto);
+    bool sendHeader(yarp::os::ConnectionState& proto) override;
 
-    virtual bool expectSenderSpecifier(ConnectionState& proto);
+    bool expectSenderSpecifier(yarp::os::ConnectionState& proto) override;
 
-    virtual bool expectExtraHeader(ConnectionState& proto)
+    bool expectExtraHeader(yarp::os::ConnectionState& proto) override
     {
         // interpret any extra header information sent - optional
         return true;
     }
 
-    bool respondToHeader(ConnectionState& proto);
+    bool respondToHeader(yarp::os::ConnectionState& proto) override;
 
-    virtual bool expectReplyToHeader(ConnectionState& proto)
+    bool expectReplyToHeader(yarp::os::ConnectionState& proto) override
     {
         sender = true;
         XmlRpcStream *stream = new XmlRpcStream(proto.giveStreams(),sender,
                                                 interpretRos);
-        if (stream == YARP_NULLPTR) {
+        if (stream == nullptr) {
             return false;
         }
         proto.takeStreams(stream);
         return true;
     }
 
-    virtual bool isActive()
+    bool isActive() const override
     {
         return true;
     }
@@ -178,37 +175,37 @@ public:
 
     // Payload time!
 
-    virtual bool write(ConnectionState& proto, SizedWriter& writer);
+    bool write(yarp::os::ConnectionState& proto, yarp::os::SizedWriter& writer) override;
 
-    virtual bool reply(ConnectionState& proto, SizedWriter& writer);
+    bool reply(yarp::os::ConnectionState& proto, yarp::os::SizedWriter& writer) override;
 
-    virtual bool sendIndex(ConnectionState& proto, SizedWriter& writer)
+    virtual bool sendIndex(yarp::os::ConnectionState& proto, yarp::os::SizedWriter& writer)
     {
         return true;
     }
 
-    virtual bool expectIndex(ConnectionState& proto)
+    bool expectIndex(yarp::os::ConnectionState& proto) override
     {
         return true;
     }
 
-    virtual bool sendAck(ConnectionState& proto)
+    bool sendAck(yarp::os::ConnectionState& proto) override
     {
         return true;
     }
 
-    virtual bool expectAck(ConnectionState& proto)
+    bool expectAck(yarp::os::ConnectionState& proto) override
     {
         return true;
     }
 
-    virtual ConstString getBootstrapCarrierName()
+    std::string getBootstrapCarrierName() const override
     {
-        return "";
+        return {};
     }
 
 private:
-    bool shouldInterpretRosMessages(ConnectionState& proto);
+    bool shouldInterpretRosMessages(yarp::os::ConnectionState& proto);
 };
 
 #endif // YARP_XMLRPC_CARRIER_XMLRPCCARRIER_H

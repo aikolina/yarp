@@ -1,11 +1,19 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef ENTITIESTREEWIDGET_H
@@ -29,23 +37,28 @@ public:
     void addComputer(yarp::manager::Computer* comp);
     void addModule(yarp::manager::Module* mod);
     void addAppTemplate(yarp::manager::AppTemplate* tmp);
+    void addPort(QStringList portDetails);
 
-    void clearApplication();
+    void clearApplications();
     void clearModules();
     void clearResources();
     void clearTemplates();
+    void clearPorts();
 
-    void setExtEditor(string editor);
+    QTreeWidgetItem * getWidgetItemByFilename(const QString xmlFile);
+
+    void setExtEditor(std::string editor);
 
 protected:
-    void mousePressEvent(QMouseEvent *event);
-    void mouseMoveEvent(QMouseEvent *event);
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
     QTreeWidgetItem *applicationNode;
     QTreeWidgetItem *modulesNode;
     QTreeWidgetItem *resourcesNode;
     QTreeWidgetItem *templatesNode;
+    QTreeWidgetItem *portsNode;
 
     QMenu topLevelMenu;
     QMenu secondLevelMenu;
@@ -61,6 +74,8 @@ private:
 
     QString ext_editor;
 
+    bool missingFile;
+
 
 signals:
     void viewResource(yarp::manager::Computer*);
@@ -68,14 +83,14 @@ signals:
     void viewApplication(yarp::manager::Application*, bool editing = false);
     void importFiles();
     void openFiles();
-    void removeApplication(QString);
+    void removeApplication(QString,QString);
     void removeModule(QString);
     void removeResource(QString);
     void reopenApplication(QString, QString);
     void reopenResource(QString, QString);
     void reopenModule(QString, QString);
 public slots:
-    void onSelectItem(QString);
+    void onSelectItem(QString, bool open = false);
     void onContext(QPoint);
     void onLoadFile();
     void onEditApplication();

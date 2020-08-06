@@ -1,13 +1,13 @@
 /**
  * \ingroup dev_examples
  *
- * \defgroup grabber_basic Example for grabber (grabber_basic)
+ * \defgroup grabber_basic Example for grabberDual (grabber_basic)
 
-Instantiates \ref cmd_device_grabber "grabber" device implemented by yarp::dev::ServerFrameGrabber.
+Instantiates \ref cmd_device_grabberDual "grabberDual" device implemented by ServerGrabber.
 \verbatim
-# start up a network wrapper around a test_grabber
-device grabber
-subdevice test_grabber
+# start up a network wrapper around a fakeFrameGrabber
+device grabberDual
+subdevice fakeFrameGrabber
 width 640
 height 480
 period 0.25
@@ -26,29 +26,27 @@ PolyDriver dev;
 dev.open(p);
 if (dev.isValid()) { /* use the device via view method */ }
 \endcode
-Here is a list of properties checked when starting up a device based on this configuration file.  Note that which properties are checked can depend on whether other properties are present.  In some cases properties can also vary between operating systems.  So this is just an example
+Here is a list of properties checked when starting up a device based on this configuration file.
+Note that which properties are checked can depend on whether other properties are present.
+In some cases properties can also vary between operating systems.
+So this is just an example
 
 <table>
 <tr><td>PROPERTY</td><td>DESCRIPTION</td><td>DEFAULT</td></tr>
 <tr><td>device</td><td></td><td></td></tr>
-<tr><td>subdevice</td><td>name (or nested configuration) of device to wrap</td><td></td></tr>
-<tr><td>test_grabber.device</td><td></td><td></td></tr>
-<tr><td>test_grabber.wrapped</td><td></td><td></td></tr>
-<tr><td>test_grabber.width</td><td>desired width of test image</td><td>128</td></tr>
-<tr><td>test_grabber.height</td><td>desired height of test image</td><td>128</td></tr>
-<tr><td>test_grabber.freq</td><td>rate of test images in Hz</td><td></td></tr>
-<tr><td>test_grabber.period</td><td>period of test images in seconds</td><td></td></tr>
-<tr><td>test_grabber.mode</td><td>bouncy [ball], scrolly [line], grid [grid], random [rand], none [none]</td><td>line</td></tr>
-<tr><td>test_grabber.src</td><td></td><td></td></tr>
-<tr><td>test_grabber.bayer</td><td>should emit bayer test image?</td><td></td></tr>
-<tr><td>test_grabber.mono</td><td>should emit a monochrome image?</td><td></td></tr>
+<tr><td>period</td><td>refresh period(in ms) of the broadcasted values through yarp ports</td><td></td></tr>
+<tr><td>subdevice</td><td>name of the subdevice to use as a data source</td><td></td></tr>
+<tr><td>left_config</td><td></td><td></td></tr>
+<tr><td>right_config</td><td></td><td></td></tr>
+<tr><td>twoCameras</td><td>if true ServerGrabber will open and handle two devices, if false only one</td><td></td></tr>
+<tr><td>split</td><td>set 'true' to split the streaming on two different ports</td><td></td></tr>
+<tr><td>capabilities</td><td>two capabilities supported, COLOR and RAW respectively for rgb and raw streaming</td><td></td></tr>
 <tr><td>no_drop</td><td>if present, use strict policy for sending data</td><td></td></tr>
 <tr><td>stamp</td><td>if present, add timestamps to data</td><td></td></tr>
-<tr><td>name</td><td>name of port to send data on</td><td>/grabber</td></tr>
 <tr><td>single_threaded</td><td>if present, operate in single threaded mode</td><td></td></tr>
-<tr><td>framerate</td><td>maximum rate in Hz to read from subdevice</td><td>0</td></tr>
+<tr><td>name</td><td>name of port to send data on</td><td>/grabber</td></tr>
 </table>
 
-\sa yarp::dev::ServerFrameGrabber
+\sa ServerGrabber
 
  */

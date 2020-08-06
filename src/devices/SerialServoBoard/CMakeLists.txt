@@ -1,30 +1,34 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Giacomo Spigler, Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 yarp_prepare_plugin(SerialServoBoard
                     CATEGORY device
                     TYPE SerialServoBoard
-                    INCLUDE "SerialServoBoard.h"
-                    DEPENDS CREATE_DEVICE_LIBRARY_MODULES)
+                    INCLUDE "SerialServoBoard.h")
 
 if(NOT SKIP_SerialServoBoard)
-  set(CMAKE_INCLUDE_CURRENT_DIR ON)
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_dev_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_dev_INCLUDE_DIRS})
-  yarp_add_plugin(yarp_SerialServoBoard SerialServoBoard.cpp
-                                        SerialServoBoard.h)
-  target_link_libraries(yarp_SerialServoBoard YARP_OS
-                                          YARP_dev)
-  yarp_install(TARGETS yarp_SerialServoBoard
-               EXPORT YARP
-               COMPONENT runtime
-               LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
-               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR})
-  yarp_install(FILES SerialServoBoard.ini
-               COMPONENT runtime
-               DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
-endif()
+  yarp_add_plugin(yarp_SerialServoBoard)
 
+  target_sources(yarp_SerialServoBoard PRIVATE SerialServoBoard.cpp
+                                               SerialServoBoard.h)
+
+  target_link_libraries(yarp_SerialServoBoard PRIVATE YARP::YARP_os
+                                                      YARP::YARP_dev)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS YARP_os
+                                                      YARP_dev)
+
+  yarp_install(TARGETS yarp_SerialServoBoard
+               EXPORT YARP_${YARP_PLUGIN_MASTER}
+               COMPONENT ${YARP_PLUGIN_MASTER}
+               LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
+               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
+               YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+
+  set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
+
+  set_property(TARGET yarp_SerialServoBoard PROPERTY FOLDER "Unsupported")
+endif()

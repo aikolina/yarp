@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2006 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
-
 
 #ifndef FfmpegWriter_INC
 #define FfmpegWriter_INC
@@ -12,20 +13,14 @@
 #include "avpreamble.h"
 
 extern "C" {
-#include <avcodec.h>
-#include <avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 }
 
 /*
  * Uses ffmpeg to write images to movie files.
- *
  */
 
-namespace yarp {
-    namespace dev {
-        class FfmpegWriter;
-    }
-}
 
 #include <yarp/dev/AudioVisualInterfaces.h>
 #include <yarp/dev/DeviceDriver.h>
@@ -36,31 +31,45 @@ namespace yarp {
  * Uses ffmpeg to write images/sounds to movie files (AVI, MOV, ...).
  *
  */
-class yarp::dev::FfmpegWriter : public IFrameWriterImage,
-            public IFrameWriterAudioVisual,
-            public DeviceDriver,
-            public IAudioVisualStream
+class FfmpegWriter :
+        public yarp::dev::IFrameWriterImage,
+        public yarp::dev::IFrameWriterAudioVisual,
+        public yarp::dev::DeviceDriver,
+        public yarp::dev::IAudioVisualStream
 {
 public:
 
-    FfmpegWriter() {
+    FfmpegWriter() :
+        fmt(nullptr),
+        oc(nullptr),
+        audio_st(nullptr),
+        video_st(nullptr),
+        audio_pts(0.0),
+        video_pts(0.0),
+        picture(nullptr),
+        tmp_picture(nullptr),
+        video_outbuf(nullptr),
+        frame_count(0),
+        video_outbuf_size(0),
+        ready(false),
+        delayed(false)
+    {
         system_resource = NULL;
-        ready = false;
     }
 
-    virtual bool open(yarp::os::Searchable & config);
+    bool open(yarp::os::Searchable & config) override;
 
-    virtual bool close();
+    bool close() override;
 
-    virtual bool putImage(yarp::sig::ImageOf<yarp::sig::PixelRgb> & image);
+    bool putImage(yarp::sig::ImageOf<yarp::sig::PixelRgb> & image) override;
 
     virtual bool putAudioVisual(yarp::sig::ImageOf<yarp::sig::PixelRgb>& image,
-                                yarp::sig::Sound& sound);
+                                yarp::sig::Sound& sound) override;
 
 
-    virtual bool hasAudio() { return true; }
+    bool hasAudio() override { return true; }
 
-    virtual bool hasVideo() { return true; }
+    bool hasVideo() override { return true; }
 
 private:
     void *system_resource;
@@ -69,7 +78,7 @@ private:
     AVFormatContext *oc;
     AVStream *audio_st, *video_st;
     double audio_pts, video_pts;
-    yarp::os::ConstString filename;
+    std::string filename;
     yarp::os::Property savedConfig;
     AVFrame *picture, *tmp_picture;
     uint8_t *video_outbuf;
@@ -101,7 +110,7 @@ private:
  * @ingroup dev_runtime
  * \defgroup cmd_device_ffmpeg_writer ffmpeg_writer
 
- A wrapper for the ffmpeg library's media writing, see yarp::dev::FfmpegWriter.
+ A wrapper for the ffmpeg library's media writing, see FfmpegWriter.
 
 */
 

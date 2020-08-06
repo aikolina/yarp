@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef YARP_XMLRPC_CARRIER_XMLRPCSTREAM_H
@@ -17,29 +18,24 @@
 #include "XmlRpcClient.h"
 #include "XmlRpcServerConnection.h"
 
-namespace yarp {
-    namespace os {
-        class XmlRpcStream;
-    }
-}
-
-class yarp::os::XmlRpcStream : public TwoWayStream,
-                               public InputStream,
-                               public OutputStream
+class XmlRpcStream :
+        public yarp::os::TwoWayStream,
+        public yarp::os::InputStream,
+        public yarp::os::OutputStream
 {
 private:
     TwoWayStream *delegate;
     YarpXmlRpc::XmlRpcClient client;
     YarpXmlRpc::XmlRpcServerConnection server;
-    StringInputStream sis;
-    StringOutputStream sos;
+    yarp::os::StringInputStream sis;
+    yarp::os::StringOutputStream sos;
     bool sender;
     bool firstRound;
     bool interpretRos;
 public:
     XmlRpcStream(TwoWayStream *delegate, bool sender, bool interpretRos) :
             client("notset", 0),
-            server(0, YARP_NULLPTR),
+            server(0, nullptr),
             sender(sender),
             interpretRos(interpretRos)
     {
@@ -51,65 +47,65 @@ public:
 
     virtual ~XmlRpcStream()
     {
-        if (delegate != YARP_NULLPTR) {
+        if (delegate != nullptr) {
             delete delegate;
-            delegate = YARP_NULLPTR;
+            delegate = nullptr;
         }
     }
 
-    virtual yarp::os::InputStream& getInputStream()
+    yarp::os::InputStream& getInputStream() override
     {
         return *this;
     }
 
-    virtual yarp::os::OutputStream& getOutputStream()
+    yarp::os::OutputStream& getOutputStream() override
     {
         return *this;
     }
 
 
-    virtual const yarp::os::Contact& getLocalAddress()
+    const yarp::os::Contact& getLocalAddress() const override
     {
         return delegate->getLocalAddress();
     }
 
-    virtual const yarp::os::Contact& getRemoteAddress()
+    const yarp::os::Contact& getRemoteAddress() const override
     {
         return delegate->getRemoteAddress();
     }
 
-    virtual bool isOk()
+    bool isOk() const override
     {
         return delegate->isOk();
     }
 
-    virtual void reset()
+    void reset() override
     {
         delegate->reset();
     }
 
-    virtual void close()
+    void close() override
     {
         delegate->close();
     }
 
-    virtual void beginPacket()
+    void beginPacket() override
     {
         delegate->beginPacket();
     }
 
-    virtual void endPacket()
+    void endPacket() override
     {
         delegate->endPacket();
     }
 
     using yarp::os::OutputStream::write;
-    virtual void write(const Bytes& b);
+    void write(const yarp::os::Bytes& b) override;
 
     using yarp::os::InputStream::read;
-    virtual YARP_SSIZE_T read(const Bytes& b);
+    yarp::conf::ssize_t read(yarp::os::Bytes& b) override;
 
-    virtual void interrupt()
+    void interrupt() override
     {
         delegate->getInputStream().interrupt();
     }

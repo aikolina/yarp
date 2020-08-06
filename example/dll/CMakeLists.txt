@@ -1,15 +1,21 @@
-# Copyright: (C) 2011 Department of Robotics Brain and Cognitive Sciences - Istituto Italiano di Tecnologia
-# Authors: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
 
-FIND_PACKAGE(YARP REQUIRED)
-LINK_LIBRARIES(${YARP_LIBRARIES})
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
+find_package(YARP COMPONENTS os REQUIRED)
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR})
+include_directories(${CMAKE_SOURCE_DIR})
 
-ADD_LIBRARY(hello SHARED Hello.cpp Hello.h)
+add_library(hello SHARED)
+target_sources(hello PRIVATE Hello.cpp
+                             Hello.h)
+target_link_libraries(hello PRIVATE YARP::YARP_os)
 
-ADD_EXECUTABLE(program program.cpp)
+add_executable(program)
+target_sources(program PRIVATE program.cpp)
+target_link_libraries(program PRIVATE YARP::YARP_os
+                                       YARP::YARP_init)

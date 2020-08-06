@@ -1,53 +1,120 @@
 /*
- * Copyright (C) 2016 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Alberto Cardellino
- * email:   alberto.cardellino@iit.it
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
-#include <iostream>
-#include <sstream>
-#include <string.h>
+#include "fakeMotionControl.h"
+
+#include <yarp/conf/environment.h>
+
 #include <yarp/os/Bottle.h>
 #include <yarp/os/Time.h>
+#include <yarp/os/LogComponent.h>
 #include <yarp/os/LogStream.h>
 #include <yarp/os/NetType.h>
 #include <yarp/dev/Drivers.h>
+#include <yarp/math/Math.h>
 
-#include "fakeMotionControl.h"
+#include <sstream>
+#include <cstring>
 
 using namespace std;
 using namespace yarp::dev;
 using namespace yarp::os;
 using namespace yarp::os::impl;
-
+using namespace yarp::math;
 
 // macros
 #define NEW_JSTATUS_STRUCT 1
+#define VELOCITY_WATCHDOG 0.1
+#define OPENLOOP_WATCHDOG 0.1
+#define PWM_CONSTANT      0.1
 
-void FakeMotionControl::run() {
-    if (lifetime>=0) {
-        Time::delay(lifetime);
-        yarp::os::exit(0);
+namespace {
+YARP_LOG_COMPONENT(FAKEMOTIONCONTROL, "yarp.device.fakeMotionControl")
+}
+
+void FakeMotionControl::run()
+{
+    for (int i=0;i <_njoints ;i++)
+    {
+        if (_controlModes[i] == VOCAB_CM_VELOCITY)
+        {
+            //increment joint position
+            if (this->_command_speeds[i]!=0)
+            {
+                double elapsed = yarp::os::Time::now()-prev_time;
+                double increment = _command_speeds[i]*elapsed;
+                pos[i]+=increment;
+            }
+
+            //velocity watchdog
+            if (yarp::os::Time::now()-last_velocity_command[i]>=VELOCITY_WATCHDOG)
+            {
+                this->_command_speeds[i]=0.0;
+            }
+        }
+        else if (_controlModes[i] == VOCAB_CM_PWM)
+        {
+            //increment joint position
+            if (this->refpwm[i]!=0)
+            {
+                double elapsed = yarp::os::Time::now()-prev_time;
+                double increment = refpwm[i]*elapsed*PWM_CONSTANT;
+                pos[i]+=increment;
+            }
+
+            //pwm watchdog
+            if (yarp::os::Time::now()-last_pwm_command[i]>=OPENLOOP_WATCHDOG)
+            {
+                this->refpwm[i]=0.0;
+            }
+        }
+        else if (_controlModes[i] == VOCAB_CM_POSITION_DIRECT)
+        {
+             pos[i] = _posDir_references[i];
+        }
+        else if (_controlModes[i] == VOCAB_CM_POSITION)
+        {
+             pos[i] = _posCtrl_references[i];
+             //do something with _ref_speeds[i];
+        }
+        else if (_controlModes[i] == VOCAB_CM_IDLE)
+        {
+            //do nothing
+        }
+        else if (_controlModes[i] == VOCAB_CM_MIXED)
+        {
+            //not yet implemented
+        }
+        else
+        {
+            //unsupported control mode
+            yCWarning(FAKEMOTIONCONTROL) << "Unsupported control mode, joint " << i << " " << yarp::os::Vocab::decode(_controlModes[i]);
+        }
     }
+    prev_time = yarp::os::Time::now();
 }
 
 static inline bool NOT_YET_IMPLEMENTED(const char *txt)
 {
-    yError() << txt << " is not yet implemented for FakeMotionControl";
+    yCError(FAKEMOTIONCONTROL) << txt << "is not yet implemented for FakeMotionControl";
     return true;
 }
 
 static inline bool DEPRECATED(const char *txt)
 {
-    yError() << txt << " has been deprecated for FakeMotionControl";
+    yCError(FAKEMOTIONCONTROL) << txt << "has been deprecated for FakeMotionControl";
     return true;
 }
 
 
 // replace with to_string as soon as C++11 is required by YARP
 /**
- * @brief convert an arbitary type to string.
+ * @brief convert an arbitrary type to string.
  *
  */
 template<typename T>
@@ -58,28 +125,22 @@ std::string toString(const T& value)
     return oss.str();
 }
 
-yarp::dev::DriverCreator *createFakeMotionControl()
-{
-    return new yarp::dev::DriverCreatorOf<yarp::dev::FakeMotionControl>
-            ("fakeMotionControl", "controlboardwrapper2", "yarp::dev::FakeMotionControl");
-}
-
 //generic function that check is key1 is present in input bottle and that the result has size elements
 // return true/false
 bool FakeMotionControl::extractGroup(Bottle &input, Bottle &out, const std::string &key1, const std::string &txt, int size)
 {
     size++;
-    Bottle &tmp=input.findGroup(key1.c_str(), txt.c_str());
+    Bottle &tmp=input.findGroup(key1, txt);
 
     if (tmp.isNull())
     {
-        yError() << key1.c_str() << " parameter not found";
+        yCError(FAKEMOTIONCONTROL) << key1.c_str() << "parameter not found";
         return false;
     }
 
-    if(tmp.size()!=size)
+    if(tmp.size()!=(size_t) size)
     {
-        yError() << key1.c_str() << " incorrect number of entries";
+        yCError(FAKEMOTIONCONTROL) << key1.c_str() << "incorrect number of entries";
         return false;
     }
 
@@ -102,8 +163,11 @@ void FakeMotionControl::resizeBuffers()
     maxCurrent.resize(_njoints);
     peakCurrent.resize(_njoints);
     pwm.resize(_njoints);
+    refpwm.resize(_njoints);
     pwmLimit.resize(_njoints);
     supplyVoltage.resize(_njoints);
+    last_velocity_command.resize(_njoints);
+    last_pwm_command.resize(_njoints);
 
     pos.zero();
     dpos.zero();
@@ -119,6 +183,7 @@ void FakeMotionControl::resizeBuffers()
     peakCurrent.zero();
 
     pwm.zero();
+    refpwm.zero();
     pwmLimit.zero();
     supplyVoltage.zero();
 }
@@ -129,6 +194,8 @@ bool FakeMotionControl::alloc(int nj)
     _controlModes = allocAndCheck<int>(nj);
     _interactMode = allocAndCheck<int>(nj);
     _angleToEncoder = allocAndCheck<double>(nj);
+    _dutycycleToPWM = allocAndCheck<double>(nj);
+    _ampsToSensor = allocAndCheck<double>(nj);
     _encodersStamp = allocAndCheck<double>(nj);
     _DEPRECATED_encoderconversionoffset = allocAndCheck<float>(nj);
     _DEPRECATED_encoderconversionfactor = allocAndCheck<float>(nj);
@@ -140,6 +207,7 @@ bool FakeMotionControl::alloc(int nj)
     _torqueSensorId= allocAndCheck<int>(nj);
     _torqueSensorChan= allocAndCheck<int>(nj);
     _maxTorque=allocAndCheck<double>(nj);
+    _torques = allocAndCheck<double>(nj);
     _maxJntCmdVelocity = allocAndCheck<double>(nj);
     _maxMotorVelocity = allocAndCheck<double>(nj);
     _newtonsToSensor=allocAndCheck<double>(nj);
@@ -152,9 +220,22 @@ bool FakeMotionControl::alloc(int nj)
     _rotorlimits_max = allocAndCheck<double>(nj);
     _rotorlimits_min = allocAndCheck<double>(nj);
 
-    _pids=allocAndCheck<Pid>(nj);
+    _ppids=allocAndCheck<Pid>(nj);
     _tpids=allocAndCheck<Pid>(nj);
     _cpids = allocAndCheck<Pid>(nj);
+    _vpids = allocAndCheck<Pid>(nj);
+    _ppids_ena=allocAndCheck<bool>(nj);
+    _tpids_ena=allocAndCheck<bool>(nj);
+    _cpids_ena = allocAndCheck<bool>(nj);
+    _vpids_ena = allocAndCheck<bool>(nj);
+    _ppids_lim=allocAndCheck<double>(nj);
+    _tpids_lim=allocAndCheck<double>(nj);
+    _cpids_lim = allocAndCheck<double>(nj);
+    _vpids_lim = allocAndCheck<double>(nj);
+    _ppids_ref=allocAndCheck<double>(nj);
+    _tpids_ref=allocAndCheck<double>(nj);
+    _cpids_ref = allocAndCheck<double>(nj);
+    _vpids_ref = allocAndCheck<double>(nj);
 
 //     _impedance_params=allocAndCheck<ImpedanceParameters>(nj);
 //     _impedance_limits=allocAndCheck<ImpedanceLimits>(nj);
@@ -172,6 +253,8 @@ bool FakeMotionControl::alloc(int nj)
     _velocityTimeout=allocAndCheck<int>(nj);
     _kbemf=allocAndCheck<double>(nj);
     _ktau=allocAndCheck<double>(nj);
+    _kbemf_scale = allocAndCheck<int>(nj);
+    _ktau_scale = allocAndCheck<int>(nj);
     _filterType=allocAndCheck<int>(nj);
     _last_position_move_time=allocAndCheck<double>(nj);
 
@@ -182,6 +265,7 @@ bool FakeMotionControl::alloc(int nj)
     _ref_speeds = allocAndCheck<double>(nj);
     _ref_accs = allocAndCheck<double>(nj);
     _ref_torques = allocAndCheck<double>(nj);
+    _ref_currents = allocAndCheck<double>(nj);
     _enabledAmp = allocAndCheck<bool>(nj);
     _enabledPid = allocAndCheck<bool>(nj);
     _calibrated = allocAndCheck<bool>(nj);
@@ -198,6 +282,8 @@ bool FakeMotionControl::dealloc()
     checkAndDestroy(_controlModes);
     checkAndDestroy(_interactMode);
     checkAndDestroy(_angleToEncoder);
+    checkAndDestroy(_ampsToSensor);
+    checkAndDestroy(_dutycycleToPWM);
     checkAndDestroy(_encodersStamp);
     checkAndDestroy(_DEPRECATED_encoderconversionoffset);
     checkAndDestroy(_DEPRECATED_encoderconversionfactor);
@@ -212,9 +298,22 @@ bool FakeMotionControl::dealloc()
     checkAndDestroy(_maxJntCmdVelocity);
     checkAndDestroy(_maxMotorVelocity);
     checkAndDestroy(_newtonsToSensor);
-    checkAndDestroy(_pids);
+    checkAndDestroy(_ppids);
     checkAndDestroy(_tpids);
     checkAndDestroy(_cpids);
+    checkAndDestroy(_vpids);
+    checkAndDestroy(_ppids_ena);
+    checkAndDestroy(_tpids_ena);
+    checkAndDestroy(_cpids_ena);
+    checkAndDestroy(_vpids_ena);
+    checkAndDestroy(_ppids_lim);
+    checkAndDestroy(_tpids_lim);
+    checkAndDestroy(_cpids_lim);
+    checkAndDestroy(_vpids_lim);
+    checkAndDestroy(_ppids_ref);
+    checkAndDestroy(_tpids_ref);
+    checkAndDestroy(_cpids_ref);
+    checkAndDestroy(_vpids_ref);
 //     checkAndDestroy(_impedance_params);
 //     checkAndDestroy(_impedance_limits);
     checkAndDestroy(_limitsMax);
@@ -227,6 +326,8 @@ bool FakeMotionControl::dealloc()
     checkAndDestroy(_velocityTimeout);
     checkAndDestroy(_kbemf);
     checkAndDestroy(_ktau);
+    checkAndDestroy(_kbemf_scale);
+    checkAndDestroy(_ktau_scale);
     checkAndDestroy(_filterType);
     checkAndDestroy(_posCtrl_references);
     checkAndDestroy(_posDir_references);
@@ -234,6 +335,7 @@ bool FakeMotionControl::dealloc()
     checkAndDestroy(_ref_speeds);
     checkAndDestroy(_ref_accs);
     checkAndDestroy(_ref_torques);
+    checkAndDestroy(_ref_currents);
     checkAndDestroy(_enabledAmp);
     checkAndDestroy(_enabledPid);
     checkAndDestroy(_calibrated);
@@ -248,124 +350,119 @@ bool FakeMotionControl::dealloc()
     checkAndDestroy(_rotorlimits_max);
     checkAndDestroy(_rotorlimits_min);
     checkAndDestroy(_last_position_move_time);
+    checkAndDestroy(_torques);
 
     return true;
 }
 
 FakeMotionControl::FakeMotionControl() :
-    ImplementControlCalibration2<FakeMotionControl, IControlCalibration2>(this),
-    ImplementAmplifierControl<FakeMotionControl, IAmplifierControl>(this),
-    ImplementPidControl<FakeMotionControl, IPidControl>(this),
+    PeriodicThread(0.01),
+    ImplementControlCalibration(this),
+    ImplementAmplifierControl(this),
+    ImplementPidControl(this),
     ImplementEncodersTimed(this),
-    ImplementPositionControl2(this),
-    ImplementVelocityControl<FakeMotionControl, IVelocityControl>(this),
-    ImplementVelocityControl2(this),
-    ImplementControlMode2(this),
+    ImplementPositionControl(this),
+    ImplementVelocityControl(this),
+    ImplementControlMode(this),
     ImplementImpedanceControl(this),
     ImplementMotorEncoders(this),
     ImplementTorqueControl(this),
-    ImplementControlLimits2(this),
+    ImplementControlLimits(this),
     ImplementPositionDirect(this),
-    ImplementOpenLoopControl(this),
     ImplementInteractionMode(this),
+    ImplementCurrentControl(this),
+    ImplementPWMControl(this),
     ImplementMotor(this),
     ImplementAxisInfo(this),
-    _mutex(1)
-//     SAFETY_THRESHOLD(2.0)
+    ImplementVirtualAnalogSensor(this),
+    _mutex(),
+    _njoints       (0),
+    _axisMap       (nullptr),
+    _angleToEncoder(nullptr),
+    _encodersStamp (nullptr),
+    _ampsToSensor  (nullptr),
+    _dutycycleToPWM(nullptr),
+    _DEPRECATED_encoderconversionfactor (nullptr),
+    _DEPRECATED_encoderconversionoffset (nullptr),
+    _jointEncoderRes        (nullptr),
+    _rotorEncoderRes        (nullptr),
+    _gearbox                (nullptr),
+    _hasHallSensor          (nullptr),
+    _hasTempSensor          (nullptr),
+    _hasRotorEncoder        (nullptr),
+    _hasRotorEncoderIndex   (nullptr),
+    _rotorIndexOffset       (nullptr),
+    _motorPoles             (nullptr),
+    _rotorlimits_max        (nullptr),
+    _rotorlimits_min        (nullptr),
+    _ppids                  (nullptr),
+    _tpids                  (nullptr),
+    _cpids                  (nullptr),
+    _vpids                  (nullptr),
+    _ppids_ena              (nullptr),
+    _tpids_ena              (nullptr),
+    _cpids_ena              (nullptr),
+    _vpids_ena              (nullptr),
+    _ppids_lim              (nullptr),
+    _tpids_lim              (nullptr),
+    _cpids_lim              (nullptr),
+    _vpids_lim              (nullptr),
+    _ppids_ref              (nullptr),
+    _tpids_ref              (nullptr),
+    _cpids_ref              (nullptr),
+    _vpids_ref              (nullptr),
+    _axisName               (nullptr),
+    _jointType              (nullptr),
+    _limitsMin              (nullptr),
+    _limitsMax              (nullptr),
+    _kinematic_mj           (nullptr),
+    _maxJntCmdVelocity      (nullptr),
+    _maxMotorVelocity       (nullptr),
+    _velocityShifts         (nullptr),
+    _velocityTimeout        (nullptr),
+    _kbemf                  (nullptr),
+    _ktau                   (nullptr),
+    _kbemf_scale            (nullptr),
+    _ktau_scale             (nullptr),
+    _filterType             (nullptr),
+    _torqueSensorId         (nullptr),
+    _torqueSensorChan       (nullptr),
+    _maxTorque              (nullptr),
+    _newtonsToSensor        (nullptr),
+    checking_motiondone     (nullptr),
+    _last_position_move_time(nullptr),
+    _motorPwmLimits         (nullptr),
+    _torques                (nullptr),
+    useRawEncoderData       (false),
+    _pwmIsLimited           (false),
+    _torqueControlEnabled   (false),
+    _torqueControlUnits     (T_MACHINE_UNITS),
+    _positionControlUnits   (P_MACHINE_UNITS),
+    _controlModes           (nullptr),
+    _interactMode           (nullptr),
+    _enabledAmp             (nullptr),
+    _enabledPid             (nullptr),
+    _calibrated             (nullptr),
+    _posCtrl_references     (nullptr),
+    _posDir_references      (nullptr),
+    _ref_speeds             (nullptr),
+    _command_speeds         (nullptr),
+    _ref_accs               (nullptr),
+    _ref_torques            (nullptr),
+    _ref_currents           (nullptr),
+    prev_time               (0.0),
+    opened                  (false),
+    verbose                 (VERY_VERBOSE)
 {
-    verbose = VERY_VERBOSE;
-    _njoints = 2;
-    opened = false;
-
     resizeBuffers();
-
-    _controlModes = NULL;
-    _interactMode = NULL;
-
-    lifetime = -1;
-    init();
-
-    _gearbox       = 0;
-//     opened        = 0;
-    _pids         = NULL;
-    _tpids        = NULL;
-    _cpids        = NULL;
-    _njoints      = 0;
-    _axisMap      = NULL;
-    _encodersStamp = NULL;
-    _DEPRECATED_encoderconversionfactor = NULL;
-    _DEPRECATED_encoderconversionoffset = NULL;
-    _angleToEncoder = NULL;
-    _hasHallSensor = NULL;
-    _hasTempSensor = NULL;
-    _hasRotorEncoder = NULL;
-    _hasRotorEncoderIndex = NULL;
-    _rotorIndexOffset = NULL;
-    _motorPoles       = NULL;
-//     _impedance_params = NULL;
-//     _impedance_limits = NULL;
-    _rotorlimits_max  = NULL;
-    _rotorlimits_min  = NULL;
-
-    _axisName         = NULL;
-    _jointType         = NULL;
-    _limitsMin        = NULL;
-    _limitsMax        = NULL;
-//     _currentLimits    = NULL;
-    _motorPwmLimits   = NULL;
-    _velocityShifts   = NULL;
-    _velocityTimeout  = NULL;
-    _torqueSensorId   = NULL;
-    _torqueSensorChan = NULL;
-    _maxTorque        = NULL;
-    _maxJntCmdVelocity= NULL;
-    _maxMotorVelocity = NULL;
-    _newtonsToSensor  = NULL;
-    _jointEncoderRes  = NULL;
-//     _jointEncoderType = NULL;
-    _rotorEncoderRes  = NULL;
-//     _rotorEncoderType = NULL;
-    _ref_accs         = NULL;
-    _command_speeds   = NULL;
-    _posCtrl_references    = NULL;
-    _posDir_references    = NULL;
-    _ref_speeds       = NULL;
-    _ref_torques      = NULL;
-    _kinematic_mj     = NULL;
-    _kbemf            = NULL;
-    _ktau             = NULL;
-    _filterType       = NULL;
-    _positionControlUnits = P_MACHINE_UNITS;
-    _torqueControlUnits = T_MACHINE_UNITS;
-    _torqueControlEnabled = false;
-
-    checking_motiondone = NULL;
-
-    // Check status of joints
-    _enabledPid       = NULL;
-    _enabledAmp       = NULL;
-    _calibrated       = NULL;
-    _last_position_move_time = NULL;
-    // NV stuff
-
-    useRawEncoderData = false;
-    _pwmIsLimited     = false;
-
-    ConstString tmp = NetworkBase::getEnvironment("VERBOSE_STICA");
-    if (tmp != "")
-    {
-        verbosewhenok = (bool)NetType::toInt(tmp);
-    }
-    else
-    {
-        verbosewhenok = false;
-    }
-
+    std::string tmp = yarp::conf::environment::getEnvironment("VERBOSE_STICA");
+    verbosewhenok = (tmp != "") ? (bool)NetType::toInt(tmp) :
+                                  false;
 }
 
 FakeMotionControl::~FakeMotionControl()
 {
-    yTrace();
+    yCTrace(FAKEMOTIONCONTROL);
     dealloc();
 }
 
@@ -374,29 +471,53 @@ bool FakeMotionControl::initialised()
     return opened;
 }
 
+bool FakeMotionControl::threadInit()
+{
+    yCTrace(FAKEMOTIONCONTROL);
+    for(int i=0; i<_njoints; i++)
+    {
+        pwm[i]              = 33+i;
+        pwmLimit[i]         = (33+i)*10;
+        current[i]          = (33+i)*100;
+        maxCurrent[i]       = (33+i)*1000;
+        peakCurrent[i]      = (33+i)*2;
+        nominalCurrent[i]   = (33+i)*20;
+        supplyVoltage[i]    = (33+i)*200;
+        last_velocity_command[i] = -1;
+        last_pwm_command[i] = -1;
+        _controlModes[i]    = VOCAB_CM_POSITION;
+        _maxJntCmdVelocity[i]=50.0;
+    }
+    prev_time = yarp::os::Time::now();
+    return true;
+}
+
+void FakeMotionControl::threadRelease()
+{
+}
 
 bool FakeMotionControl::open(yarp::os::Searchable &config)
 {
     std::string str;
 
-//     if (!config.findGroup("GENERAL").find("MotioncontrolVersion").isInt())
+//     if (!config.findGroup("GENERAL").find("MotioncontrolVersion").isInt32())
 //     {
-//         yError() << "Missing MotioncontrolVersion parameter. yarprobotinterface cannot start. Please contact icub-support@iit.it";
+//         yCError(FAKEMOTIONCONTROL) << "Missing MotioncontrolVersion parameter. yarprobotinterface cannot start. Please contact icub-support@iit.it";
 //         return false;
 //     }
 //     else
 //     {
-//         int mcv = config.findGroup("GENERAL").find("MotioncontrolVersion").asInt();
+//         int mcv = config.findGroup("GENERAL").find("MotioncontrolVersion").asInt32();
 //         if (mcv != 2)
 //         {
-//             yError() << "Wrong MotioncontrolVersion parameter. yarprobotinterface cannot start. Please contact icub-support@iit.it";
+//             yCError(FAKEMOTIONCONTROL) << "Wrong MotioncontrolVersion parameter. yarprobotinterface cannot start. Please contact icub-support@iit.it";
 //             return false;
 //         }
 //     }
 
 //     if(!config.findGroup("GENERAL").find("verbose").isBool())
 //     {
-//         yError() << "FakeMotionControl::open() detects that general->verbose bool param is different from accepted values (true / false). Assuming false";
+//         yCError(FAKEMOTIONCONTROL) << "open() detects that general->verbose bool param is different from accepted values (true / false). Assuming false";
 //         str=" ";
 //     }
 //     else
@@ -406,17 +527,17 @@ bool FakeMotionControl::open(yarp::os::Searchable &config)
 //         else
 //             str=" ";
 //     }
-    str=config.toString().c_str();
-    yTrace() << str;
+    str=config.toString();
+    yCTrace(FAKEMOTIONCONTROL) << str;
 
     //
     //  Read Configuration params from file
     //
-    _njoints = config.findGroup("GENERAL").check("Joints",Value(1),   "Number of degrees of freedom").asInt();
+    _njoints = config.findGroup("GENERAL").check("Joints",Value(1),   "Number of degrees of freedom").asInt32();
 
     if(!alloc(_njoints))
     {
-        yError() << "Malloc failed";
+        yCError(FAKEMOTIONCONTROL) << "Malloc failed";
         return false;
     }
 
@@ -426,47 +547,57 @@ bool FakeMotionControl::open(yarp::os::Searchable &config)
 
     if(!fromConfig(config))
     {
-        yError() << "Missing parameters in config file";
+        yCError(FAKEMOTIONCONTROL) << "Missing parameters in config file";
         return false;
     }
 
     //  INIT ALL INTERFACES
     yarp::sig::Vector tmpZeros; tmpZeros.resize (_njoints, 0.0);
     yarp::sig::Vector tmpOnes;  tmpOnes.resize  (_njoints, 1.0);
+    yarp::sig::Vector bemfToRaw; bemfToRaw.resize(_njoints, 1.0);
+    yarp::sig::Vector ktauToRaw; ktauToRaw.resize(_njoints, 1.0);
+    bemfToRaw = yarp::sig::Vector(_njoints, _newtonsToSensor) / yarp::sig::Vector(_njoints, _angleToEncoder);
+    ktauToRaw = yarp::sig::Vector(_njoints, _dutycycleToPWM)  / yarp::sig::Vector(_njoints, _newtonsToSensor);
 
-    ImplementControlCalibration2<FakeMotionControl, IControlCalibration2>::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementAmplifierControl<FakeMotionControl, IAmplifierControl>::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementEncodersTimed::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementMotorEncoders::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementPositionControl2::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementPidControl<FakeMotionControl, IPidControl>::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementControlMode2::initialize(_njoints, _axisMap);
-    ImplementVelocityControl<FakeMotionControl, IVelocityControl>::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementVelocityControl2::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementControlLimits2::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementImpedanceControl::initialize(_njoints, _axisMap, _angleToEncoder, NULL, _newtonsToSensor);
-    ImplementTorqueControl::initialize(_njoints, _axisMap, _angleToEncoder, NULL, _newtonsToSensor);
-    ImplementPositionDirect::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
-    ImplementOpenLoopControl::initialize(_njoints, _axisMap);
-    ImplementInteractionMode::initialize(_njoints, _axisMap, _angleToEncoder, NULL);
+    ControlBoardHelper cb(_njoints, _axisMap, _angleToEncoder, nullptr, _newtonsToSensor, _ampsToSensor, _dutycycleToPWM);
+    ControlBoardHelper cb_copy_test(cb);
+    ImplementControlCalibration::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementAmplifierControl::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementEncodersTimed::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementMotorEncoders::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementPositionControl::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementPidControl::initialize(_njoints, _axisMap, _angleToEncoder, nullptr, _newtonsToSensor, _ampsToSensor, _dutycycleToPWM);
+    ImplementPidControl::setConversionUnits(PidControlTypeEnum::VOCAB_PIDTYPE_POSITION, PidFeedbackUnitsEnum::METRIC, PidOutputUnitsEnum::DUTYCYCLE_PWM_PERCENT);
+    ImplementPidControl::setConversionUnits(PidControlTypeEnum::VOCAB_PIDTYPE_TORQUE, PidFeedbackUnitsEnum::METRIC, PidOutputUnitsEnum::DUTYCYCLE_PWM_PERCENT);
+    ImplementControlMode::initialize(_njoints, _axisMap);
+    ImplementVelocityControl::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementControlLimits::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementImpedanceControl::initialize(_njoints, _axisMap, _angleToEncoder, nullptr, _newtonsToSensor);
+    ImplementTorqueControl::initialize(_njoints, _axisMap, _angleToEncoder, nullptr, _newtonsToSensor, _ampsToSensor, _dutycycleToPWM, bemfToRaw.data(), ktauToRaw.data());
+    ImplementPositionDirect::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
+    ImplementInteractionMode::initialize(_njoints, _axisMap, _angleToEncoder, nullptr);
     ImplementMotor::initialize(_njoints, _axisMap);
     ImplementAxisInfo::initialize(_njoints, _axisMap);
+    ImplementPWMControl::initialize(_njoints, _axisMap, _dutycycleToPWM);
+    ImplementCurrentControl::initialize(_njoints, _axisMap, _ampsToSensor);
+    ImplementVirtualAnalogSensor::initialize(_njoints, _axisMap, _newtonsToSensor);
 
-
-    if(!init() )
+    //start the rateThread
+    bool init = this->start();
+    if(!init)
     {
-        yError() << "FakeMotionControl::open() has an error in call of FakeMotionControl::init() for board" ;
+        yCError(FAKEMOTIONCONTROL) << "open() has an error in call of FakeMotionControl::init() for board" ;
         return false;
     }
     else
     {
         if(verbosewhenok)
         {
-            yDebug() << "FakeMotionControl::init() has successfully initted board ";
+            yCDebug(FAKEMOTIONCONTROL) << "init() has successfully initted board ";
         }
     }
-
     opened = true;
+
     return true;
 }
 
@@ -479,14 +610,14 @@ bool FakeMotionControl::parseImpedanceGroup_NewFormat(Bottle& pidsGroup, Impedan
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        vals[j].stiffness = xtmp.get(j+1).asDouble();
+        vals[j].stiffness = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "damping", "damping parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        vals[j].damping = xtmp.get(j+1).asDouble();
+        vals[j].damping = xtmp.get(j+1).asFloat64();
     }
 
     return true;
@@ -501,70 +632,70 @@ bool FakeMotionControl::parsePositionPidsGroup(Bottle& pidsGroup, Pid myPid[])
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].kp = xtmp.get(j+1).asDouble();
+        myPid[j].kp = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "kd", "Pid kd parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].kd = xtmp.get(j+1).asDouble();
+        myPid[j].kd = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "ki", "Pid kp parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].ki = xtmp.get(j+1).asDouble();
+        myPid[j].ki = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "maxInt", "Pid maxInt parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].max_int = xtmp.get(j+1).asDouble();
+        myPid[j].max_int = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "maxPwm", "Pid maxPwm parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].max_output = xtmp.get(j+1).asDouble();
+        myPid[j].max_output = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "shift", "Pid shift parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].scale = xtmp.get(j+1).asDouble();
+        myPid[j].scale = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "ko", "Pid ko parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].offset = xtmp.get(j+1).asDouble();
+        myPid[j].offset = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "stictionUp", "Pid stictionUp", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].stiction_up_val = xtmp.get(j+1).asDouble();
+        myPid[j].stiction_up_val = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "stictionDwn", "Pid stictionDwn", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].stiction_down_val = xtmp.get(j+1).asDouble();
+        myPid[j].stiction_down_val = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "kff", "Pid kff parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].kff = xtmp.get(j+1).asDouble();
+        myPid[j].kff = xtmp.get(j+1).asFloat64();
     }
 
     //conversion from metric to machine units (if applicable)
@@ -587,13 +718,13 @@ bool FakeMotionControl::parsePositionPidsGroup(Bottle& pidsGroup, Pid myPid[])
     {   // check for value in the file
         if (!extractGroup(pidsGroup, xtmp, "limPwm", "Limited PWD", _njoints))
         {
-            yError() << "The PID parameter limPwm was requested but was not correctly set in the configuration file, please fill it.";
+            yCError(FAKEMOTIONCONTROL) << "The PID parameter limPwm was requested but was not correctly set in the configuration file, please fill it.";
             return false;
         }
 
-        yInfo() << "FakeMotionControl using LIMITED PWM!!";
+        yCInfo(FAKEMOTIONCONTROL) << "Using LIMITED PWM!!";
         for (j=0; j<_njoints; j++)
-            myPid[j].max_output = xtmp.get(j+1).asDouble();
+            myPid[j].max_output = xtmp.get(j+1).asFloat64();
     }
 
     return true;
@@ -607,91 +738,91 @@ bool FakeMotionControl::parseTorquePidsGroup(Bottle& pidsGroup, Pid myPid[], dou
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].kp = xtmp.get(j+1).asDouble();
+        myPid[j].kp = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "kd", "Pid kd parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].kd = xtmp.get(j+1).asDouble();
+        myPid[j].kd = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "ki", "Pid kp parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].ki = xtmp.get(j+1).asDouble();
+        myPid[j].ki = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "maxInt", "Pid maxInt parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].max_int = xtmp.get(j+1).asDouble();
+        myPid[j].max_int = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "maxPwm", "Pid maxPwm parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].max_output = xtmp.get(j+1).asDouble();
+        myPid[j].max_output = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "shift", "Pid shift parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].scale = xtmp.get(j+1).asDouble();
+        myPid[j].scale = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "ko", "Pid ko parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].offset = xtmp.get(j+1).asDouble();
+        myPid[j].offset = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "stictionUp", "Pid stictionUp", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].stiction_up_val = xtmp.get(j+1).asDouble();
+        myPid[j].stiction_up_val = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "stictionDwn", "Pid stictionDwn", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].stiction_down_val = xtmp.get(j+1).asDouble();
+        myPid[j].stiction_down_val = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "kff",   "Pid kff parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        myPid[j].kff = xtmp.get(j+1).asDouble();
+        myPid[j].kff = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "kbemf", "kbemf parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        kbemf[j] = xtmp.get(j+1).asDouble();
+        kbemf[j] = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "ktau", "ktau parameter", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        ktau[j] = xtmp.get(j+1).asDouble();
+        ktau[j] = xtmp.get(j+1).asFloat64();
     }
 
     if (!extractGroup(pidsGroup, xtmp, "filterType", "filterType param", _njoints)) {
         return false;
     }
     for (j=0; j<_njoints; j++) {
-        filterType[j] = xtmp.get(j+1).asInt();
+        filterType[j] = xtmp.get(j+1).asInt32();
     }
 
     //conversion from metric to machine units (if applicable)
@@ -707,14 +838,14 @@ bool FakeMotionControl::parseTorquePidsGroup(Bottle& pidsGroup, Pid myPid[], dou
     //optional PWM limit
     if(_pwmIsLimited)
     {   // check for value in the file
-        if (!extractGroup(pidsGroup, xtmp, "limPwm", "Limited PWD", _njoints))
+        if (!extractGroup(pidsGroup, xtmp, "limPwm", "Limited PWM", _njoints))
         {
-            yError() << "The PID parameter limPwm was requested but was not correctly set in the configuration file, please fill it.";
+            yCError(FAKEMOTIONCONTROL) << "The PID parameter limPwm was requested but was not correctly set in the configuration file, please fill it.";
             return false;
         }
 
-        yInfo() << "FakeMotionControl using LIMITED PWM!!";
-        for (j=0; j<_njoints; j++) myPid[j].max_output = xtmp.get(j+1).asDouble();
+        yCInfo(FAKEMOTIONCONTROL) << "Using LIMITED PWM!!";
+        for (j=0; j<_njoints; j++) myPid[j].max_output = xtmp.get(j+1).asFloat64();
     }
 
     return true;
@@ -731,15 +862,15 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         if(extractGroup(general, xtmp, "AxisMap", "a list of reordered indices for the axes", _njoints))
         {
-            for (i = 1; i < xtmp.size(); i++)
-                _axisMap[i - 1] = xtmp.get(i).asInt();
+            for (i = 1; (size_t) i < xtmp.size(); i++)
+                _axisMap[i - 1] = xtmp.get(i).asInt32();
         }
         else
             return false;
     }
     else
     {
-        yInfo() << "FakeMotionControl: Using default AxisMap";
+        yCInfo(FAKEMOTIONCONTROL) << "Using default AxisMap";
         for (i = 0; i < _njoints; i++)
             _axisMap[i] = i;
     }
@@ -749,7 +880,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
         if (extractGroup(general, xtmp, "AxisName", "a list of strings representing the axes names", _njoints))
         {
             //beware: axis name has to be remapped here because they are not set using the toHw() helper function
-            for (i = 1; i < xtmp.size(); i++)
+            for (i = 1; (size_t) i < xtmp.size(); i++)
             {
                 _axisName[_axisMap[i - 1]] = xtmp.get(i).asString();
             }
@@ -759,7 +890,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     }
     else
     {
-        yInfo() << "FakeMotionControl: Using default AxisName";
+        yCInfo(FAKEMOTIONCONTROL) << "Using default AxisName";
         for (i = 0; i < _njoints; i++)
         {
             _axisName[_axisMap[i]] = "joint" + toString(i);
@@ -770,14 +901,14 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
         if (extractGroup(general, xtmp, "AxisType", "a list of strings representing the axes type (revolute/prismatic)", _njoints))
         {
             //beware: axis type has to be remapped here because they are not set using the toHw() helper function
-            for (i = 1; i < xtmp.size(); i++)
+            for (i = 1; (size_t) i < xtmp.size(); i++)
             {
                 string typeString = xtmp.get(i).asString();
                 if (typeString == "revolute")  _jointType[_axisMap[i - 1]] = VOCAB_JOINTTYPE_REVOLUTE;
                 else if (typeString == "prismatic")  _jointType[_axisMap[i - 1]] = VOCAB_JOINTTYPE_PRISMATIC;
                 else
                 {
-                    yError("Unknown AxisType value %s!", typeString.c_str());
+                    yCError(FAKEMOTIONCONTROL, "Unknown AxisType value %s!", typeString.c_str());
                     _jointType[_axisMap[i - 1]] = VOCAB_JOINTTYPE_UNKNOWN;
                     return false;
                 }
@@ -788,23 +919,24 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     }
     else
     {
-        yInfo() << "FakeMotionControl: Using default AxisType (revolute)";
+        yCInfo(FAKEMOTIONCONTROL) << "Using default AxisType (revolute)";
         for (i = 0; i < _njoints; i++)
         {
             _jointType[_axisMap[i]] = VOCAB_JOINTTYPE_REVOLUTE;
         }
     }
 
-
-//     double tmp_A2E;
-    // Encoder scales
-    if(general.check("Encoder"))
+    // current conversions factor
+    if (general.check("ampsToSensor"))
     {
-        if (extractGroup(general, xtmp, "Encoder", "a list of scales for the encoders", _njoints))
+        if (extractGroup(general, xtmp, "ampsToSensor", "a list of scales for the ampsToSensor conversion factors", _njoints))
         {
-            for (i = 1; i < xtmp.size(); i++)
+            for (i = 1; (size_t) i < xtmp.size(); i++)
             {
-                _angleToEncoder[i-1] = xtmp.get(i).asDouble();
+                if (xtmp.get(i).isFloat64())
+                {
+                    _ampsToSensor[i - 1] = xtmp.get(i).asFloat64();
+                }
             }
         }
         else
@@ -812,7 +944,53 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     }
     else
     {
-        yInfo() << "Using default Encoder";
+        yCInfo(FAKEMOTIONCONTROL) << "Using default ampsToSensor";
+        for (i = 0; i < _njoints; i++)
+        {
+            _ampsToSensor[i] = 1.0;
+        }
+    }
+
+    // pwm conversions factor
+    if (general.check("fullscalePWM"))
+    {
+        if (extractGroup(general, xtmp, "fullscalePWM", "a list of scales for the fullscalePWM conversion factors", _njoints))
+        {
+            for (i = 1; (size_t) i < xtmp.size(); i++)
+            {
+                if (xtmp.get(i).isFloat64() || xtmp.get(i).isInt32())
+                {
+                    _dutycycleToPWM[i - 1] = xtmp.get(i).asFloat64() / 100.0;
+                }
+            }
+        }
+        else
+            return false;
+    }
+    else
+    {
+        yCInfo(FAKEMOTIONCONTROL) << "Using default dutycycleToPWM=1.0";
+        for (i = 0; i < _njoints; i++)
+            _dutycycleToPWM[i] = 1.0;
+    }
+
+//     double tmp_A2E;
+    // Encoder scales
+    if(general.check("Encoder"))
+    {
+        if (extractGroup(general, xtmp, "Encoder", "a list of scales for the encoders", _njoints))
+        {
+            for (i = 1; (size_t) i < xtmp.size(); i++)
+            {
+                _angleToEncoder[i-1] = xtmp.get(i).asFloat64();
+            }
+        }
+        else
+            return false;
+    }
+    else
+    {
+        yCInfo(FAKEMOTIONCONTROL) << "Using default Encoder";
         for (i = 0; i < _njoints; i++)
             _angleToEncoder[i] = 1;
     }
@@ -826,7 +1004,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _jointEncoderRes[i - 1] = xtmp.get(i).asInt();
+            _jointEncoderRes[i - 1] = xtmp.get(i).asInt32();
     }
 
     // Joint encoder type
@@ -844,7 +1022,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
             bool b = EncoderType_iCub2eo(&s, &val);
             if (b == false)
             {
-                yError("Invalid JointEncoderType: %s!", s.c_str()); return false;
+                yCError(FAKEMOTIONCONTROL, "Invalid JointEncoderType: %s!", s.c_str()); return false;
             }
 //             _jointEncoderType[i - 1] = val;
         }
@@ -860,7 +1038,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _hasHallSensor[i - 1] = xtmp.get(i).asInt();
+            _hasHallSensor[i - 1] = xtmp.get(i).asInt32();
     }
     if (!extractGroup(general, xtmp, "HasTempSensor", "HasTempSensor 0/1 ", _njoints))
     {
@@ -870,7 +1048,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _hasTempSensor[i - 1] = xtmp.get(i).asInt();
+            _hasTempSensor[i - 1] = xtmp.get(i).asInt32();
     }
     if (!extractGroup(general, xtmp, "HasRotorEncoder", "HasRotorEncoder 0/1 ", _njoints))
     {
@@ -880,7 +1058,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _hasRotorEncoder[i - 1] = xtmp.get(i).asInt();
+            _hasRotorEncoder[i - 1] = xtmp.get(i).asInt32();
     }
     if (!extractGroup(general, xtmp, "HasRotorEncoderIndex", "HasRotorEncoderIndex 0/1 ", _njoints))
     {
@@ -890,7 +1068,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _hasRotorEncoderIndex[i - 1] = xtmp.get(i).asInt();
+            _hasRotorEncoderIndex[i - 1] = xtmp.get(i).asInt32();
     }
 
     // Rotor encoder res
@@ -902,7 +1080,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _rotorEncoderRes[i - 1] = xtmp.get(i).asInt();
+            _rotorEncoderRes[i - 1] = xtmp.get(i).asInt32();
     }
 
     // joint encoder res
@@ -914,7 +1092,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _jointEncoderRes[i - 1] = xtmp.get(i).asInt();
+            _jointEncoderRes[i - 1] = xtmp.get(i).asInt32();
     }
 */
     // Number of motor poles
@@ -926,7 +1104,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _motorPoles[i - 1] = xtmp.get(i).asInt();
+            _motorPoles[i - 1] = xtmp.get(i).asInt32();
     }
 
     // Rotor encoder index
@@ -938,7 +1116,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
-            _rotorIndexOffset[i - 1] = xtmp.get(i).asInt();
+            _rotorIndexOffset[i - 1] = xtmp.get(i).asInt32();
     }
 */
 
@@ -958,7 +1136,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
             bool b = EncoderType_iCub2eo(&s, &val);
             if (b == false)
             {
-                yError("Invalid RotorEncoderType: %s", s.c_str()); return false;
+                yCError(FAKEMOTIONCONTROL, "Invalid RotorEncoderType: %s", s.c_str()); return false;
             }
             _rotorEncoderType[i - 1] = val;
         }
@@ -975,33 +1153,33 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
         int test = xtmp.size();
         for (i = 1; i < xtmp.size(); i++)
         {
-            _gearbox[i-1] = xtmp.get(i).asDouble();
-            if (_gearbox[i-1]==0) {yError() << "Using a gearbox value = 0 may cause problems! Check your configuration files"; return false;}
+            _gearbox[i-1] = xtmp.get(i).asFloat64();
+            if (_gearbox[i-1]==0) {yCError(FAKEMOTIONCONTROL) << "Using a gearbox value = 0 may cause problems! Check your configuration files"; return false;}
         }
     }
 
     // Torque sensors stuff
     if (!extractGroup(general, xtmp, "TorqueId","a list of associated joint torque sensor ids", _njoints))
     {
-        fprintf(stderr, "Using default value = 0 (disabled)\n");
+        yCWarning(FAKEMOTIONCONTROL, "Using default value = 0 (disabled)");
         for(i=1; i<_njoints+1; i++)
             _torqueSensorId[i-1] = 0;
     }
     else
     {
-        for (i = 1; i < xtmp.size(); i++) _torqueSensorId[i-1] = xtmp.get(i).asInt();
+        for (i = 1; i < xtmp.size(); i++) _torqueSensorId[i-1] = xtmp.get(i).asInt32();
     }
 
 
     if (!extractGroup(general, xtmp, "TorqueChan","a list of associated joint torque sensor channels", _njoints))
     {
-        yWarning() <<  "FakeMotionControl::fromConfig() detected that TorqueChan is not present: using default value = 0 (disabled)";
+        yCWarning(FAKEMOTIONCONTROL) <<  "fromConfig() detected that TorqueChan is not present: using default value = 0 (disabled)";
         for(i=1; i<_njoints+1; i++)
             _torqueSensorChan[i-1] = 0;
     }
     else
     {
-        for (i = 1; i < xtmp.size(); i++) _torqueSensorChan[i-1] = xtmp.get(i).asInt();
+        for (i = 1; i < xtmp.size(); i++) _torqueSensorChan[i-1] = xtmp.get(i).asInt32();
     }
 
 
@@ -1013,7 +1191,7 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         for (i = 1; i < xtmp.size(); i++)
         {
-            _maxTorque[i-1] = xtmp.get(i).asInt();
+            _maxTorque[i-1] = xtmp.get(i).asInt32();
             _newtonsToSensor[i-1] = 1000.0f; // conversion from Nm into milliNm
         }
     }
@@ -1031,21 +1209,21 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
            {
                 if      (controlUnits.toString()==string("metric_units"))
                 {
-                    yDebug("POSITION_CONTROL: using metric_units");  _positionControlUnits=P_METRIC_UNITS;
+                    yCDebug(FAKEMOTIONCONTROL, "POSITION_CONTROL: using metric_units");  _positionControlUnits=P_METRIC_UNITS;
                 }
                 else if (controlUnits.toString()==string("machine_units"))
                 {
-                    yDebug("POSITION_CONTROL: using machine_units"); _positionControlUnits=P_MACHINE_UNITS;
+                    yCDebug(FAKEMOTIONCONTROL, "POSITION_CONTROL: using machine_units"); _positionControlUnits=P_MACHINE_UNITS;
                 }
                 else
                 {
-                    yError() << "FakeMotionControl::fromConfig(): POSITION_CONTROL section: invalid controlUnits value";
+                    yCError(FAKEMOTIONCONTROL) << "fromConfig(): POSITION_CONTROL section: invalid controlUnits value";
                          return false;
                 }
            }
            else
            {
-                yError() << "FakeMotionControl::fromConfig(): POSITION_CONTROL section: missing controlUnits parameter. Assuming machine_units. Please fix your configuration file.";
+                yCError(FAKEMOTIONCONTROL) << "fromConfig(): POSITION_CONTROL section: missing controlUnits parameter. Assuming machine_units. Please fix your configuration file.";
                 _positionControlUnits=P_MACHINE_UNITS;
            }
 
@@ -1057,34 +1235,34 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
 //                {
 //                    if (!parsePositionPidsGroup (posPidsGroup, _pids))
 //                    {
-//                        yError() << "FakeMotionControl::fromConfig(): POSITION_CONTROL section: error detected in parameters syntax";
+//                        yCError(FAKEMOTIONCONTROL) << "fromConfig(): POSITION_CONTROL section: error detected in parameters syntax";
 //                        return false;
 //                    }
 //                    else
 //                    {
-//                         yDebug("POSITION_CONTROL: using control law joint_pid_v1");
+//                         yCDebug(FAKEMOTIONCONTROL, "POSITION_CONTROL: using control law joint_pid_v1");
 //                    }
 //                }
 //                else if (s_controlaw==string("not_implemented"))
 //                {
-//                    yDebug() << "found 'not_impelemented' in position control_law. This will terminate yarprobotinterface execution.";
+//                    yCDebug(FAKEMOTIONCONTROL) << "found 'not_impelemented' in position control_law. This will terminate yarprobotinterface execution.";
 //                    return false;
 //                }
 //                else if (s_controlaw==string("disabled"))
 //                {
-//                    yDebug() << "found 'disabled' in position control_law. This will terminate yarprobotinterface execution.";
+//                    yCDebug(FAKEMOTIONCONTROL) << "found 'disabled' in position control_law. This will terminate yarprobotinterface execution.";
 //                    return false;
 //                }
 //                else
 //                {
-//                    yError() << "Unable to use control law " << s_controlaw << " por position control. Quitting.";
+//                    yCError(FAKEMOTIONCONTROL) << "Unable to use control law " << s_controlaw << " por position control. Quitting.";
 //                    return false;
 //                }
 //            }
         }
         else
         {
-            yError() <<"FakeMotionControl::fromConfig(): Error: no POS_PIDS group found in config file, returning";
+            yCError(FAKEMOTIONCONTROL) <<"fromConfig(): Error: no POS_PIDS group found in config file, returning";
             return false;
         }
     }
@@ -1101,14 +1279,14 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
            Value &controlUnits=trqPidsGroup.find("controlUnits");
            if  (controlUnits.isNull() == false && controlUnits.isString() == true)
            {
-                if      (controlUnits.toString()==string("metric_units"))  {yDebug("TORQUE_CONTROL: using metric_units"); _torqueControlUnits=T_METRIC_UNITS;}
-                else if (controlUnits.toString()==string("machine_units")) {yDebug("TORQUE_CONTROL: using metric_units"); _torqueControlUnits=T_MACHINE_UNITS;}
-                else    {yError() << "FakeMotionControl::fromConfig(): TORQUE_CONTROL section: invalid controlUnits value";
+                if      (controlUnits.toString()==string("metric_units"))  {yCDebug(FAKEMOTIONCONTROL, "TORQUE_CONTROL: using metric_units"); _torqueControlUnits=T_METRIC_UNITS;}
+                else if (controlUnits.toString()==string("machine_units")) {yCDebug(FAKEMOTIONCONTROL, "TORQUE_CONTROL: using metric_units"); _torqueControlUnits=T_MACHINE_UNITS;}
+                else    {yCError(FAKEMOTIONCONTROL) << "fromConfig(): TORQUE_CONTROL section: invalid controlUnits value";
                          return false;}
            }
            else
            {
-                yError() << "FakeMotionControl::fromConfig(): TORQUE_CONTROL section: missing controlUnits parameter. Assuming machine_units. Please fix your configuration file.";
+                yCError(FAKEMOTIONCONTROL) << "fromConfig(): TORQUE_CONTROL section: missing controlUnits parameter. Assuming machine_units. Please fix your configuration file.";
                 _torqueControlUnits=T_MACHINE_UNITS;
            }
 
@@ -1121,13 +1299,13 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
             }
             else
             {
-                yError() << "FakeMotionControl::fromConfig(): TORQUE_CONTROL section: invalid controlUnits value (_torqueControlUnits=" << _torqueControlUnits << ")";
+                yCError(FAKEMOTIONCONTROL) << "fromConfig(): TORQUE_CONTROL section: invalid controlUnits value (_torqueControlUnits=" << _torqueControlUnits << ")";
                 return false;
             }
         }
         else
         {
-            yError() <<"FakeMotionControl::fromConfig(): Error: no TORQUE_CONTROL group found in config file";
+            yCError(FAKEMOTIONCONTROL) <<"fromConfig(): Error: no TORQUE_CONTROL group found in config file";
             _torqueControlEnabled = false;
             return false; //torque control group is mandatory
         }
@@ -1156,16 +1334,16 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
         Bottle &coupling=config.findGroup("JOINTS_COUPLING");
         if (coupling.isNull())
         {
-            yWarning() << "FakeMotionControl::fromConfig() detected that Group JOINTS_COUPLING is not found in configuration file";
+            yCWarning(FAKEMOTIONCONTROL) << "fromConfig() detected that Group JOINTS_COUPLING is not found in configuration file";
             //return false;
         }
         // current limit
-        if (!extractGroup(coupling, xtmp, "kinematic_mj","the kinematic matrix 4x4 which tranforms from joint space to motor space", 16))
+        if (!extractGroup(coupling, xtmp, "kinematic_mj","the kinematic matrix 4x4 which transforms from joint space to motor space", 16))
         {
             for(i=1; i<xtmp.size(); i++) _kinematic_mj[i-1]=0.0;
         }
         else
-            for(i=1; i<xtmp.size(); i++) _kinematic_mj[i-1]=xtmp.get(i).asDouble();
+            for(i=1; i<xtmp.size(); i++) _kinematic_mj[i-1]=xtmp.get(i).asFloat64();
     }
     else
     {
@@ -1178,56 +1356,56 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     Bottle &limits=config.findGroup("LIMITS");
     if (limits.isNull())
     {
-        yWarning() << "FakeMotionControl::fromConfig() detected that Group LIMITS is not found in configuration file";
+        yCWarning(FAKEMOTIONCONTROL) << "fromConfig() detected that Group LIMITS is not found in configuration file";
         return false;
     }
     // current limit
     if (!extractGroup(limits, xtmp, "OverloadCurrents","a list of current limits", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _currentLimits[i-1].overloadCurrent=xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _currentLimits[i-1].overloadCurrent=xtmp.get(i).asFloat64();
 
     // nominal current
     if (!extractGroup(limits, xtmp, "MotorNominalCurrents","a list of nominal current limits", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _currentLimits[i-1].nominalCurrent =xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _currentLimits[i-1].nominalCurrent =xtmp.get(i).asFloat64();
 
     // nominal current
     if (!extractGroup(limits, xtmp, "MotorPeakCurrents","a list of peak current limits", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _currentLimits[i-1].peakCurrent=xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _currentLimits[i-1].peakCurrent=xtmp.get(i).asFloat64();
 
     // max limit
     if (!extractGroup(limits, xtmp, "Max","a list of maximum angles (in degrees)", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _limitsMax[i-1]=xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _limitsMax[i-1]=xtmp.get(i).asFloat64();
 
     // min limit
     if (!extractGroup(limits, xtmp, "Min","a list of minimum angles (in degrees)", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _limitsMin[i-1]=xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _limitsMin[i-1]=xtmp.get(i).asFloat64();
 
     // Rotor max limit
     if (!extractGroup(limits, xtmp, "RotorMax","a list of maximum rotor angles (in degrees)", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _rotorlimits_max[i-1]=xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _rotorlimits_max[i-1]=xtmp.get(i).asFloat64();
 
     // joint Velocity command max limit
     if (!extractGroup(limits, xtmp, "JntVelocityMax", "a list of maximum velocities for the joints (in degrees/s)", _njoints))
         return false;
     else
-        for (i = 1; i<xtmp.size(); i++) _maxJntCmdVelocity[i - 1] = xtmp.get(i).asDouble();
+        for (i = 1; i<xtmp.size(); i++) _maxJntCmdVelocity[i - 1] = xtmp.get(i).asFloat64();
 
     // Rotor min limit
     if (!extractGroup(limits, xtmp, "RotorMin","a list of minimum roto angles (in degrees)", _njoints))
         return false;
     else
-        for(i=1; i<xtmp.size(); i++) _rotorlimits_min[i-1]=xtmp.get(i).asDouble();
+        for(i=1; i<xtmp.size(); i++) _rotorlimits_min[i-1]=xtmp.get(i).asFloat64();
 
     // Motor pwm limit
     if (!extractGroup(limits, xtmp, "MotorPwmLimit","a list of motor PWM limits", _njoints))
@@ -1236,10 +1414,10 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
     {
         for(i=1; i<xtmp.size(); i++)
         {
-            _motorPwmLimits[i-1]=xtmp.get(i).asDouble();
+            _motorPwmLimits[i-1]=xtmp.get(i).asFloat64();
             if(_motorPwmLimits[i-1]<0)
             {
-                yError() << "MotorPwmLimit should be a positive value";
+                yCError(FAKEMOTIONCONTROL) << "MotorPwmLimit should be a positive value";
                 return false;
             }
         }
@@ -1249,51 +1427,32 @@ bool FakeMotionControl::fromConfig(yarp::os::Searchable &config)
 }
 
 
-bool FakeMotionControl::init()
-{
-    yTrace();
-    for(int i=0; i<_njoints; i++)
-    {
-        pwm[i]              = 33+i;
-        pwmLimit[i]         = (33+i)*10;
-        current[i]          = (33+i)*100;
-        maxCurrent[i]       = (33+i)*1000;
-        peakCurrent[i]      = (33+i)*2;
-        nominalCurrent[i]   = (33+i)*20;
-        supplyVoltage[i]    = (33+i)*200;
-    }
-    return true;
-}
-
-
-
 bool FakeMotionControl::close()
 {
-    yTrace() << " FakeMotionControl::close()";
+    yCTrace(FAKEMOTIONCONTROL) << " close()";
 
-    ImplementControlMode2::uninitialize();
+    ImplementControlMode::uninitialize();
     ImplementEncodersTimed::uninitialize();
     ImplementMotorEncoders::uninitialize();
-    ImplementPositionControl2::uninitialize();
-    ImplementVelocityControl<FakeMotionControl, IVelocityControl>::uninitialize();
-    ImplementVelocityControl2::uninitialize();
-    ImplementPidControl<FakeMotionControl, IPidControl>::uninitialize();
-    ImplementControlCalibration2<FakeMotionControl, IControlCalibration2>::uninitialize();
-    ImplementAmplifierControl<FakeMotionControl, IAmplifierControl>::uninitialize();
+    ImplementPositionControl::uninitialize();
+    ImplementVelocityControl::uninitialize();
+    ImplementPidControl::uninitialize();
+    ImplementControlCalibration::uninitialize();
+    ImplementAmplifierControl::uninitialize();
     ImplementImpedanceControl::uninitialize();
-    ImplementControlLimits2::uninitialize();
+    ImplementControlLimits::uninitialize();
     ImplementTorqueControl::uninitialize();
     ImplementPositionDirect::uninitialize();
-    ImplementOpenLoopControl::uninitialize();
     ImplementInteractionMode::uninitialize();
     ImplementAxisInfo::uninitialize();
+    ImplementVirtualAnalogSensor::uninitialize();
 
 //     cleanup();
 
     return true;
 }
 
-void FakeMotionControl::cleanup(void)
+void FakeMotionControl::cleanup()
 {
 
 }
@@ -1302,76 +1461,159 @@ void FakeMotionControl::cleanup(void)
 
 ///////////// PID INTERFACE
 
-bool FakeMotionControl::setPidRaw(int j, const Pid &pid)
+bool FakeMotionControl::setPidRaw(const PidControlTypeEnum& pidtype, int j, const Pid &pid)
 {
-
+    yCDebug(FAKEMOTIONCONTROL) << "setPidRaw" << pidtype << j << pid.kp;
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            _ppids[j]=pid;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            _vpids[j]=pid;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            _cpids[j]=pid;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            _tpids[j]=pid;
+        break;
+        default:
+        break;
+    }
     return true;
 }
 
-bool FakeMotionControl::setPidsRaw(const Pid *pids)
+bool FakeMotionControl::setPidsRaw(const PidControlTypeEnum& pidtype, const Pid *pids)
 {
     bool ret = true;
     for(int j=0; j< _njoints; j++)
     {
-        ret &= setPidRaw(j, pids[j]);
+        ret &= setPidRaw(pidtype, j, pids[j]);
     }
     return ret;
 }
 
-bool FakeMotionControl::setReferenceRaw(int j, double ref)
+bool FakeMotionControl::setPidReferenceRaw(const PidControlTypeEnum& pidtype, int j, double ref)
 {
-    int mode = 0;
-    getControlModeRaw(j, &mode);
-    if (mode != VOCAB_CM_POSITION_DIRECT &&
-        mode != VOCAB_CM_IDLE)
+    switch (pidtype)
     {
-        yError() << "setReferenceRaw: skipping command because  joint " << j << " is not in VOCAB_CM_POSITION_DIRECT mode";
+        case VOCAB_PIDTYPE_POSITION:
+            _ppids_ref[j]=ref;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            _vpids_ref[j]=ref;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            _cpids_ref[j]=ref;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            _tpids_ref[j]=ref;
+        break;
+        default:
+        break;
     }
-
-   return false;
+    return true;
 }
 
-bool FakeMotionControl::setReferencesRaw(const double *refs)
+bool FakeMotionControl::setPidReferencesRaw(const PidControlTypeEnum& pidtype, const double *refs)
 {
     bool ret = true;
     for(int j=0, index=0; j< _njoints; j++, index++)
     {
-        ret &= setReferenceRaw(j, refs[index]);
+        ret &= setPidReferenceRaw(pidtype, j, refs[index]);
     }
     return ret;
 }
 
-bool FakeMotionControl::setErrorLimitRaw(int j, double limit)
+bool FakeMotionControl::setPidErrorLimitRaw(const PidControlTypeEnum& pidtype, int j, double limit)
 {
-    return NOT_YET_IMPLEMENTED("setErrorLimitRaw");
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            _ppids_lim[j]=limit;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            _vpids_lim[j]=limit;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            _cpids_lim[j]=limit;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            _tpids_lim[j]=limit;
+        break;
+        default:
+        break;
+    }
+    return true;
 }
 
-bool FakeMotionControl::setErrorLimitsRaw(const double *limits)
+bool FakeMotionControl::setPidErrorLimitsRaw(const PidControlTypeEnum& pidtype, const double *limits)
 {
-    return NOT_YET_IMPLEMENTED("setErrorLimitsRaw");
+    bool ret = true;
+    for(int j=0, index=0; j< _njoints; j++, index++)
+    {
+        ret &= setPidErrorLimitRaw(pidtype, j, limits[index]);
+    }
+    return ret;
 }
 
-bool FakeMotionControl::getErrorRaw(int j, double *err)
+bool FakeMotionControl::getPidErrorRaw(const PidControlTypeEnum& pidtype, int j, double *err)
 {
-    return false;
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            *err=0.1;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            *err=0.2;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            *err=0.3;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            *err=0.4;
+        break;
+        default:
+        break;
+    }
+    return true;
 }
 
-bool FakeMotionControl::getErrorsRaw(double *errs)
+bool FakeMotionControl::getPidErrorsRaw(const PidControlTypeEnum& pidtype, double *errs)
 {
     bool ret = true;
     for(int j=0; j< _njoints; j++)
     {
-        ret &= getErrorRaw(j, &errs[j]);
+        ret &= getPidErrorRaw(pidtype, j, &errs[j]);
     }
     return ret;
 }
 
-bool FakeMotionControl::getPidRaw(int j, Pid *pid)
+bool FakeMotionControl::getPidRaw(const PidControlTypeEnum& pidtype, int j, Pid *pid)
 {
-    return false;
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            *pid=_ppids[j];
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            *pid=_vpids[j];
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            *pid=_cpids[j];
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            *pid=_tpids[j];
+        break;
+        default:
+        break;
+    }
+    yCDebug(FAKEMOTIONCONTROL) << "getPidRaw" << pidtype << j << pid->kp;
+    return true;
 }
 
-bool FakeMotionControl::getPidsRaw(Pid *pids)
+bool FakeMotionControl::getPidsRaw(const PidControlTypeEnum& pidtype, Pid *pids)
 {
     bool ret = true;
 
@@ -1379,17 +1621,34 @@ bool FakeMotionControl::getPidsRaw(Pid *pids)
     // This is because otherwise too many msg will be placed into can queue
     for(int j=0, index=0; j<_njoints; j++, index++)
     {
-        ret &=getPidRaw(j, &pids[j]);
+        ret &=getPidRaw(pidtype, j, &pids[j]);
     }
     return ret;
 }
 
-bool FakeMotionControl::getReferenceRaw(int j, double *ref)
+bool FakeMotionControl::getPidReferenceRaw(const PidControlTypeEnum& pidtype, int j, double *ref)
 {
-    return false;
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            *ref=_ppids_ref[j];
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            *ref=_vpids_ref[j];
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            *ref=_cpids_ref[j];
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            *ref=_tpids_ref[j];
+        break;
+        default:
+        break;
+    }
+    return true;
 }
 
-bool FakeMotionControl::getReferencesRaw(double *refs)
+bool FakeMotionControl::getPidReferencesRaw(const PidControlTypeEnum& pidtype, double *refs)
 {
     bool ret = true;
 
@@ -1397,39 +1656,168 @@ bool FakeMotionControl::getReferencesRaw(double *refs)
     // This is because otherwise too many msg will be placed into can queue
     for(int j=0; j< _njoints; j++)
     {
-        ret &= getReferenceRaw(j, &refs[j]);
+        ret &= getPidReferenceRaw(pidtype, j, &refs[j]);
     }
     return ret;
 }
 
-bool FakeMotionControl::getErrorLimitRaw(int j, double *limit)
+bool FakeMotionControl::getPidErrorLimitRaw(const PidControlTypeEnum& pidtype, int j, double *limit)
 {
-    return NOT_YET_IMPLEMENTED("getErrorLimit");
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            *limit=_ppids_lim[j];
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            *limit=_vpids_lim[j];
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            *limit=_cpids_lim[j];
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            *limit=_tpids_lim[j];
+        break;
+        default:
+        break;
+    }
+    return true;
 }
 
-bool FakeMotionControl::getErrorLimitsRaw(double *limits)
+bool FakeMotionControl::getPidErrorLimitsRaw(const PidControlTypeEnum& pidtype, double *limits)
 {
-    return NOT_YET_IMPLEMENTED("getErrorLimit");
+    bool ret = true;
+    for(int j=0, index=0; j<_njoints; j++, index++)
+    {
+        ret &=getPidErrorLimitRaw(pidtype, j, &limits[j]);
+    }
+    return ret;
 }
 
-bool FakeMotionControl::resetPidRaw(int j)
+bool FakeMotionControl::resetPidRaw(const PidControlTypeEnum& pidtype, int j)
 {
-    return NOT_YET_IMPLEMENTED("resetPid");
+    return true;
 }
 
-bool FakeMotionControl::disablePidRaw(int j)
+bool FakeMotionControl::disablePidRaw(const PidControlTypeEnum& pidtype, int j)
 {
-    return DEPRECATED("disablePidRaw");
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            _ppids_ena[j]=false;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            _vpids_ena[j]=false;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            _cpids_ena[j]=false;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            _tpids_ena[j]=false;
+        break;
+        default:
+        break;
+    }
+    return true;
 }
 
-bool FakeMotionControl::enablePidRaw(int j)
+bool FakeMotionControl::enablePidRaw(const PidControlTypeEnum& pidtype, int j)
 {
-    return DEPRECATED("enablePidRaw");
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            _ppids_ena[j]=true;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            _vpids_ena[j]=true;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            _cpids_ena[j]=true;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            _tpids_ena[j]=true;
+        break;
+        default:
+        break;
+    }
+    return true;
 }
 
-bool FakeMotionControl::setOffsetRaw(int j, double v)
+bool FakeMotionControl::setPidOffsetRaw(const PidControlTypeEnum& pidtype, int j, double v)
 {
-    return NOT_YET_IMPLEMENTED("setOffset");
+    yCDebug(FAKEMOTIONCONTROL) << "setPidOffsetRaw" << pidtype << j << v;
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            _ppids[j].offset=v;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            _vpids[j].offset=v;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            _cpids[j].offset=v;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            _tpids[j].offset=v;
+        break;
+        default:
+        break;
+    }
+    return true;
+}
+
+bool FakeMotionControl::isPidEnabledRaw(const PidControlTypeEnum& pidtype, int j, bool* enabled)
+{
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            *enabled=_ppids_ena[j];
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            *enabled=_vpids_ena[j];
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            *enabled=_cpids_ena[j];
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            *enabled=_tpids_ena[j];
+        break;
+        default:
+        break;
+    }
+    return true;
+}
+
+bool FakeMotionControl::getPidOutputRaw(const PidControlTypeEnum& pidtype, int j, double *out)
+{
+    switch (pidtype)
+    {
+        case VOCAB_PIDTYPE_POSITION:
+            *out=1.1 + j * 10;
+        break;
+        case VOCAB_PIDTYPE_VELOCITY:
+            *out=1.2 + j * 10;
+        break;
+        case VOCAB_PIDTYPE_CURRENT:
+            *out=1.3 + j * 10;
+        break;
+        case VOCAB_PIDTYPE_TORQUE:
+            *out=1.4 + j * 10;
+        break;
+        default:
+        break;
+    }
+    yCDebug(FAKEMOTIONCONTROL) << "getPidOutputRaw" << pidtype << j << *out;
+    return true;
+}
+
+bool FakeMotionControl::getPidOutputsRaw(const PidControlTypeEnum& pidtype, double *outs)
+{
+    bool ret = true;
+    for(int j=0; j< _njoints; j++)
+    {
+        ret &= getPidOutputRaw(pidtype, j, &outs[j]);
+    }
+    return ret;
 }
 
 ////////////////////////////////////////
@@ -1445,15 +1833,16 @@ bool FakeMotionControl::velocityMoveRaw(int j, double sp)
         (mode != VOCAB_CM_IMPEDANCE_VEL) &&
         (mode != VOCAB_CM_IDLE))
     {
-          yError() << "velocityMoveRaw: skipping command because board "  << " joint " << j << " is not in VOCAB_CM_VELOCITY mode";
+          yCError(FAKEMOTIONCONTROL) << "velocityMoveRaw: skipping command because board "  << " joint " << j << " is not in VOCAB_CM_VELOCITY mode";
     }
     _command_speeds[j] = sp;
+    last_velocity_command[j]=yarp::os::Time::now();
     return true;
 }
 
 bool FakeMotionControl::velocityMoveRaw(const double *sp)
 {
-    yTrace();
+    yCTrace(FAKEMOTIONCONTROL);
     bool ret = true;
     for(int i=0; i<_njoints; i++)
         ret &= velocityMoveRaw(i, sp[i]);
@@ -1467,17 +1856,17 @@ bool FakeMotionControl::velocityMoveRaw(const double *sp)
 
 bool FakeMotionControl::setCalibrationParametersRaw(int j, const CalibrationParameters& params)
 {
-    yTrace() << "setCalibrationParametersRaw for joint" << j;
+    yCTrace(FAKEMOTIONCONTROL) << "setCalibrationParametersRaw for joint" << j;
     return true;
 }
 
-bool FakeMotionControl::calibrate2Raw(int j, unsigned int type, double p1, double p2, double p3)
+bool FakeMotionControl::calibrateAxisWithParamsRaw(int j, unsigned int type, double p1, double p2, double p3)
 {
-    yTrace() << "calibrate2Raw for joint" << j;
+    yCTrace(FAKEMOTIONCONTROL) << "calibrateRaw for joint" << j;
     return true;
 }
 
-bool FakeMotionControl::doneRaw(int axis)
+bool FakeMotionControl::calibrationDoneRaw(int axis)
 {
     bool result = false;
 
@@ -1498,11 +1887,11 @@ bool FakeMotionControl::getAxes(int *ax)
 bool FakeMotionControl::positionMoveRaw(int j, double ref)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "j " << j << " ref " << ref;
+        yCTrace(FAKEMOTIONCONTROL) << "j " << j << " ref " << ref;
 
 //     if (yarp::os::Time::now()-_last_position_move_time[j]<MAX_POSITION_MOVE_INTERVAL)
 //     {
-//         yWarning() << "Performance warning: You are using positionMove commands at high rate (<"<< MAX_POSITION_MOVE_INTERVAL*1000.0 <<" ms). Probably position control mode is not the right control mode to use.";
+//         yCWarning(FAKEMOTIONCONTROL) << "Performance warning: You are using positionMove commands at high rate (<"<< MAX_POSITION_MOVE_INTERVAL*1000.0 <<" ms). Probably position control mode is not the right control mode to use.";
 //     }
 //     _last_position_move_time[j] = yarp::os::Time::now();
 
@@ -1513,17 +1902,16 @@ bool FakeMotionControl::positionMoveRaw(int j, double ref)
         (mode != VOCAB_CM_IMPEDANCE_POS) &&
         (mode != VOCAB_CM_IDLE))
     {
-        yError() << "positionMoveRaw: skipping command because joint " << j << " is not in VOCAB_CM_POSITION mode";
+        yCError(FAKEMOTIONCONTROL) << "positionMoveRaw: skipping command because joint " << j << " is not in VOCAB_CM_POSITION mode";
     }
     _posCtrl_references[j] = ref;
-    pos[j] = _posCtrl_references[j];
     return true;
 }
 
 bool FakeMotionControl::positionMoveRaw(const double *refs)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace();
+        yCTrace(FAKEMOTIONCONTROL);
 
     bool ret = true;
     for(int j=0, index=0; j< _njoints; j++, index++)
@@ -1536,10 +1924,10 @@ bool FakeMotionControl::positionMoveRaw(const double *refs)
 bool FakeMotionControl::relativeMoveRaw(int j, double delta)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "j " << j << " ref " << delta;
+        yCTrace(FAKEMOTIONCONTROL) << "j " << j << " ref " << delta;
 //     if (yarp::os::Time::now()-_last_position_move_time[j]<MAX_POSITION_MOVE_INTERVAL)
 //     {
-//         yWarning() << "Performance warning: You are using positionMove commands at high rate (<"<< MAX_POSITION_MOVE_INTERVAL*1000.0 <<" ms). Probably position control mode is not the right control mode to use.";
+//         yCWarning(FAKEMOTIONCONTROL) << "Performance warning: You are using positionMove commands at high rate (<"<< MAX_POSITION_MOVE_INTERVAL*1000.0 <<" ms). Probably position control mode is not the right control mode to use.";
 //     }
 //     _last_position_move_time[j] = yarp::os::Time::now();
 
@@ -1550,17 +1938,16 @@ bool FakeMotionControl::relativeMoveRaw(int j, double delta)
         (mode != VOCAB_CM_IMPEDANCE_POS) &&
         (mode != VOCAB_CM_IDLE))
     {
-        yError() << "relativeMoveRaw: skipping command because joint " << j << " is not in VOCAB_CM_POSITION mode";
+        yCError(FAKEMOTIONCONTROL) << "relativeMoveRaw: skipping command because joint " << j << " is not in VOCAB_CM_POSITION mode";
     }
     _posCtrl_references[j] += delta;
-    pos[j] = _posCtrl_references[j];
     return false;
 }
 
 bool FakeMotionControl::relativeMoveRaw(const double *deltas)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace();
+        yCTrace(FAKEMOTIONCONTROL);
 
     bool ret = true;
     for(int j=0, index=0; j< _njoints; j++, index++)
@@ -1574,7 +1961,7 @@ bool FakeMotionControl::relativeMoveRaw(const double *deltas)
 bool FakeMotionControl::checkMotionDoneRaw(int j, bool *flag)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "j ";
+        yCTrace(FAKEMOTIONCONTROL) << "j ";
 
     *flag = false;
     return false;
@@ -1583,7 +1970,7 @@ bool FakeMotionControl::checkMotionDoneRaw(int j, bool *flag)
 bool FakeMotionControl::checkMotionDoneRaw(bool *flag)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace();
+        yCTrace(FAKEMOTIONCONTROL);
 
     bool ret = true;
     bool val, tot_res = true;
@@ -1707,11 +2094,11 @@ bool FakeMotionControl::stopRaw()
 bool FakeMotionControl::positionMoveRaw(const int n_joint, const int *joints, const double *refs)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << " -> n_joint " << n_joint;
+        yCTrace(FAKEMOTIONCONTROL) << " -> n_joint " << n_joint;
 
     for(int j=0; j<n_joint; j++)
     {
-        printf("j: %d; ref %f;\n", joints[j], refs[j]); fflush(stdout);
+        yCDebug(FAKEMOTIONCONTROL, "j: %d; ref %f;\n", joints[j], refs[j]); fflush(stdout);
     }
 
     bool ret = true;
@@ -1725,7 +2112,7 @@ bool FakeMotionControl::positionMoveRaw(const int n_joint, const int *joints, co
 bool FakeMotionControl::relativeMoveRaw(const int n_joint, const int *joints, const double *deltas)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     for(int j=0; j<n_joint; j++)
@@ -1738,7 +2125,7 @@ bool FakeMotionControl::relativeMoveRaw(const int n_joint, const int *joints, co
 bool FakeMotionControl::checkMotionDoneRaw(const int n_joint, const int *joints, bool *flag)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     bool val = true;
@@ -1756,7 +2143,7 @@ bool FakeMotionControl::checkMotionDoneRaw(const int n_joint, const int *joints,
 bool FakeMotionControl::setRefSpeedsRaw(const int n_joint, const int *joints, const double *spds)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     for(int j=0; j<n_joint; j++)
@@ -1769,7 +2156,7 @@ bool FakeMotionControl::setRefSpeedsRaw(const int n_joint, const int *joints, co
 bool FakeMotionControl::setRefAccelerationsRaw(const int n_joint, const int *joints, const double *accs)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     for(int j=0; j<n_joint; j++)
@@ -1782,7 +2169,7 @@ bool FakeMotionControl::setRefAccelerationsRaw(const int n_joint, const int *joi
 bool FakeMotionControl::getRefSpeedsRaw(const int n_joint, const int *joints, double *spds)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     for(int j=0; j<n_joint; j++)
@@ -1795,7 +2182,7 @@ bool FakeMotionControl::getRefSpeedsRaw(const int n_joint, const int *joints, do
 bool FakeMotionControl::getRefAccelerationsRaw(const int n_joint, const int *joints, double *accs)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     for(int j=0; j<n_joint; j++)
@@ -1808,7 +2195,7 @@ bool FakeMotionControl::getRefAccelerationsRaw(const int n_joint, const int *joi
 bool FakeMotionControl::stopRaw(const int n_joint, const int *joints)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joint " << _njoints;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joint " << _njoints;
 
     bool ret = true;
     for(int j=0; j<n_joint; j++)
@@ -1821,40 +2208,12 @@ bool FakeMotionControl::stopRaw(const int n_joint, const int *joints)
 ///////////// END Position Control INTERFACE  //////////////////
 
 // ControlMode
-bool FakeMotionControl::setPositionModeRaw(int j)
-{
-    return DEPRECATED("setPositionModeRaw");
-}
 
-bool FakeMotionControl::setVelocityModeRaw(int j)
-{
-    return DEPRECATED("setVelocityModeRaw");
-}
-
-bool FakeMotionControl::setTorqueModeRaw(int j)
-{
-    return DEPRECATED("setTorqueModeRaw");
-}
-
-bool FakeMotionControl::setImpedancePositionModeRaw(int j)
-{
-    return DEPRECATED("setImpedancePositionModeRaw");
-}
-
-bool FakeMotionControl::setImpedanceVelocityModeRaw(int j)
-{
-    return DEPRECATED("setImpedanceVelocityModeRaw");
-}
-
-bool FakeMotionControl::setOpenLoopModeRaw(int j)
-{
-    return DEPRECATED("setOpenLoopModeRaw");
-}
 // puo' essere richiesto con get
 bool FakeMotionControl::getControlModeRaw(int j, int *v)
 {
     if(verbose > VERY_VERY_VERBOSE)
-        yTrace() << "j: " << j;
+        yCTrace(FAKEMOTIONCONTROL) << "j: " << j;
 
     *v = _controlModes[j];
     return true;
@@ -1889,9 +2248,17 @@ bool FakeMotionControl::getControlModesRaw(const int n_joint, const int *joints,
 bool FakeMotionControl::setControlModeRaw(const int j, const int _mode)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "j: " << j << " mode: " << yarp::os::Vocab::decode(_mode);
+        yCTrace(FAKEMOTIONCONTROL) << "j: " << j << " mode: " << yarp::os::Vocab::decode(_mode);
 
-    _controlModes[j] = _mode;
+    if (_mode==VOCAB_CM_FORCE_IDLE)
+    {
+        _controlModes[j] = VOCAB_CM_IDLE;
+    }
+    else
+    {
+        _controlModes[j] = _mode;
+    }
+    _posCtrl_references[j] = pos[j];
     return true;
 }
 
@@ -1899,7 +2266,7 @@ bool FakeMotionControl::setControlModeRaw(const int j, const int _mode)
 bool FakeMotionControl::setControlModesRaw(const int n_joint, const int *joints, int *modes)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "n_joints: " << n_joint;
+        yCTrace(FAKEMOTIONCONTROL) << "n_joints: " << n_joint;
 
     bool ret = true;
     for(int i=0; i<n_joint; i++)
@@ -1912,7 +2279,7 @@ bool FakeMotionControl::setControlModesRaw(const int n_joint, const int *joints,
 bool FakeMotionControl::setControlModesRaw(int *modes)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace();
+        yCTrace(FAKEMOTIONCONTROL);
 
     bool ret = true;
     for(int i=0; i<_njoints; i++)
@@ -2008,19 +2375,19 @@ bool FakeMotionControl::getEncoderAccelerationsRaw(double *accs)
 bool FakeMotionControl::getEncodersTimedRaw(double *encs, double *stamps)
 {
     bool ret = getEncodersRaw(encs);
-    _mutex.wait();
+    _mutex.lock();
     for(int i=0; i<_njoints; i++)
         stamps[i] = _encodersStamp[i];
-    _mutex.post();
+    _mutex.unlock();
     return ret;
 }
 
 bool FakeMotionControl::getEncoderTimedRaw(int j, double *encs, double *stamp)
 {
     bool ret = getEncoderRaw(j, encs);
-    _mutex.wait();
+    _mutex.lock();
     *stamp = _encodersStamp[j];
-    _mutex.post();
+    _mutex.unlock();
 
     return ret;
 }
@@ -2115,10 +2482,10 @@ bool FakeMotionControl::getMotorEncoderAccelerationsRaw(double *accs)
 bool FakeMotionControl::getMotorEncodersTimedRaw(double *encs, double *stamps)
 {
     bool ret = getMotorEncodersRaw(encs);
-    _mutex.wait();
+    _mutex.lock();
     for(int i=0; i<_njoints; i++)
         stamps[i] = _encodersStamp[i];
-    _mutex.post();
+    _mutex.unlock();
 
     return ret;
 }
@@ -2126,9 +2493,9 @@ bool FakeMotionControl::getMotorEncodersTimedRaw(double *encs, double *stamps)
 bool FakeMotionControl::getMotorEncoderTimedRaw(int m, double *encs, double *stamp)
 {
     bool ret = getMotorEncoderRaw(m, encs);
-    _mutex.wait();
+    _mutex.lock();
     *stamp = _encodersStamp[m];
-    _mutex.post();
+    _mutex.unlock();
 
     return ret;
 }
@@ -2148,12 +2515,14 @@ bool FakeMotionControl::disableAmpRaw(int j)
 
 bool FakeMotionControl::getCurrentRaw(int j, double *value)
 {
+    //just for testing purposes, this is not a real implementation
     *value = current[j];
     return true;
 }
 
 bool FakeMotionControl::getCurrentsRaw(double *vals)
 {
+    //just for testing purposes, this is not a real implementation
     bool ret = true;
     for(int j=0; j< _njoints; j++)
     {
@@ -2205,6 +2574,12 @@ bool FakeMotionControl::setPeakCurrentRaw(int m, const double val)
 bool FakeMotionControl::getNominalCurrentRaw(int m, double *val)
 {
     *val = nominalCurrent[m];
+    return true;
+}
+
+bool FakeMotionControl::setNominalCurrentRaw(int m, const double val)
+{
+    nominalCurrent[m] = val;
     return true;
 }
 
@@ -2277,7 +2652,7 @@ bool FakeMotionControl::getRotorEncoderTypeRaw(int j, int &type)
 
 bool FakeMotionControl::getKinematicMJRaw(int j, double &rotres)
 {
-    yError("getKinematicMJRaw not yet  implemented");
+    yCError(FAKEMOTIONCONTROL, "getKinematicMJRaw not yet  implemented");
     return false;
 }
 
@@ -2311,12 +2686,7 @@ bool FakeMotionControl::getRotorIndexOffsetRaw(int j, double& rotorOffset)
     return true;
 }
 
-bool FakeMotionControl::getCurrentPidRaw(int j, Pid *pid)
-{
-    return true;
-}
-
-bool FakeMotionControl::getAxisNameRaw(int axis, yarp::os::ConstString& name)
+bool FakeMotionControl::getAxisNameRaw(int axis, std::string& name)
 {
     if (axis >= 0 && axis < _njoints)
     {
@@ -2360,11 +2730,16 @@ bool FakeMotionControl::getVelLimitsRaw(int axis, double *min, double *max)
 // Torque control
 bool FakeMotionControl::getTorqueRaw(int j, double *t)
 {
+    *t = _torques[j];
     return true;
 }
 
 bool FakeMotionControl::getTorquesRaw(double *t)
 {
+    for (int i = 0; i < _njoints; i++)
+    {
+        t[i]= _torques[i];
+    }
     return true;
 }
 
@@ -2406,39 +2781,6 @@ bool FakeMotionControl::getRefTorqueRaw(int j, double *t)
     return false;
 }
 
-bool FakeMotionControl::setTorquePidRaw(int j, const Pid &pid)
-{
-    return false;
-}
-
-bool FakeMotionControl::setTorquePidsRaw(const Pid *pids)
-{
-    return false;
-}
-
-bool FakeMotionControl::getTorqueErrorRaw(int j, double *err)
-{
-    return false;
-}
-
-bool FakeMotionControl::getTorqueErrorsRaw(double *errs)
-{
-    bool ret = true;
-    for(int j=0; j<_njoints && ret; j++)
-        ret &= getTorqueErrorRaw(j, &errs[j]);
-    return ret;
-}
-
-bool FakeMotionControl::getTorquePidRaw(int j, Pid *pid)
-{
-    return false;
-}
-
-bool FakeMotionControl::getTorquePidsRaw(Pid *pids)
-{
-    return false;
-}
-
 bool FakeMotionControl::getImpedanceRaw(int j, double *stiffness, double *damping)
 {
     return false;
@@ -2464,74 +2806,24 @@ bool FakeMotionControl::getCurrentImpedanceLimitRaw(int j, double *min_stiff, do
     return false;
 }
 
-bool FakeMotionControl::getBemfParamRaw(int j, double *bemf)
-{
-    return DEPRECATED("getBemfParamRaw");
-}
-
-bool FakeMotionControl::setBemfParamRaw(int j, double bemf)
-{
-    return DEPRECATED("setBemfParamRaw");
-}
-
-bool FakeMotionControl::setTorqueErrorLimitRaw(int j, double limit)
-{
-    return NOT_YET_IMPLEMENTED("setTorqueErrorLimitRaw");
-}
-
-bool FakeMotionControl::setTorqueErrorLimitsRaw(const double *limits)
-{
-    return NOT_YET_IMPLEMENTED("setTorqueErrorLimitsRaw");
-}
-
-bool FakeMotionControl::getTorquePidOutputRaw(int j, double *out)
-{
-    return false;
-}
-
-bool FakeMotionControl::getTorquePidOutputsRaw(double *outs)
-{
-    return NOT_YET_IMPLEMENTED("getTorquePidOutputsRaw");
-}
-
-bool FakeMotionControl::getTorqueErrorLimitRaw(int j, double *limit)
-{
-    return NOT_YET_IMPLEMENTED("getTorqueErrorLimitRaw");
-}
-
-bool FakeMotionControl::getTorqueErrorLimitsRaw(double *limits)
-{
-    return NOT_YET_IMPLEMENTED("getTorqueErrorLimitsRaw");
-}
-
-bool FakeMotionControl::resetTorquePidRaw(int j)
-{
-    return NOT_YET_IMPLEMENTED("resetTorquePidRaw");
-}
-
-bool FakeMotionControl::disableTorquePidRaw(int j)
-{
-    return NOT_YET_IMPLEMENTED("disableTorquePidRaw");
-}
-
-bool FakeMotionControl::enableTorquePidRaw(int j)
-{
-    return NOT_YET_IMPLEMENTED("enableTorquePidRaw");
-}
-
-bool FakeMotionControl::setTorqueOffsetRaw(int j, double v)
-{
-    return NOT_YET_IMPLEMENTED("setTorqueOffsetRaw");
-}
-
 bool FakeMotionControl::getMotorTorqueParamsRaw(int j, MotorTorqueParameters *params)
 {
-    return false;
+    params->bemf = _kbemf[j];
+    params->bemf_scale = _kbemf_scale[j];
+    params->ktau = _ktau[j];
+    params->ktau_scale = _ktau_scale[j];
+    yCDebug(FAKEMOTIONCONTROL) << "getMotorTorqueParamsRaw" << params->bemf << params->bemf_scale << params->ktau << params->ktau_scale;
+    return true;
 }
 
 bool FakeMotionControl::setMotorTorqueParamsRaw(int j, const MotorTorqueParameters params)
 {
-    return false;
+    _kbemf[j] = params.bemf;
+    _ktau[j] = params.ktau;
+    _kbemf_scale[j] = params.bemf_scale;
+    _ktau_scale[j] = params.ktau_scale;
+    yCDebug(FAKEMOTIONCONTROL) << "setMotorTorqueParamsRaw" << params.bemf << params.bemf_scale << params.ktau << params.ktau_scale;
+    return true;
 }
 
 // IVelocityControl2
@@ -2545,40 +2837,18 @@ bool FakeMotionControl::velocityMoveRaw(const int n_joint, const int *joints, co
     return ret;
 }
 
-bool FakeMotionControl::setVelPidRaw(int j, const Pid &pid)
-{
-    return NOT_YET_IMPLEMENTED("Our boards do not have a Velocity Pid");
-}
-
-bool FakeMotionControl::setVelPidsRaw(const Pid *pids)
-{
-    return false;
-}
-
-bool FakeMotionControl::getVelPidRaw(int j, Pid *pid)
-{
-    return NOT_YET_IMPLEMENTED("Our boards do not have a Velocity Pid");
-}
-
-bool FakeMotionControl::getVelPidsRaw(Pid *pids)
-{
-    return false;
-}
-
 // PositionDirect Interface
 bool FakeMotionControl::setPositionRaw(int j, double ref)
 {
     _posDir_references[j] = ref;
-    pos[j] = _posDir_references[j];
     return true;
 }
 
-bool FakeMotionControl::setPositionsRaw(const int n_joint, const int *joints, double *refs)
+bool FakeMotionControl::setPositionsRaw(const int n_joint, const int *joints, const double *refs)
 {
     for(int i=0; i< n_joint; i++)
     {
         _posDir_references[joints[i]] = refs[i];
-        pos[joints[i]] = _posDir_references[joints[i]];
     }
     return true;
 }
@@ -2588,7 +2858,6 @@ bool FakeMotionControl::setPositionsRaw(const double *refs)
     for(int i=0; i< _njoints; i++)
     {
         _posDir_references[i] = refs[i];
-        pos[i] = _posDir_references[i];
     }
     return true;
 }
@@ -2597,7 +2866,7 @@ bool FakeMotionControl::setPositionsRaw(const double *refs)
 bool FakeMotionControl::getTargetPositionRaw(int axis, double *ref)
 {
     if(verbose >= VERY_VERBOSE)
-        yTrace() << "j " << axis << " ref " << _posCtrl_references[axis];
+        yCTrace(FAKEMOTIONCONTROL) << "j " << axis << " ref " << _posCtrl_references[axis];
 
     int mode = 0;
     getControlModeRaw(axis, &mode);
@@ -2605,7 +2874,7 @@ bool FakeMotionControl::getTargetPositionRaw(int axis, double *ref)
         (mode != VOCAB_CM_MIXED) &&
         (mode != VOCAB_CM_IMPEDANCE_POS))
     {
-        yWarning() << "getTargetPosition: Joint " << axis << " is not in POSITION mode, therefore the value returned by " <<
+        yCWarning(FAKEMOTIONCONTROL) << "getTargetPosition: Joint " << axis << " is not in POSITION mode, therefore the value returned by " <<
         "this call is for reference only and may not reflect the actual behaviour of the motor/firmware.";
     }
     *ref = _posCtrl_references[axis];
@@ -2665,7 +2934,7 @@ bool FakeMotionControl::getRefPositionRaw(int axis, double *ref)
         (mode != VOCAB_CM_IMPEDANCE_POS) &&
         (mode != VOCAB_CM_POSITION_DIRECT) )
     {
-        yWarning() << "getRefPosition: Joint " << axis << " is not in POSITION_DIRECT mode, therefore the value returned by \
+        yCWarning(FAKEMOTIONCONTROL) << "getRefPosition: Joint " << axis << " is not in POSITION_DIRECT mode, therefore the value returned by \
         this call is for reference only and may not reflect the actual behaviour of the motor/firmware.";
     }
 
@@ -2698,12 +2967,21 @@ bool FakeMotionControl::getRefPositionsRaw(int nj, const int * jnts, double *ref
 // InteractionMode
 bool FakeMotionControl::getInteractionModeRaw(int j, yarp::dev::InteractionModeEnum* _mode)
 {
-    return false;
-}
+    if(verbose > VERY_VERY_VERBOSE)
+        yCTrace(FAKEMOTIONCONTROL) << "j: " << j;
+
+    *_mode = (yarp::dev::InteractionModeEnum)_interactMode[j];
+    return true;}
 
 bool FakeMotionControl::getInteractionModesRaw(int n_joints, int *joints, yarp::dev::InteractionModeEnum* modes)
 {
-    return false;
+    bool ret = true;
+    for(int j=0; j< n_joints; j++)
+    {
+        ret = ret && getInteractionModeRaw(joints[j], &modes[j]);
+    }
+    return ret;
+
 }
 
 bool FakeMotionControl::getInteractionModesRaw(yarp::dev::InteractionModeEnum* modes)
@@ -2719,67 +2997,34 @@ bool FakeMotionControl::getInteractionModesRaw(yarp::dev::InteractionModeEnum* m
 // con il interaction mode il can ora non lo fa. mentre lo fa per il control mode. perche' diverso?
 bool FakeMotionControl::setInteractionModeRaw(int j, yarp::dev::InteractionModeEnum _mode)
 {
-     return false;
+    if(verbose >= VERY_VERBOSE)
+        yCTrace(FAKEMOTIONCONTROL) << "j: " << j << " interaction mode: " << yarp::os::Vocab::decode(_mode);
+
+    _interactMode[j] = _mode;
+
+    return true;
 }
 
 
 bool FakeMotionControl::setInteractionModesRaw(int n_joints, int *joints, yarp::dev::InteractionModeEnum* modes)
 {
-    return false;
+    bool ret = true;
+    for(int i=0; i<n_joints; i++)
+    {
+        ret &= setInteractionModeRaw(joints[i], modes[i]);
+    }
+    return ret;
 }
 
 bool FakeMotionControl::setInteractionModesRaw(yarp::dev::InteractionModeEnum* modes)
 {
-    return false;
-}
-
-
-//
-// OPENLOOP interface
-//
-bool FakeMotionControl::setRefOutputRaw(int j, double v)
-{
-     return false;
-}
-
-bool FakeMotionControl::setRefOutputsRaw(const double *v)
-{
     bool ret = true;
-    for(int j=0; j<_njoints; j++)
+    for(int i=0; i<_njoints; i++)
     {
-        ret = ret && setRefOutputRaw(j, v[j]);
+        ret &= setInteractionModeRaw(i, modes[i]);
     }
     return ret;
-}
 
-bool FakeMotionControl::getRefOutputRaw(int j, double *out)
-{
-      return false;
-}
-
-bool FakeMotionControl::getRefOutputsRaw(double *outs)
-{
-    bool ret = true;
-    for(int j=0; j<_njoints; j++)
-    {
-        ret = ret && getRefOutputRaw(j, &outs[j]);
-    }
-    return ret;
-}
-
-bool FakeMotionControl::getOutputRaw(int j, double *out)
-{
-    return false;
-}
-
-bool FakeMotionControl::getOutputsRaw(double *outs)
-{
-    bool ret = true;
-    for(int j=0; j< _njoints; j++)
-    {
-        ret &= getOutputRaw(j, &outs[j]);
-    }
-    return ret;
 }
 
 bool FakeMotionControl::getNumberOfMotorsRaw(int* num)
@@ -2813,11 +3058,156 @@ bool FakeMotionControl::setTemperatureLimitRaw(int m, const double temp)
     return false;
 }
 
+//PWM interface
+bool FakeMotionControl::setRefDutyCycleRaw(int j, double v)
+{
+    refpwm[j] = v;
+    pwm[j] = v;
+    last_pwm_command[j]=yarp::os::Time::now();
+    return true;
+}
+
+bool FakeMotionControl::setRefDutyCyclesRaw(const double *v)
+{
+    for (int i = 0; i < _njoints; i++)
+    {
+        setRefDutyCycleRaw(i,v[i]);
+    }
+    return true;
+}
+
+bool FakeMotionControl::getRefDutyCycleRaw(int j, double *v)
+{
+    *v = refpwm[j];
+    return true;
+}
+
+bool FakeMotionControl::getRefDutyCyclesRaw(double *v)
+{
+    for (int i = 0; i < _njoints; i++)
+    {
+        v[i] = refpwm[i];
+    }
+    return true;
+}
+
+bool FakeMotionControl::getDutyCycleRaw(int j, double *v)
+{
+    *v = pwm[j];
+    return true;
+}
+
+bool FakeMotionControl::getDutyCyclesRaw(double *v)
+{
+    for (int i = 0; i < _njoints; i++)
+    {
+        v[i] = pwm[i];
+    }
+    return true;
+}
+
+// Current interface
+/*bool FakeMotionControl::getCurrentRaw(int j, double *t)
+{
+    return NOT_YET_IMPLEMENTED("getCurrentRaw");
+}
+
+bool FakeMotionControl::getCurrentsRaw(double *t)
+{
+    return NOT_YET_IMPLEMENTED("getCurrentsRaw");
+}
+*/
+
+bool FakeMotionControl::getCurrentRangeRaw(int j, double *min, double *max)
+{
+    //just for testing purposes, this is not a real implementation
+    *min = _ref_currents[j] / 100;
+    *max = _ref_currents[j] * 100;
+    return true;
+}
+
+bool FakeMotionControl::getCurrentRangesRaw(double *min, double *max)
+{
+    //just for testing purposes, this is not a real implementation
+    for (int i = 0; i < _njoints; i++)
+    {
+        min[i] = _ref_currents[i] / 100;
+        max[i] = _ref_currents[i] * 100;
+    }
+    return true;
+}
+
+bool FakeMotionControl::setRefCurrentsRaw(const double *t)
+{
+    for (int i = 0; i < _njoints; i++)
+    {
+        _ref_currents[i] = t[i];
+        current[i] = t[i] / 2;
+    }
+    return true;
+}
+
+bool FakeMotionControl::setRefCurrentRaw(int j, double t)
+{
+    _ref_currents[j] = t;
+    current[j] = t / 2;
+    return true;
+}
+
+bool FakeMotionControl::setRefCurrentsRaw(const int n_joint, const int *joints, const double *t)
+{
+    bool ret = true;
+    for (int j = 0; j<n_joint; j++)
+    {
+        ret = ret &&setRefCurrentRaw(joints[j], t[j]);
+    }
+    return ret;
+}
+
+bool FakeMotionControl::getRefCurrentsRaw(double *t)
+{
+    for (int i = 0; i < _njoints; i++)
+    {
+        t[i] = _ref_currents[i];
+    }
+    return true;
+}
+
+bool FakeMotionControl::getRefCurrentRaw(int j, double *t)
+{
+    *t = _ref_currents[j];
+    return true;
+}
 
 // bool FakeMotionControl::checkRemoteControlModeStatus(int joint, int target_mode)
 // {
 //     return false;
 // }
+
+yarp::dev::VAS_status  FakeMotionControl::getVirtualAnalogSensorStatusRaw(int ch)
+{
+    return yarp::dev::VAS_status::VAS_OK;
+}
+
+int  FakeMotionControl::getVirtualAnalogSensorChannelsRaw()
+{
+    return _njoints;
+}
+
+bool FakeMotionControl::updateVirtualAnalogSensorMeasureRaw(yarp::sig::Vector &measure)
+{
+    for (int i = 0; i < _njoints; i++)
+    {
+        measure[i] = _torques[i];
+    }
+    return true;
+}
+
+bool FakeMotionControl::updateVirtualAnalogSensorMeasureRaw(int ch, double &measure)
+{
+    _torques[ch] = measure;
+    return true;
+}
 
 
 // eof

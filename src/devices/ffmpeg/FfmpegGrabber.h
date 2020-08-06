@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2006 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
-
 
 #ifndef FfmpegGrabber_INC
 #define FfmpegGrabber_INC
@@ -12,21 +13,14 @@
 #include "avpreamble.h"
 
 extern "C" {
-#include <avcodec.h>
-#include <avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
 }
 
 /*
- * A Yarp 2 frame grabber device driver using ffmpeg to implement
+ * A YARP frame grabber device driver using ffmpeg to implement
  * image capture from AVI files.
- *
  */
-
-namespace yarp {
-    namespace dev {
-        class FfmpegGrabber;
-    }
-}
 
 #include <yarp/dev/AudioVisualInterfaces.h>
 #include <yarp/dev/DeviceDriver.h>
@@ -39,63 +33,81 @@ namespace yarp {
  * An image frame grabber device using ffmpeg to capture images from
  * AVI files.
  */
-class yarp::dev::FfmpegGrabber : public IFrameGrabberImage,
-            public IAudioGrabberSound,
-            public IAudioVisualGrabber,
-            public IAudioVisualStream,
-            public DeviceDriver
+class FfmpegGrabber :
+        public yarp::dev::IFrameGrabberImage,
+        public yarp::dev::IAudioGrabberSound,
+        public yarp::dev::IAudioVisualGrabber,
+        public yarp::dev::IAudioVisualStream,
+        public yarp::dev::DeviceDriver
 {
 public:
 
-    FfmpegGrabber() {
-        m_h = m_w = 0;
-        m_channels = m_rate = 0;
-        pFormatCtx = NULL;
-        pFormatCtx2 = NULL;
-        pAudioFormatCtx = NULL;
-        packet.data = NULL;
-        active = false;
-        startTime = 0;
-        _hasAudio = _hasVideo = false;
-        system_resource = NULL;
-        needRateControl = false;
-        shouldLoop = true;
-        pace = 1;
-        imageSync = false;
-        formatParamsVideo = NULL;
-        formatParamsAudio = NULL;
+    FfmpegGrabber() :
+        system_resource(nullptr),
+        formatParamsVideo(nullptr),
+        formatParamsAudio(nullptr),
+        pFormatCtx(nullptr),
+        pFormatCtx2(nullptr),
+        pAudioFormatCtx(nullptr),
+        active(false),
+        startTime(0),
+        _hasAudio(false),
+        _hasVideo(false),
+        needRateControl(false),
+        shouldLoop(true),
+        pace(1),
+        imageSync(false),
+        m_w(0),
+        m_h(0),
+        m_channels(0),
+        m_rate(0),
+        m_capture(nullptr)
+    {
+        memset(&packet,0,sizeof(packet));
     }
 
-    virtual bool open(yarp::os::Searchable & config);
+    bool open(yarp::os::Searchable & config) override;
 
-    virtual bool close();
+    bool close() override;
 
-    virtual bool getImage(yarp::sig::ImageOf<yarp::sig::PixelRgb> & image);
+    bool getImage(yarp::sig::ImageOf<yarp::sig::PixelRgb> & image) override;
 
-    virtual bool getSound(yarp::sig::Sound& sound);
+    bool getSound(yarp::sig::Sound& sound, size_t min_number_of_samples, size_t max_number_of_samples, double max_samples_timeout_s) override;
 
-    virtual int height() const { return m_h; }
+    int height() const override { return m_h; }
 
-    virtual int width() const { return m_w; }
+    int width() const override { return m_w; }
 
     virtual bool getAudioVisual(yarp::sig::ImageOf<yarp::sig::PixelRgb>& image,
-                                yarp::sig::Sound& sound);
+                                yarp::sig::Sound& sound) override;
 
 
-    virtual bool hasAudio() {
+    bool hasAudio() override {
         return _hasAudio;
     }
 
-    virtual bool hasVideo() {
+    bool hasVideo() override {
         return _hasVideo;
     }
 
-    virtual bool startRecording() {
+    bool startRecording() override {
         return true;
     }
 
-    virtual bool stopRecording() {
+    bool stopRecording() override {
         return true;
+    }
+
+    bool getRecordingAudioBufferMaxSize(yarp::dev::AudioBufferSize&) override {
+        return false;
+    }
+
+    bool getRecordingAudioBufferCurrentSize(yarp::dev::AudioBufferSize&) override {
+        return false;
+    }
+
+    bool resetRecordingAudioBuffer() override {
+        return false;
     }
 
 protected:
@@ -116,7 +128,7 @@ protected:
     bool imageSync;
 
     /** Uri of the images a grabber produces. */
-    yarp::os::ConstString m_uri;
+    std::string m_uri;
 
     /** Width of the images a grabber produces. */
     int m_w;
@@ -145,7 +157,7 @@ protected:
  * @ingroup dev_runtime
  * \defgroup cmd_device_ffmpeg_grabber ffmpeg_grabber
 
- A wrapper for the ffmpeg library's image sources, see yarp::dev::FfmpegGrabber.
+ A wrapper for the ffmpeg library's image sources, see FfmpegGrabber.
 
 */
 

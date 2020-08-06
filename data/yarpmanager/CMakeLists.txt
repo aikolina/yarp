@@ -1,16 +1,13 @@
-#  Yarp Modules Manager
-#  Copyright: (C) 2011 Robotics, Brain and Cognitive Sciences - Italian Institute of Technology (IIT)
-#  Authors: Ali Paikan <ali.paikan@iit.it>
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
 #
-#  Copy Policy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
-#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 # yarpmanager
 
 # TODO Figure out what to do with the files in this folder
 
-if(CREATE_LIB_MANAGER)
-    add_subdirectory(tests) #should be renamed to xml or templates
+if(YARP_COMPILE_libYARP_manager)
+  add_subdirectory(tests) #should be renamed to xml or templates
 endif()
-
-

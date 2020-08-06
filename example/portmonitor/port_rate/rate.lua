@@ -1,8 +1,9 @@
+-- Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+-- All rights reserved.
 --
--- Copyright (C) 2012 IITRBCS
--- Authors: Ali Paikan
--- CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
---
+-- This software may be modified and distributed under the terms of the
+-- BSD-3-Clause license. See the accompanying LICENSE file for details.
+
 
 -- loading lua-yarp binding library
 require("yarp")
@@ -12,7 +13,7 @@ require("yarp")
 -- @return Boolean
 --
 PortMonitor.create = function(options)
-    isReceiver = (options:find("sender_side"):asInt() == 0)
+    isReceiver = (options:find("sender_side"):asInt32() == 0)
     sourceName = options:find("source"):asString()
     destinationName = options:find("destination"):asString()
     if isReceiver == true then
@@ -36,14 +37,13 @@ PortMonitor.accept = function(thing)
         print("\nRate of", sourceName, ":", yarp.Time_now() - prev_time)
         prev_time = yarp.Time_now()
         return true
-    end 
+    end
 
     -- filter with the desired frequency. e.g, 300ms
     if yarp.Time_now() - prev_time < 0.300 then
         return false
     end
-    
+
     prev_time = yarp.Time_now()
     return true
 end
-

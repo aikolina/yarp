@@ -1,15 +1,24 @@
 /*
- * Copyright (C) 2014 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Davide Perrone
- * Date: Feb 2014
- * email:   dperrone@aitek.it
- * website: www.aitek.it
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
  *
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #include "entitiestreewidget.h"
-#include <yarp/manager/ymm-dir.h>
+#include <yarp/conf/filesystem.h>
+#include <dirent.h>
 #include <QProcess>
 #include <QHeaderView>
 #include <QMessageBox>
@@ -20,23 +29,30 @@
 #include <QDragEnterEvent>
 #include <QPainter>
 
+using namespace std;
+
 EntitiesTreeWidget::EntitiesTreeWidget(QWidget *parent) : QTreeWidget(parent)
 {
 
-    applicationNode = new QTreeWidgetItem(this,QStringList() << "Application");
+    missingFile = false;
+    applicationNode = new QTreeWidgetItem(this,QStringList() << "Applications");
     modulesNode = new QTreeWidgetItem(this,QStringList() << "Modules");
     resourcesNode = new QTreeWidgetItem(this,QStringList() << "Resources");
     templatesNode = new QTreeWidgetItem(this,QStringList() << "Templates");
+    portsNode = new QTreeWidgetItem(this,QStringList() << "Ports");
 
     applicationNode->setIcon(0,QIcon(":/folder-app.svg"));
     modulesNode->setIcon(0,QIcon(":/folder-mod.svg"));
     resourcesNode->setIcon(0,QIcon(":/folder-res.svg"));
     templatesNode->setIcon(0,QIcon(":/folder.svg"));
+    portsNode->setIcon(0,QIcon(":/folder-ports.svg"));
+
 
     addTopLevelItem(applicationNode);
     addTopLevelItem(modulesNode);
     addTopLevelItem(resourcesNode);
     addTopLevelItem(templatesNode);
+    addTopLevelItem(portsNode);
 
     setExpandsOnDoubleClick(false);
     setContextMenuPolicy(Qt::CustomContextMenu);
@@ -52,7 +68,7 @@ EntitiesTreeWidget::EntitiesTreeWidget(QWidget *parent) : QTreeWidget(parent)
     topLevelMenu.addAction(importFile);
 
     loadFiles = new QAction("Load",this);
-    QAction *separator = new QAction(this);
+    auto* separator = new QAction(this);
     separator->setSeparator(true);
     reopen = new QAction("Refresh",this);
     remove = new QAction("Remove",this);
@@ -75,7 +91,7 @@ EntitiesTreeWidget::EntitiesTreeWidget(QWidget *parent) : QTreeWidget(parent)
     connect(remove,SIGNAL(triggered()),this,SLOT(onRemove()));
     connect(reopen,SIGNAL(triggered()),this,SLOT(onReopen()));
 
-    #if defined(WIN32)
+    #if defined(_WIN32)
         ext_editor = "notepad.exe";
     #else
         ext_editor = "xdg-open";
@@ -104,7 +120,7 @@ void EntitiesTreeWidget::addApplication(yarp::manager::Application *app)
 
     string fname;
     string fpath = app->getXmlFile();
-    size_t pos = fpath.rfind(PATH_SEPERATOR);
+    size_t pos = fpath.rfind(yarp::conf::filesystem::preferred_separator);
     if (pos!=string::npos) {
         fname = fpath.substr(pos+1);
     } else {
@@ -130,7 +146,7 @@ void EntitiesTreeWidget::addComputer(yarp::manager::Computer* comp)
 
     string fname;
     string fpath = comp->getXmlFile();
-    size_t pos = fpath.rfind(PATH_SEPERATOR);
+    size_t pos = fpath.rfind(yarp::conf::filesystem::preferred_separator);
     if (pos!=string::npos) {
         fname = fpath.substr(pos+1);
     } else {
@@ -155,7 +171,7 @@ void EntitiesTreeWidget::addModule(yarp::manager::Module* mod)
 
     string fname;
     string fpath = mod->getXmlFile();
-    size_t pos = fpath.rfind(PATH_SEPERATOR);
+    size_t pos = fpath.rfind(yarp::conf::filesystem::preferred_separator);
     if (pos!=string::npos) {
         fname = fpath.substr(pos+1);
     } else {
@@ -182,13 +198,26 @@ void EntitiesTreeWidget::addAppTemplate(yarp::manager::AppTemplate* tmp)
     item->setIcon(0,QIcon(":/file-xml22.svg"));
 }
 
+void EntitiesTreeWidget::addPort(QStringList portDetails)
+{
+    if (portDetails.size() < 2)
+    {
+        return;
+    }
+    QTreeWidgetItem *item = new QTreeWidgetItem(portsNode,QStringList() << portDetails[0]);
+    item->setIcon(0,QIcon(":/port22.svg"));
+    QTreeWidgetItem *portIp = new QTreeWidgetItem(item,QStringList() << portDetails[1]);
+    YARP_UNUSED(portIp);
 
-void EntitiesTreeWidget::onSelectItem(QString name)
+}
+
+
+void EntitiesTreeWidget::onSelectItem(QString name, bool open)
 {
     for(int i=0;applicationNode->childCount();i++) {
         if (applicationNode->child(i)->text(0) == name) {
             yarp::manager::Application *app = (yarp::manager::Application*)applicationNode->child(i)->data(0,Qt::UserRole + 1).toLongLong();
-            viewApplication(app,true);
+            emit viewApplication(app, !open);
             return;
         }
     }
@@ -218,19 +247,46 @@ void EntitiesTreeWidget::onItemDoubleClicked(QTreeWidgetItem *item,int column)
 
     if (item->data(0,Qt::UserRole).toInt()  == (int)yarp::manager::APPLICATION) {
         yarp::manager::Application *app = (yarp::manager::Application*)item->data(0,Qt::UserRole + 1).toLongLong();
-        viewApplication(app);
+        if(app)
+        {
+            QString fileName = QString("%1").arg(app->getXmlFile());
+
+            QFile file(fileName);
+            if(!file.exists()){
+                missingFile=true;
+                onRemove();
+                return;
+            }
+            emit viewApplication(app);
+        }
     }
 
     if (item->data(0,Qt::UserRole).toInt()  == (int)yarp::manager::MODULE) {
         yarp::manager::Module *mod = (yarp::manager::Module*)item->data(0,Qt::UserRole + 1).toLongLong();
         if (mod) {
-            viewModule(mod);
+            QString fileName = QString("%1").arg(mod->getXmlFile());
+
+            QFile file(fileName);
+            if(!file.exists()){
+                missingFile=true;
+                onRemove();
+                return;
+            }
+            emit viewModule(mod);
         }
     }
 
     if (item->data(0,Qt::UserRole).toInt()  == (int)yarp::manager::RESOURCE) {
         yarp::manager::Computer *res = (yarp::manager::Computer*)item->data(0,Qt::UserRole + 1).toLongLong();
-        viewResource(res);
+        QString fileName = QString("%1").arg(res->getXmlFile());
+
+        QFile file(fileName);
+        if(!file.exists()){
+            missingFile=true;
+            onRemove();
+            return;
+        }
+        emit viewResource(res);
     }
 
     if (item->data(0,Qt::UserRole).toInt()  == (int)yarp::manager::NODE_APPTEMPLATE) {
@@ -269,7 +325,7 @@ void EntitiesTreeWidget::mouseMoveEvent(QMouseEvent *event)
         }
         qlonglong pointer = selectedItem->data(0,Qt::UserRole + 1).toLongLong();
 
-        QMimeData *mimeData = new QMimeData;
+        auto* mimeData = new QMimeData;
         QByteArray strPointer = QString("%1").arg(pointer).toLatin1();
         mimeData->setData("pointer",strPointer);
 
@@ -283,7 +339,7 @@ void EntitiesTreeWidget::mouseMoveEvent(QMouseEvent *event)
         QFontMetrics fontMetric(font());
         //int textWidth = fontMetric.width(selectedItem->text(0));
 
-        QDrag *drag = new QDrag(this);
+        auto* drag = new QDrag(this);
         drag->setMimeData(mimeData);
 
 //        QPixmap pix(textWidth + 40,18);
@@ -357,7 +413,7 @@ void EntitiesTreeWidget::mousePressEvent(QMouseEvent *event)
 
 /*! \brief Clear the application node
 */
-void EntitiesTreeWidget::clearApplication()
+void EntitiesTreeWidget::clearApplications()
 {
     if (!applicationNode) {
         return;
@@ -403,6 +459,25 @@ void EntitiesTreeWidget::clearTemplates()
     }
 }
 
+void EntitiesTreeWidget::clearPorts()
+{
+    if (!portsNode)
+    {
+        return;
+    }
+    while (portsNode->childCount() > 0)
+    {
+        portsNode->removeChild(portsNode->child(0));
+    }
+}
+
+QTreeWidgetItem * EntitiesTreeWidget::getWidgetItemByFilename(const QString xmlFile){
+    QList<QTreeWidgetItem*> clist = this->findItems(xmlFile, Qt::MatchContains|Qt::MatchRecursive, 0);
+    if (clist.size())
+        return clist.at(0)->parent();
+    return nullptr;
+}
+
 /*! \brief Called when a context menu has been requested
     \param p the point where the context menu should appear
 */
@@ -416,7 +491,12 @@ void EntitiesTreeWidget::onContext(QPoint p)
     QPoint pp = QPoint(p.x(),p.y() + header()->height());
     if (it == applicationNode || it ==resourcesNode || it == modulesNode || it == templatesNode) {
         topLevelMenu.exec(mapToGlobal(pp));
-    } else {
+    }
+    else if(it == portsNode)
+    {
+        //do nothing
+    }
+    else {
         if (it->parent() == applicationNode) {
             loadFiles->setText("Load Application");
             secondLevelMenu.exec(mapToGlobal(pp));
@@ -426,7 +506,12 @@ void EntitiesTreeWidget::onContext(QPoint p)
         } else if (it->parent() == modulesNode) {
             loadFiles->setText("Load Module");
             secondLevelMenu.exec(mapToGlobal(pp));
-        } else {
+        }
+        else if(it->parent() == portsNode || it->parent()->parent() == portsNode)
+        {
+            //do nothing
+        }
+        else {
             leafLevelMenu.exec(mapToGlobal(pp));
         }
     }
@@ -444,7 +529,17 @@ void EntitiesTreeWidget::onEditApplication()
     if (it->parent() == applicationNode) {
         if (it->data(0,Qt::UserRole)  == yarp::manager::APPLICATION) {
             yarp::manager::Application *app = (yarp::manager::Application*)it->data(0,Qt::UserRole + 1).toLongLong();
-            viewApplication(app,true);
+            if(app){
+                QString fileName = QString("%1").arg(app->getXmlFile());
+
+                QFile file(fileName);
+                if(!file.exists()){
+                    missingFile=true;
+                    onRemove();
+                    return;
+                }
+                emit viewApplication(app,true);
+            }
         }
     }
 }
@@ -464,17 +559,17 @@ void EntitiesTreeWidget::onLoadFile()
     if (it->parent() == applicationNode) {
         if (it->data(0,Qt::UserRole)  == yarp::manager::APPLICATION) {
             yarp::manager::Application *app = (yarp::manager::Application*)it->data(0,Qt::UserRole + 1).toLongLong();
-            viewApplication(app);
+            emit viewApplication(app);
         }
     } else if (it->parent() == resourcesNode) {
         if (it->data(0,Qt::UserRole)  == yarp::manager::RESOURCE) {
             yarp::manager::Computer *res = (yarp::manager::Computer*)it->data(0,Qt::UserRole + 1).toLongLong();
-            viewResource(res);
+            emit viewResource(res);
         }
     } else if (it->parent() == modulesNode) {
         if (it->data(0,Qt::UserRole)  == yarp::manager::MODULE) {
             yarp::manager::Module *mod = (yarp::manager::Module*)it->data(0,Qt::UserRole + 1).toLongLong();
-            viewModule(mod);
+            emit viewModule(mod);
         }
     }
 
@@ -515,12 +610,12 @@ void EntitiesTreeWidget::onEdit()
 void EntitiesTreeWidget::onReopen()
 {
     QTreeWidgetItem *it = currentItem();
-    QTreeWidgetItem *parent = it -> parent();
-    int index = it -> parent() -> indexOfChild(it);
-
     if (!it) {
         return;
     }
+
+    QTreeWidgetItem *parent = it -> parent();
+    int index = it -> parent() -> indexOfChild(it);
 
     if (it->parent() == applicationNode) {
         if (it->data(0,Qt::UserRole)  == yarp::manager::APPLICATION) {
@@ -529,7 +624,14 @@ void EntitiesTreeWidget::onReopen()
                 QString fileName = QString("%1").arg(app->getXmlFile());
                 QString appName = it->text(0);
 
-                reopenApplication(appName,fileName);
+                QFile file(fileName);
+                if(!file.exists()){
+                    missingFile=true;
+                    onRemove();
+                    return;
+                }
+
+                emit reopenApplication(appName,fileName);
             }
 
         }
@@ -539,8 +641,13 @@ void EntitiesTreeWidget::onReopen()
             if (res) {
                 QString fileName = QString("%1").arg(res->getXmlFile());
                 QString resName = it->text(0);
+                QFile file(fileName);
+                if(!file.exists()){
+                    missingFile=true;
+                    onRemove();
+                }
 
-                reopenResource(resName,fileName);
+                emit reopenResource(resName,fileName);
             }
         }
     } else if (it->parent() == modulesNode) {
@@ -549,8 +656,13 @@ void EntitiesTreeWidget::onReopen()
             if (mod) {
                 QString fileName = QString("%1").arg(mod->getXmlFile());
                 QString modName = it->text(0);
+                QFile file(fileName);
+                if(!file.exists()){
+                    missingFile=true;
+                    onRemove();
+                }
 
-                reopenModule(modName,fileName);
+                emit reopenModule(modName,fileName);
             }
         }
     }
@@ -572,14 +684,15 @@ void EntitiesTreeWidget::onRemove()
 
 
 
-    if (QMessageBox::question(this,"Removing","Are you sure to remove this item?") == QMessageBox::Yes) {
+    if (missingFile || QMessageBox::question(this,"Removing","Are you sure to remove this item?") == QMessageBox::Yes) {
 
         if (item->parent() == applicationNode) {
             if (item->data(0,Qt::UserRole)  == yarp::manager::APPLICATION) {
                 yarp::manager::Application *app = (yarp::manager::Application*)item->data(0,Qt::UserRole + 1).toLongLong();
                 if (app) {
                     QString appName = item->text(0);
-                    removeApplication(appName);
+                    QString xmlFile = app->getXmlFile();
+                    emit removeApplication(xmlFile,appName);
                 }
 
             }
@@ -588,7 +701,7 @@ void EntitiesTreeWidget::onRemove()
                 yarp::manager::Computer *res = (yarp::manager::Computer*)item->data(0,Qt::UserRole + 1).toLongLong();
                 if (res) {
                     QString resName = item->text(0);
-                    removeResource(resName);
+                    emit removeResource(resName);
                 }
             }
         } else if (item->parent() == modulesNode) {
@@ -596,7 +709,7 @@ void EntitiesTreeWidget::onRemove()
                 yarp::manager::Module *mod = (yarp::manager::Module*)item->data(0,Qt::UserRole + 1).toLongLong();
                 if (mod) {
                     QString modName = item->text(0);
-                    removeModule(modName);
+                    emit removeModule(modName);
                 }
             }
         }
@@ -609,5 +722,6 @@ void EntitiesTreeWidget::onRemove()
             int index = item->parent()->indexOfChild(item);
             delete item->parent()->takeChild(index);
         }
+        missingFile = false;
     }
 }

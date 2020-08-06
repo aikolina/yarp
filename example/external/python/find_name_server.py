@@ -1,12 +1,19 @@
 #!/usr/bin/python
 
-# Copyright: (C) 2010 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 import os
 
 def find_name_server():
+    # ==================================================================
+    # WARNING: This code is deprecated and will no longer work,
+    #          see ResourceFinder documentation for paths searched
+    #          by YARP
     if "YARP_CONF" in os.environ.keys():
         base = os.environ["YARP_CONF"]
     elif "HOMEDIR" in os.environ.keys():
@@ -17,6 +24,7 @@ def find_name_server():
         print "Please set YARP_CONF to the location reported by this command:"
         print "  yarp conf"
         return None
+    # ==================================================================
 
     print "Config files should be in", base
 

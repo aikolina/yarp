@@ -1,22 +1,26 @@
 /*
- * Copyright (C) 2007 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include "FakeBot.h"
 
 #include <yarp/sig/all.h>
 #include <yarp/sig/ImageFile.h>
-#include <yarp/os/all.h>
-
+#include <random>
 
 using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::sig::draw;
 using namespace yarp::sig::file;
 using namespace yarp::dev;
+
+YARP_LOG_COMPONENT(FAKEBOT, "yarp.devices.FakeBot")
+
 
 #define MAXRND 50000
 namespace {
@@ -26,6 +30,8 @@ int rnds[MAXRND];
 void FakeBot::init() {
     int m_w = 640;
     int m_h = 480;
+    int rr = 30;
+
     back.resize(m_w,m_h);
     PixelRgb w(255,255,255);
     PixelRgb r(128,128,255);
@@ -37,19 +43,25 @@ void FakeBot::init() {
         }
     }
     for (int i=0; i<=m_w; i+=m_w/10) {
-        addCircle(back,b,i,int(m_h*0.77),30);
+        addCircle(back,b,i,int(m_h*0.77),rr);
     }
+
+    std::default_random_engine randengine;
+    std::uniform_real_distribution<double> udist1(-m_w/4,m_w/4);
+    std::uniform_real_distribution<double> udist2(-int(m_h*0.2),rr);
     for (int j=0; j<40; j++) {
-        int rr = 30;
-        int xx = m_w/2 + Random::uniform(-m_w/4,m_w/4);
-        int yy = int(m_h*0.2) - Random::uniform(-int(m_h*0.2),rr);
+        int xx = m_w/2 + udist1(randengine);
+        int yy = int(m_h*0.2) - udist2(randengine);
         addCircle(back,w,xx,yy,rr);
     }
+
     m_x = (back.width()-this->m_w)/2;
     m_y = (back.height()-this->m_h)/2;
     m_dx = m_dy = 0;
-    for (int k=0; k<MAXRND; k++) {
-        rnds[k] = int(Random::normal(0,255));
+
+    std::normal_distribution<double> ndist(0,255);
+    for (int & rnd : rnds) {
+        rnd = int(ndist(randengine));
     }
 
     fore.resize(64,64);
@@ -74,26 +86,26 @@ void scramble(unsigned char& ch, float f) {
 
 
 bool FakeBot::open(yarp::os::Searchable& config) {
-    ConstString backFile = config.check("background",Value("textures/back.ppm"),
+    std::string backFile = config.check("background",Value("textures/back.ppm"),
                                         "background image to use").asString();
     if (backFile!="") {
-        yarp::sig::file::read(back,backFile.c_str());
+        yarp::sig::file::read(back,backFile);
     }
-    ConstString foreFile = config.check("target",Value("textures/fore.ppm"),
+    std::string foreFile = config.check("target",Value("textures/fore.ppm"),
                                         "target image to use").asString();
     if (foreFile!="") {
-        yarp::sig::file::read(fore,foreFile.c_str());
+        yarp::sig::file::read(fore,foreFile);
     }
     noiseLevel = config.check("noise",Value(0.05),
-                              "pixel noise level").asDouble();
+                              "pixel noise level").asFloat64();
 
     xScale = config.check("sx",Value(1.0),
-                          "scaling for x coordinate").asDouble();
+                          "scaling for x coordinate").asFloat64();
     yScale = config.check("sy",Value(1.0),
-                          "scaling for y coordinate").asDouble();
+                          "scaling for y coordinate").asFloat64();
 
     lifetime = config.check("lifetime",Value(-1.0),
-                            "device should exist for this length of time (in seconds)").asDouble();
+                            "device should exist for this length of time (in seconds)").asFloat64();
     if (lifetime>=0) {
         start();
     }
@@ -142,7 +154,7 @@ bool FakeBot::getImage(yarp::sig::ImageOf<yarp::sig::PixelRgb>& image) {
         int x0 = int(x+m_x+m_dx_scaled*0.5+0.5);
         int y0 = int(y+m_y+m_dy_scaled*0.5+0.5);
         image(x,y) = back.safePixel(x0,y0);
-        
+
         if (fore.isPixel(int(x0-m_tx),int(y0-m_ty))) {
          PixelRgb& pix = fore(int(x0-m_tx),int(y0-m_ty));
          if (pix.r<200||pix.g>100||pix.b>100) {
@@ -152,19 +164,18 @@ bool FakeBot::getImage(yarp::sig::ImageOf<yarp::sig::PixelRgb>& image) {
     }
     IMGFOR(image,x2,y2) {
         PixelRgb& pix = image(x2,y2);
-        float f = (float)(noiseLevel);
+        auto f = (float)(noiseLevel);
         scramble(pix.r,f);
         scramble(pix.g,f);
         scramble(pix.b,f);
     }
-    Time::delay(0.1); // simulated hardware delay
+    Time::delay(0.1); // simulated hardware delay, using mutable clock
     return true;
 }
-    
+
 void FakeBot::run() {
     if (lifetime>=0) {
         Time::delay(lifetime);
-        yarp::os::exit(0);
+        std::exit(0);
     }
 }
-

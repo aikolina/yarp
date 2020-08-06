@@ -1,15 +1,16 @@
 /*
- * Copyright (C) 2011 Department of Robotics Brain and Cognitive Sciences - Istituto Italiano di Tecnologia
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef YARP2_ROSTYPECODEGENYARP_INC
 #define YARP2_ROSTYPECODEGENYARP_INC
 
 #include <RosType.h>
-#include <stdio.h>
+#include <cstdio>
 
 class RosYarpType {
 public:
@@ -34,6 +35,7 @@ class RosTypeCodeGenYarp : public RosTypeCodeGen {
 private:
     std::string target;
     std::string className;
+    std::string packageName;
 
 public:
     std::string counter;
@@ -47,28 +49,35 @@ public:
     RosYarpType mapPrimitive(const RosField& field);
 
     virtual bool beginType(const std::string& tname,
-                           RosTypeCodeGenState& state);
+                           RosTypeCodeGenState& state) override;
 
-    virtual bool beginDeclare();
-    virtual bool declareField(const RosField& field);
-    virtual bool endDeclare();
+    bool beginDeclare() override;
+    bool declareField(const RosField& field) override;
+    bool endDeclare() override;
 
-    virtual bool beginConstruct();
-    virtual bool constructField(const RosField& field);
-    virtual bool endConstruct();
+    bool beginConstruct() override;
+    bool initField(const RosField& field, bool &isFirstToInit) override;
+    bool endInitConstruct() override;
+    bool constructField(const RosField& field) override;
+    bool endConstruct() override;
 
-    virtual bool beginRead(bool bare, int len);
-    virtual bool readField(bool bare, const RosField& field);
-    virtual bool endRead(bool bare);
+    bool beginClear() override;
+    bool clearField(const RosField& field) override;
+    bool endClear() override;
 
-    virtual bool beginWrite(bool bare, int len);
-    virtual bool writeField(bool bare,const RosField& field);
-    virtual bool endWrite(bool bare);
+    bool beginRead(bool bare, int len) override;
+    bool readField(bool bare, const RosField& field) override;
+    bool endRead(bool bare) override;
+
+    bool beginWrite(bool bare, int len) override;
+    bool writeField(bool bare,const RosField& field) override;
+    bool endWrite(bool bare) override;
 
     virtual bool endType(const std::string& tname,
-                         const RosField& field);
+                         const RosField& field) override;
 
-    virtual bool hasNativeTimeClass() const {
+    bool writeIndex(RosTypeCodeGenState& state) override;
+    bool hasNativeTimeClass() const override {
         return false;
     }
 

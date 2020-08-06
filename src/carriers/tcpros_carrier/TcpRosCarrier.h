@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef TCPROSCARRIER_INC
@@ -10,18 +11,12 @@
 
 #include <yarp/os/Carrier.h>
 
-#include "TcpRosStream.h"
-#include "WireImage.h"
-#include "WireBottle.h"
-#include "WireTwiddler.h"
-#include "RosHeader.h"
+#include <yarp/wire_rep_utils/WireImage.h>
+#include <yarp/wire_rep_utils/WireBottle.h>
+#include <yarp/wire_rep_utils/WireTwiddler.h>
 
-namespace yarp {
-    namespace os {
-        class TcpRosCarrier;
-        class RosSrvCarrier;
-    }
-}
+#include "RosHeader.h"
+#include "TcpRosStream.h"
 
 #define TCPROS_TRANSLATE_INHIBIT (-1)
 #define TCPROS_TRANSLATE_UNKNOWN (0)
@@ -29,7 +24,9 @@ namespace yarp {
 #define TCPROS_TRANSLATE_BOTTLE_BLOB (2)
 #define TCPROS_TRANSLATE_TWIDDLER (3)
 
-class yarp::os::TcpRosCarrier : public Carrier {
+class TcpRosCarrier :
+        public yarp::os::Carrier
+{
 private:
     bool firstRound;
     bool sender;
@@ -37,20 +34,20 @@ private:
     int headerLen2;
     int raw;
     int translate;
-    WireImage wi;
-    RosWireImage ri;
-    SizedWriterTail wt;
+    yarp::wire_rep_utils::WireImage wi;
+    yarp::wire_rep_utils::RosWireImage ri;
+    yarp::wire_rep_utils::SizedWriterTail wt;
     int seq;
-    WireTwiddler twiddler;
-    WireTwiddlerWriter twiddler_output;
-    yarp::os::ConstString kind;
+    yarp::wire_rep_utils::WireTwiddler twiddler;
+    yarp::wire_rep_utils::WireTwiddlerWriter twiddler_output;
+    std::string kind;
     bool persistent;
-    ConstString wire_type;
-    ConstString user_type;
-    ConstString md5sum;
-    ConstString message_definition;
+    std::string wire_type;
+    std::string user_type;
+    std::string md5sum;
+    std::string message_definition;
 
-    ConstString getRosType(ConnectionState& proto);
+    std::string getRosType(yarp::os::ConnectionState& proto);
 
 protected:
     bool isService;
@@ -67,60 +64,60 @@ public:
         persistent = true;
     }
 
-    virtual Carrier *create() {
+    Carrier *create() const override {
         return new TcpRosCarrier();
     }
 
-    virtual ConstString getName() {
+    std::string getName() const override {
         return isService?"rossrv":"tcpros";
     }
 
-    virtual bool isConnectionless() {
+    bool isConnectionless() const override {
         return false;
     }
 
-    virtual bool canAccept() {
+    bool canAccept() const override {
         return true;
     }
 
-    virtual bool canOffer() {
+    bool canOffer() const override {
         return true;
     }
 
-    virtual bool isTextMode() {
+    bool isTextMode() const override {
         return false;
     }
 
-    virtual bool isBareMode() {
+    bool isBareMode() const override {
         return true;
     }
 
-    virtual bool canEscape() {
+    bool canEscape() const override {
         return false;
     }
 
-    virtual bool requireAck() {
+    bool requireAck() const override {
         return false;
     }
 
-    virtual bool supportReply() {
+    bool supportReply() const override {
         return true;
     }
 
-    virtual bool isPush() {
+    bool isPush() const override {
         // if topic-like, pull ; if service-like, push!
         return isService;
     }
 
-    virtual bool isLocal() {
+    bool isLocal() const override {
         return false;
     }
 
-    virtual ConstString toString() {
+    std::string toString() const override {
         return isService?"rossrv_carrier":"tcpros_carrier";
     }
 
-    virtual void getHeader(const Bytes& header) {
+    void getHeader(yarp::os::Bytes& header) const override {
         // no header, will need to do some fancy footwork
         const char *target = "NONONONO";
         for (size_t i=0; i<8 && i<header.length(); i++) {
@@ -128,65 +125,65 @@ public:
         }
     }
 
-    virtual bool checkHeader(const Bytes& header);
+    bool checkHeader(const yarp::os::Bytes& header) override;
 
-    virtual void setParameters(const Bytes& header);
+    void setParameters(const yarp::os::Bytes& header) override;
 
     // Now, the initial hand-shaking
 
-    virtual bool prepareSend(ConnectionState& proto) {
+    bool prepareSend(yarp::os::ConnectionState& proto) override {
         return true;
     }
 
-    virtual bool sendHeader(ConnectionState& proto);
+    bool sendHeader(yarp::os::ConnectionState& proto) override;
 
-    virtual bool expectSenderSpecifier(ConnectionState& proto);
+    bool expectSenderSpecifier(yarp::os::ConnectionState& proto) override;
 
-    virtual bool expectExtraHeader(ConnectionState& proto) {
+    bool expectExtraHeader(yarp::os::ConnectionState& proto) override {
         return true;
     }
 
-    bool respondToHeader(ConnectionState& proto) {
+    bool respondToHeader(yarp::os::ConnectionState& proto) override {
         sender = false;
         return true;
     }
 
-    virtual bool expectReplyToHeader(ConnectionState& proto);
+    bool expectReplyToHeader(yarp::os::ConnectionState& proto) override;
 
-    virtual bool isActive() {
+    bool isActive() const override {
         return true;
     }
 
 
     // Payload time!
 
-    virtual bool write(ConnectionState& proto, SizedWriter& writer);
+    bool write(yarp::os::ConnectionState& proto, yarp::os::SizedWriter& writer) override;
 
-    virtual bool reply(ConnectionState& proto, SizedWriter& writer);
+    bool reply(yarp::os::ConnectionState& proto, yarp::os::SizedWriter& writer) override;
 
-    virtual bool sendIndex(ConnectionState& proto, SizedWriter& writer) {
+    virtual bool sendIndex(yarp::os::ConnectionState& proto, yarp::os::SizedWriter& writer) {
         return true;
     }
 
-    virtual bool expectIndex(ConnectionState& proto) {
+    bool expectIndex(yarp::os::ConnectionState& proto) override {
         return true;
     }
 
-    virtual bool sendAck(ConnectionState& proto) {
+    bool sendAck(yarp::os::ConnectionState& proto) override {
         return true;
     }
 
-    virtual bool expectAck(ConnectionState& proto) {
+    bool expectAck(yarp::os::ConnectionState& proto) override {
         return true;
     }
 
-    virtual ConstString getBootstrapCarrierName() { return ""; }
+    std::string getBootstrapCarrierName() const override { return {}; }
 
     virtual int connect(const yarp::os::Contact& src,
                         const yarp::os::Contact& dest,
                         const yarp::os::ContactStyle& style,
                         int mode,
-                        bool reversed);
+                        bool reversed) override;
 
 private:
     void processRosHeader(RosHeader& header);
@@ -194,19 +191,19 @@ private:
 };
 
 /*
- *
  * Set up an explicit service carrier, so that we know the
  * direction of data flow as early as possible.  Its name
  * is "rossrv" (see TcpRosCarrier::getName)
- *
  */
-class yarp::os::RosSrvCarrier : public TcpRosCarrier {
+class RosSrvCarrier :
+        public TcpRosCarrier
+{
 public:
     RosSrvCarrier() {
         isService = true;
     }
 
-    virtual Carrier *create() {
+    Carrier *create() const override {
         return new RosSrvCarrier();
     }
 };

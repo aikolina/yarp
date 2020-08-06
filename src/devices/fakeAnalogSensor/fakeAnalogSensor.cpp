@@ -1,34 +1,42 @@
-// Copyright (C) 2016 iCub Facility, Istituto Italiano di Tecnologia
-// Authors: Alberto Cardellino
-// email:   alberto.cardellino@iit.it
-// CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+/*
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
+ */
 
+#include "fakeAnalogSensor.h"
 
 #include <yarp/os/Time.h>
+#include <yarp/os/LogComponent.h>
 #include <yarp/os/LogStream.h>
-
-#include <fakeAnalogSensor.h>
 
 using namespace std;
 using namespace yarp::dev;
 
-FakeAnalogSensor::FakeAnalogSensor(int period) : RateThread(period),
-                                                 mutex(1),
-                                                 status(IAnalogSensor::AS_OK)
+namespace {
+YARP_LOG_COMPONENT(FAKEANALOGSENSOR, "yarp.device.fakeAnalogSensor")
+}
+
+FakeAnalogSensor::FakeAnalogSensor(double period) : PeriodicThread(period),
+        mutex(),
+        channelsNum(0),
+        status(IAnalogSensor::AS_OK)
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     timeStamp = yarp::os::Time::now();
-};
+}
 
 FakeAnalogSensor::~FakeAnalogSensor()
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
 }
 
 
 bool FakeAnalogSensor::open(yarp::os::Searchable& config)
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     bool correct=true;
 
     //debug
@@ -38,101 +46,100 @@ bool FakeAnalogSensor::open(yarp::os::Searchable& config)
 //     if(!config.check("channels"))
 //     {
 //         correct = false;
-//         yError() << "Parameter 'channels' missing";
+//         yCError(FAKEANALOGSENSOR) << "Parameter 'channels' missing";
 //     }
 
     if(!config.check("period"))
     {
         correct = false;
-        yError() << "Parameter 'period' missing";
+        yCError(FAKEANALOGSENSOR) << "Parameter 'period' missing";
     }
 
     if (!correct)
     {
-        yError() << "Insufficient parameters to FakeAnalogSensor\n";
+        yCError(FAKEANALOGSENSOR) << "Insufficient parameters to FakeAnalogSensor\n";
         return false;
     }
 
-    int period=config.find("period").asInt();
-    setRate(period);
+    double period=config.find("period").asInt32() / 1000.0;
+    setPeriod(period);
 
     //create the data vector:
     this->channelsNum = 1;
     data.resize(channelsNum);
     data.zero();
 
-    RateThread::start();
-    return true;
+    return PeriodicThread::start();
 }
 
 bool FakeAnalogSensor::close()
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     //stop the thread
-    RateThread::stop();
+    PeriodicThread::stop();
 
     return true;
 }
 
 int FakeAnalogSensor::read(yarp::sig::Vector &out)
 {
-    mutex.wait();
+    mutex.lock();
     out[0] = yarp::os::Time::now();
-    mutex.post();
+    mutex.unlock();
 
     return status;
 }
 
 int FakeAnalogSensor::getState(int ch)
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     // Always ok for now
     return status;
 }
 
 int FakeAnalogSensor::getChannels()
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     return channelsNum;
 }
 
-int yarp::dev::FakeAnalogSensor::calibrateSensor()
+int FakeAnalogSensor::calibrateSensor()
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     //NOT YET IMPLEMENTED
     return 0;
 }
 
 int FakeAnalogSensor::calibrateChannel(int ch, double v)
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     //NOT YET IMPLEMENTED
     return 0;
 }
 
 int FakeAnalogSensor::calibrateSensor(const yarp::sig::Vector& v)
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     //NOT YET IMPLEMENTED
     return 0;
 }
 
 int FakeAnalogSensor::calibrateChannel(int ch)
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     //NOT YET IMPLEMENTED
     return 0;
 }
 
 bool FakeAnalogSensor::threadInit()
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
     return true;
 }
 
 void FakeAnalogSensor::run()
 {
-    mutex.wait();
+    mutex.lock();
 
     // Do fake stuff
     double timeNow = yarp::os::Time::now();
@@ -144,11 +151,10 @@ void FakeAnalogSensor::run()
         status = IAnalogSensor::AS_OK;
 
     timeStamp = timeNow;
-    mutex.post();
+    mutex.unlock();
 }
 
 void FakeAnalogSensor::threadRelease()
 {
-    yTrace();
+    yCTrace(FAKEANALOGSENSOR);
 }
-

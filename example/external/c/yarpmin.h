@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #define YARP_ADDRESS_HOST_MAXLEN 100
@@ -45,11 +48,11 @@ int yarp_receive(yarpConnection connection, char *buf, int len);
 /* receive a string from a connection */
 int yarp_receive_line(yarpConnection connection, char *buf, int len);
 
-/* receive a series of strings from a connection.  The pending_buf and 
-   pending_len should be initially NULL/0.  Keep calling until 
+/* receive a series of strings from a connection.  The pending_buf and
+   pending_len should be initially NULL/0.  Keep calling until
    return value is <= 0
 */
-int yarp_receive_lines(yarpConnection connection, char *buf, int len, 
+int yarp_receive_lines(yarpConnection connection, char *buf, int len,
                        char **pending_buf, int *pending_len);
 
 /* receive payload bytes (user data, no YARP meta data) from a connection */

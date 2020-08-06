@@ -1,50 +1,84 @@
-# Copyright (C) 2015  iCub Facility, Istituto Italiano di Tecnologia
-# Author: Daniele E. Domenichelli <daniele.domenichelli@iit.it>
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 yarp_prepare_plugin(ovrheadset
                     CATEGORY device
                     TYPE yarp::dev::OVRHeadset
                     INCLUDE OVRHeadset.h
-                    DEPENDS "CREATE_DEVICE_LIBRARY_MODULES;YARP_HAS_LIBOVR;YARP_HAS_GLFW3;YARP_HAS_GLEW")
+                    DEPENDS "TARGET YARP::YARP_math;YARP_HAS_LibOVR;YARP_HAS_GLFW3;YARP_HAS_GLEW;YARP_HAS_OpenGL")
 
-if(NOT SKIP_yarpmod_ovrheadset)
-
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_sig_INCLUDE_DIRS TARGET YARP_sig PROPERTY INCLUDE_DIRS)
-  get_property(YARP_dev_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_sig_INCLUDE_DIRS}
-                      ${YARP_dev_INCLUDE_DIRS})
-
-  # LibOVR Requires C++11
-  add_definitions(${CXX11_FLAGS})
+if(NOT SKIP_ovrheadset)
+  yarp_add_plugin(yarp_ovrheadset)
 
   set(yarp_ovrheadset_SRCS OVRHeadset.cpp
+                           OVRHeadsetLogComponent.cpp
                            TextureBuffer.cpp
-                           InputCallback.cpp)
+                           TextureStatic.cpp
+                           TextureBattery.cpp
+                           InputCallback.cpp
+                           GLDebug.cpp)
+  set(yarp_ovrheadset_IMGS img-yarp-robot-64.h
+                           img-crosshairs.h
+                           img-battery-100.h
+                           img-battery-080.h
+                           img-battery-060.h
+                           img-battery-040.h
+                           img-battery-caution.h
+                           img-battery-low.h
+                           img-battery-charging.h
+                           img-battery-charging-080.h
+                           img-battery-charging-060.h
+                           img-battery-charging-040.h
+                           img-battery-charging-caution.h
+                           img-battery-charging-low.h
+                           img-battery-missing.h)
   set(yarp_ovrheadset_HDRS ImageType.h
                            OVRHeadset.h
+                           OVRHeadsetLogComponent.h
                            TextureBuffer.h
-                           InputCallback.h)
+                           TextureStatic.h
+                           TextureBattery.h
+                           InputCallback.h
+                           GLDebug.h
+                           ${yarp_ovrheadset_IMGS})
 
-  yarp_add_plugin(yarp_ovrheadset ${yarp_ovrheadset_SRCS}
-                                  ${yarp_ovrheadset_HDRS})
+  source_group("Texture Images" FILES ${yarp_ovrheadset_IMGS})
 
-  target_link_libraries(yarp_ovrheadset YARP_OS
-                                        YARP_sig
-                                        YARP_dev
-                                        LibOVR::OVR
-                                        GLEW::GLEW
-                                        GLFW3::GLFW3)
+  target_sources(yarp_ovrheadset PRIVATE ${yarp_ovrheadset_SRCS}
+                                         ${yarp_ovrheadset_HDRS})
+
+  target_link_libraries(yarp_ovrheadset PRIVATE YARP::YARP_os
+                                                YARP::YARP_sig
+                                                YARP::YARP_dev
+                                                YARP::YARP_math)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS YARP_os
+                                                      YARP_sig
+                                                      YARP_dev
+                                                      YARP_math)
+
+  target_link_libraries(yarp_ovrheadset PRIVATE LibOVR::OVR)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS LibOVR)
+
+  target_link_libraries(yarp_ovrheadset PRIVATE GLEW::GLEW)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS GLEW)
+
+  target_link_libraries(yarp_ovrheadset PRIVATE GLFW3::GLFW3)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS GLFW3)
+
+  target_link_libraries(yarp_ovrheadset PRIVATE OpenGL::GL)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS OpenGL)
 
   yarp_install(TARGETS yarp_ovrheadset
-               EXPORT YARP
-               COMPONENT runtime
+               EXPORT YARP_${YARP_PLUGIN_MASTER}
+               COMPONENT ${YARP_PLUGIN_MASTER}
                LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
-               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR})
-  yarp_install(FILES ovrheadset.ini
-               COMPONENT runtime
-               DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
+               YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
 
+  set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
+
+  set_property(TARGET yarp_ovrheadset PROPERTY FOLDER "Plugins/Device")
 endif()

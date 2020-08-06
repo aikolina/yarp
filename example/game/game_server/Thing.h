@@ -1,13 +1,16 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef THING_H
 #define THING_H
 
-#include <math.h>
+#include <cmath>
 #include <string.h>
 
 #include <ace/OS.h>
@@ -30,7 +33,7 @@ public:
     static Thing NOTHING;
 
     void set(ID n_x, ID n_y, ID n_id = -1);
-  
+
     void setID(ID n_id) { id = n_id; }
 
 
@@ -46,20 +49,20 @@ public:
     void applyMove();
 
     bool isAlive() {
-        return lifetime != 0; 
+        return lifetime != 0;
     }
 
     bool isBullet() {
         return lifetime >=0;
     }
-  
+
     void setLifetime (int lt) {
         lifetime = lt;
     }
- 
+
     void update() {
 
-        if( lifetime > 0) { 
+        if( lifetime > 0) {
             lifetime--;
         }
         applyMove();
@@ -67,7 +70,7 @@ public:
     }
 
 
-    void setName(const char *txt) { 
+    void setName(const char *txt) {
         ACE_OS::strncpy(name,txt,sizeof(name));
         for (unsigned int i=0; i<ACE_OS::strlen(name); i++) {
             char ch = name[i];

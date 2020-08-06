@@ -1,28 +1,23 @@
-# Copyright (C) 2012 IITRBCS
-# Authors: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 yarp_prepare_plugin(bayer
                     CATEGORY carrier
-                    TYPE yarp::os::BayerCarrier
+                    TYPE BayerCarrier
                     INCLUDE BayerCarrier.h
                     EXTRA_CONFIG SUBTYPE=recv
                                  CODE="not applicable"
-                    DEPENDS CREATE_OPTIONAL_CARRIERS
                     DEFAULT ON)
 
 if(NOT SKIP_bayer)
-  set(CMAKE_INCLUDE_CURRENT_DIR ON)
+  yarp_add_plugin(yarp_bayer)
 
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_sig_INCLUDE_DIRS TARGET YARP_sig PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_sig_INCLUDE_DIRS})
-
-  if(NOT YARP_HAS_LIBDC1394)
-    set(DC1394_SRC ${CMAKE_SOURCE_DIR}/extern/libdc1394_bayer/libdc1394_bayer.c
-                   ${CMAKE_SOURCE_DIR}/extern/libdc1394_bayer/conversions.h)
-    include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/extern/libdc1394_bayer/)
+  if(NOT YARP_HAS_Libdc1394)
+    set(DC1394_SRC ${libdc1394_bayer_ROOT}/libdc1394_bayer.c
+                   ${libdc1394_bayer_ROOT}/conversions.h)
     set(Libdc1394_LIBRARIES)
     if (MSVC AND DC1394_SRC)
       if(MSVC_VERSION VERSION_LESS 1900)
@@ -41,20 +36,27 @@ if(NOT SKIP_bayer)
     add_definitions(-DUSE_LIBDC1394)
   endif()
 
-  yarp_add_plugin(yarp_bayer BayerCarrier.h
-                             BayerCarrier.cpp
-                             ${DC1394_SRC})
+  target_sources(yarp_bayer PRIVATE BayerCarrier.h
+                                    BayerCarrier.cpp
+                                    ${DC1394_SRC})
 
-  target_link_libraries(yarp_bayer YARP_OS
-                                   YARP_sig
-                                   ${Libdc1394_LIBRARIES})
+  target_link_libraries(yarp_bayer PRIVATE YARP::YARP_os
+                                           YARP::YARP_sig)
+  list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS YARP_os
+                                                      YARP_sig)
+
+  target_include_directories(yarp_bayer SYSTEM PRIVATE ${libdc1394_bayer_ROOT})
+  target_link_libraries(yarp_bayer PRIVATE ${Libdc1394_LIBRARIES})
+#   list(APPEND YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS Libdc1394) (not using targets)
 
   yarp_install(TARGETS yarp_bayer
-               EXPORT YARP
-               COMPONENT runtime
+               EXPORT YARP_${YARP_PLUGIN_MASTER}
+               COMPONENT ${YARP_PLUGIN_MASTER}
                LIBRARY DESTINATION ${YARP_DYNAMIC_PLUGINS_INSTALL_DIR}
-               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR})
-  yarp_install(FILES bayer.ini
-               COMPONENT runtime
-               DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+               ARCHIVE DESTINATION ${YARP_STATIC_PLUGINS_INSTALL_DIR}
+               YARP_INI DESTINATION ${YARP_PLUGIN_MANIFESTS_INSTALL_DIR})
+
+  set(YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS ${YARP_${YARP_PLUGIN_MASTER}_PRIVATE_DEPS} PARENT_SCOPE)
+
+  set_property(TARGET yarp_bayer PROPERTY FOLDER "Plugins/Carrier")
 endif()

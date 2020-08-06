@@ -1,22 +1,35 @@
 /*
-* Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
-* Author: Marco Randazzo <marco.randazzo@iit.it>
-* CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
-*/
-
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef LASER_FROM_DEPTH_H
 #define LASER_FROM_DEPTH_H
 
-#include <string>
-
-#include <yarp/os/RateThread.h>
+#include <yarp/os/PeriodicThread.h>
 #include <yarp/os/Semaphore.h>
 #include <yarp/dev/ControlBoardInterfaces.h>
 #include <yarp/dev/IRangefinder2D.h>
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/sig/Vector.h>
 #include <yarp/dev/IRGBDSensor.h>
+#include <yarp/dev/Lidar2DDeviceBase.h>
+
+#include <mutex>
+#include <string>
 #include <vector>
 
 using namespace yarp::os;
@@ -25,71 +38,38 @@ using namespace yarp::dev;
 typedef unsigned char byte;
 
 //---------------------------------------------------------------------------------------------------------------
-struct Range_t
-{
-    double min;
-    double max;
-};
 
-//---------------------------------------------------------------------------------------------------------------
-
-class LaserFromDepth : public RateThread, public yarp::dev::IRangefinder2D, public DeviceDriver
+class LaserFromDepth : public PeriodicThread, public yarp::dev::Lidar2DDeviceBase, public DeviceDriver
 {
 protected:
     PolyDriver driver;
-    IRGBDSensor* iRGBD;
-    yarp::os::Mutex mutex;
+    IRGBDSensor* iRGBD = nullptr;
 
-    int m_depth_width;
-    int m_depth_height;
+    size_t m_depth_width = 0;
+    size_t m_depth_height = 0;
     yarp::sig::ImageOf<float> m_depth_image;
 
-    int m_sensorsNum;
-    double m_min_angle;
-    double m_max_angle;
-    double m_min_distance;
-    double m_max_distance;
-    double m_resolution;
-    bool m_clip_max_enable;
-    bool m_clip_min_enable;
-    bool m_do_not_clip_infinity_enable;
-    std::vector <Range_t> m_range_skip_vector;
-
-    std::string m_info;
-    Device_status m_device_status;
-
-    yarp::sig::Vector m_laser_data;
-
 public:
-    LaserFromDepth(int period = 10) : RateThread(period)
-    {
-        iRGBD = 0;
-    }
+    LaserFromDepth(double period = 0.01) : PeriodicThread(period),
+        Lidar2DDeviceBase()
+    {}
 
     ~LaserFromDepth()
     {
     }
 
-    virtual bool open(yarp::os::Searchable& config);
-    virtual bool close();
-    virtual bool threadInit();
-    virtual void threadRelease();
-    virtual void run();
+    bool open(yarp::os::Searchable& config) override;
+    bool close() override;
+    bool threadInit() override;
+    void threadRelease() override;
+    void run() override;
 
 public:
     //IRangefinder2D interface
-    virtual bool getRawData(yarp::sig::Vector &data);
-    virtual bool getLaserMeasurement(std::vector<LaserMeasurementData> &data);
-    virtual bool getDeviceStatus     (Device_status &status);
-    virtual bool getDeviceInfo       (yarp::os::ConstString &device_info);
-    virtual bool getDistanceRange    (double& min, double& max);
-    virtual bool setDistanceRange    (double min, double max);
-    virtual bool getScanLimits        (double& min, double& max);
-    virtual bool setScanLimits        (double min, double max);
-    virtual bool getHorizontalResolution      (double& step);
-    virtual bool setHorizontalResolution      (double step);
-    virtual bool getScanRate         (double& rate);
-    virtual bool setScanRate         (double rate);
+    bool setDistanceRange    (double min, double max) override;
+    bool setScanLimits        (double min, double max) override;
+    bool setHorizontalResolution      (double step) override;
+    bool setScanRate         (double rate) override;
 };
 
 #endif

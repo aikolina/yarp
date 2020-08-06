@@ -1,58 +1,33 @@
-if(CREATE_YARPROBOTINTERFACE)
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  get_property(YARP_dev_INCLUDE_DIRS TARGET YARP_dev PROPERTY INCLUDE_DIRS)
+if(YARP_COMPILE_yarprobotinterface)
+  add_executable(yarprobotinterface)
 
+  set(yarprobotinterface_SRCS main.cpp
+                              Module.cpp)
 
-  include_directories(${YARP_OS_INCLUDE_DIRS}
-                      ${YARP_dev_INCLUDE_DIRS}
-                      ${TinyXML_INCLUDE_DIRS})
+  set(yarprobotinterface_HDRS Module.h)
 
-  set(yarprobotinterface_SRCS
-      main.cpp
-      Action.cpp
-      CalibratorThread.cpp
-      Device.cpp
-      Module.cpp
-      Param.cpp
-      Robot.cpp
-      Types.cpp
-      XMLReader.cpp)
+  target_sources(yarprobotinterface PRIVATE ${yarprobotinterface_SRCS}
+                                            ${yarprobotinterface_HDRS})
 
-  set(yarprobotinterface_HDRS
-      Action.h
-      CalibratorThread.h
-      Device.h
-      Module.h
-      Param.h
-      Robot.h
-      Types.h
-      XMLReader.h)
+  target_link_libraries(yarprobotinterface PRIVATE YARP::YARP_os
+                                                   YARP::YARP_dev
+                                                   YARP::YARP_init
+                                                   YARP::YARP_robotinterface)
 
-  set(yarprobotinterface_IDLS
-      yarprobotinterface.thrift)
-
-  include(YarpIDL)
-  yarp_idl_to_dir(${yarprobotinterface_IDLS}
-                  "${CMAKE_CURRENT_SOURCE_DIR}/idl_generated_code"
-                  yarprobotinterface_IDLS_SRCS
-                  yarprobotinterface_IDLS_HDRS
-                  yarprobotinterface_IDLS_INCLUDE_DIRS)
-  include_directories("${yarprobotinterface_IDLS_INCLUDE_DIRS}")
-
-  add_executable(yarprobotinterface ${yarprobotinterface_SRCS}
-                                    ${yarprobotinterface_HDRS}
-                                    ${yarprobotinterface_IDLS_SRCS}
-                                    ${yarprobotinterface_IDLS_HDRS})
-
-  target_link_libraries(yarprobotinterface
-                        YARP_OS
-                        YARP_dev
-                        YARP_init
-                        ${TinyXML_LIBRARIES})
+  include(YarpChooseIDL)
+  yarp_choose_idl(yarprobotinterface_IDLS yarprobotinterface.thrift)
+  target_include_directories(yarprobotinterface PRIVATE ${yarprobotinterface_IDLS_BUILD_INTERFACE_INCLUDE_DIRS})
+  target_sources(yarprobotinterface PRIVATE ${yarprobotinterface_IDLS_GEN_FILES})
 
   install(TARGETS yarprobotinterface
           COMPONENT utilities
           DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+  set_property(TARGET yarprobotinterface PROPERTY FOLDER "Command Line Tools")
 endif()

@@ -1,8 +1,11 @@
 #!/usr/bin/perl
 
-# Copyright: (C) 2010 RobotCub Consortium
-# Authors: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 use strict;
 use warnings;
@@ -40,11 +43,11 @@ for (my $i=0; $i<100; $i++) {
     my $s = abs(sin($r));
     print "[mat] [mono] (1 $all 1 $w $h) {\\\n";
     for (my $y=0; $y<$h; $y++) {
-	for (my $x=0; $x<$w; $x++) {
-	    my $v = (($x*$c+$y*$s)*10+$i)%256;
-	    print " $v";
-	}
-	print " \\\n";
+        for (my $x=0; $x<$w; $x++) {
+            my $v = (($x*$c+$y*$s)*10+$i)%256;
+            print " $v";
+        }
+        print " \\\n";
     }
     print "}\n";
     SafeSystem("usleep 30000");

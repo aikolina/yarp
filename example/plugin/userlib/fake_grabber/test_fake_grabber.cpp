@@ -1,7 +1,10 @@
 /*
- * Copyright: (C) 2010 RobotCub Consortium
- * Author: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #include <stdio.h>
@@ -10,7 +13,7 @@ using namespace yarp::os;
 using namespace yarp::sig;
 using namespace yarp::dev;
 int main(int argc, char *argv[]) {
-  DriverCreator *fake_factory = 
+  DriverCreator *fake_factory =
     new DriverCreatorOf<FakeFrameGrabber>("fake_grabber","grabber","FakeFrameGrabber");
   Drivers::factory().add(fake_factory); // hand factory over to YARP
 

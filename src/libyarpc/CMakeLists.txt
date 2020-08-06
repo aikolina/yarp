@@ -1,7 +1,9 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
-
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 include(CMakeDependentOption)
 cmake_dependent_option(CREATE_YARPC "Compile experimental stable C library" FALSE
@@ -15,12 +17,8 @@ mark_as_advanced(CREATE_YARPC_STANDALONE)
 if(CREATE_YARPC)
   set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
-  get_property(YARP_OS_INCLUDE_DIRS TARGET YARP_OS PROPERTY INCLUDE_DIRS)
-  include_directories(${YARP_OS_INCLUDE_DIRS})
-
   unset(YARP_COPY_SRC)
   if(CREATE_YARPC_STANDALONE)
-    include_directories(SYSTEM ${ACE_INCLUDE_DIRS})
     # in some cases, want to be fully stand-alone to not depend on C++ ABI.
     foreach(_comp OS sig dev init)
       get_property(${_comp}_src TARGET YARP_${_comp} PROPERTY SOURCES)
@@ -53,48 +51,56 @@ if(CREATE_YARPC)
     set_property(SOURCE ${_file} APPEND_STRING PROPERTY COMPILE_FLAGS " -fvisibility=default")
   endforeach()
 
-  add_library(yarpc ${yarpc_HDRS}
-                    ${yarpc_SRCS}
-                    ${YARP_COPY_SRC})
+  add_library(yarpc)
+  add_library(YARP::yarpc ALIAS yarpc)
 
-  target_link_libraries(yarpc LINK_PRIVATE ${ACE_LIBRARIES})
+  target_sources(yarpc PRIVATE ${yarpc_HDRS}
+                               ${yarpc_SRCS}
+                               ${YARP_COPY_SRC})
+
+  target_compile_definitions(yarpc PRIVATE YARP_HAS_ACE)
+  target_link_libraries(yarpc PRIVATE ACE::ACE)
 
   if(NOT CREATE_YARPC_STANDALONE)
-    target_link_libraries(yarpc LINK_PRIVATE YARP_OS
-                                             YARP_init)
+    target_link_libraries(yarpc PRIVATE YARP::YARP_os
+                                        YARP::YARP_init)
     if(YARP_LINK_PLUGINS)
-      if(CREATE_OPTIONAL_CARRIERS)
+      if(YARP_COMPILE_CARRIER_PLUGINS)
         set_property(SOURCE ${init_src}
                      APPEND PROPERTY COMPILE_DEFINITIONS
                      PLUGIN_INIT_FUNCTION=add_yarpcar_plugins)
-        target_link_libraries(yarpc LINK_PRIVATE yarpcar)
+        target_link_libraries(yarpc PRIVATE YARP::yarpcar)
       endif()
 
-      if(CREATE_DEVICE_LIBRARY_MODULES)
+      if(YARP_COMPILE_DEVICE_PLUGINS)
         set_property(SOURCE ${init_src}
                      APPEND PROPERTY COMPILE_DEFINITIONS
                      PLUGIN_INIT_FUNCTION2=add_yarpmod_plugins)
-          target_link_libraries(yarpc LINK_PRIVATE yarpmod)
+          target_link_libraries(yarpc PRIVATE YARP::yarpmod)
       endif()
     endif()
 
   else()
     if(LINUX)
-      target_link_libraries(yarpc LINK_PRIVATE pthread m dl rt)
+      target_link_libraries(yarpc PRIVATE pthread m dl rt)
     endif()
     if(MINGW)
-      target_link_libraries(yarpc LINK_PRIVATE stdc++)
-      target_link_libraries(yarpc LINK_PRIVATE m ws2_32 mswsock netapi32 winmm)
+      target_link_libraries(yarpc PRIVATE stdc++)
+      target_link_libraries(yarpc PRIVATE m ws2_32 mswsock netapi32 winmm)
       set_target_properties(yarpc PROPERTIES LINK_FLAGS "-Wl,--output-def,${LIBRARY_OUTPUT_PATH}/libyarpc.def")
     endif()
   endif(NOT CREATE_YARPC_STANDALONE)
 
-  if(YARP_COMPILE_TESTS)
-    add_executable(yarpc_test1 test1.cpp)
-    target_link_libraries(yarpc_test1 yarpc)
+  set_property(TARGET yarpc PROPERTY FOLDER "Unmaintained")
 
-    add_executable(yarpc_test2 test2.cpp)
-    target_link_libraries(yarpc_test2 yarpc)
-  endif(YARP_COMPILE_TESTS)
+  if(YARP_COMPILE_TESTS)
+    add_executable(yarpc_test1)
+    target_sources(yarpc_test1 PRIVATE test1.cpp)
+    target_link_libraries(yarpc_test1 PRIVATE YARP::yarpc)
+
+    add_executable(yarpc_test2)
+    target_sources(yarpc_test2 PRIVATE test2.cpp)
+    target_link_libraries(yarpc_test2 PRIVATE YARP::yarpc)
+  endif()
 
 endif(CREATE_YARPC)

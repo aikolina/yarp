@@ -1,15 +1,7 @@
-/*
- * Copyright (C) 2010 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- *
- */
-
 /**
- * @page add_a_plugin Add a plugin to YARP
- *
+\page add_a_plugin Add a plugin to YARP
 
-\author Paul Fitzpatrick
+\tableofcontents
 
 In YARP, a "plugin" is an implementation of some service for which
 there are many choices and alternatives.  There are two basic types of
@@ -69,11 +61,12 @@ int main(int argc, char *argv[]) {
 Here's a CMakeLists.txt ("userlib/CMakeLists.txt") to compile this:
 
 \verbatim
-cmake_minimum_required(VERSION 2.8.9)
-find_package(YARP REQUIRED)
-include_directories(${YARP_INCLUDE_DIRS})
-add_executable(test_userlib test_userlib.cpp)
-target_link_libraries(test_userlib ${YARP_LIBRARIES})
+cmake_minimum_required(VERSION 3.12)
+find_package(YARP COMPONENTS os REQUIRED)
+add_executable(test_userlib)
+target_sources(test_userlib PRIVATE test_userlib.cpp)
+target_link_libraries(test_userlib PRIVATE YARP::YARP_os
+                                           YARP::YARP_init)
 \endverbatim
 
 Now, let's prepare a plugin library.  We need to include
@@ -103,5 +96,4 @@ insert fake_grabber.  There is no requirement that the fake_grabber
 subdirectory be in any particular location.  Similarly, carriers
 can be added in $YARP_ROOT/src/carriers/CMakeLists.txt.
 
- *
- */
+*/

@@ -1,12 +1,21 @@
 /*
- * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
- * Copyright (C) 2015 iCub Facility - Istituto Italiano di Tecnologia
- * Author: Marco Randazzo <marco.randazzo@iit.it>
- *         Francesco Nori <francesco.nori@iit.it>
- *         Davide Perrone <dperrone@aitek.it>
- * CopyPolicy: Released under the terms of the GPLv2 or later, see GPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
-
 
 #include "piddlg.h"
 #include "ui_piddlg.h"
@@ -19,7 +28,7 @@
 #define     TAB_VELOCITY    1
 #define     TAB_TORQUE      2
 #define     TAB_STIFF       3
-#define     TAB_OPENLOOP    4
+#define     TAB_PWM         4
 #define     TAB_CURRENT     5
 #define     TAB_VARIABLES   6
 
@@ -66,7 +75,7 @@
 #define     CURRENT_MAXINT     5
 #define     CURRENT_OFFSET     6
 
-PidDlg::PidDlg(QString partname, int jointIndex,QWidget *parent) :
+PidDlg::PidDlg(QString partname, int jointIndex, QString jointName, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::PidDlg)
 {
@@ -74,28 +83,34 @@ PidDlg::PidDlg(QString partname, int jointIndex,QWidget *parent) :
 
     this->jointIndex = jointIndex;
 
-    QString title = QString("Pid Control %1 JNT:%2").arg(partname).arg(jointIndex);
+    QString title = QString("Pid Control %1 JNT:%2 (%3)").arg(partname).arg(jointIndex).arg(jointName);
     setWindowTitle(title);
 
     connect(ui->btnRefresh, SIGNAL(clicked()), this, SLOT(onRefresh()));
     connect(ui->btnSend,SIGNAL(clicked()),this,SLOT(onSend()));
     connect(ui->btnCancel,SIGNAL(clicked()),this,SLOT(onCancel()));
+    connect(ui->btnDump, SIGNAL(clicked()), this, SLOT(onDumpRemoteVariables()));
 
     ui->tablePosition->setItemDelegate(new TableDoubleDelegate);
     ui->tableVelocity->setItemDelegate(new TableDoubleDelegate);
     ui->tableTorque->setItemDelegate(new TableDoubleDelegate);
     ui->tableStiffness->setItemDelegate(new TableDoubleDelegate);
-    ui->tableOpenloop->setItemDelegate(new TableDoubleDelegate);
+    ui->tablePWM->setItemDelegate(new TableDoubleDelegate);
     ui->tableCurrent->setItemDelegate(new TableDoubleDelegate);
     ui->tableCurrent->setItemDelegate(new TableGenericDelegate);
 }
 
+void PidDlg::onDumpRemoteVariables()
+{
+    emit dumpRemoteVariables();
+}
+
 PidDlg::~PidDlg()
 {
-    for (size_t cc = 0; cc < buttons.size(); cc++)
+    for (auto& button : buttons)
     {
-        delete buttons[cc];
-        buttons[cc] = 0;
+        delete button;
+        button = nullptr;
     }
     buttons.clear();
     delete ui;
@@ -222,8 +237,8 @@ void PidDlg::onSendRemoteVariable()
     std::string key = ui->tableVariables->item(i, 0)->text().toStdString();
     std::string val = ui->tableVariables->item(i, 1)->text().toStdString();
     yarp::os::Bottle valb(val);
-    sendSingleRemoteVariable(key, valb);
-    updateAllRemoteVariables();
+    emit sendSingleRemoteVariable(key, valb);
+    emit updateAllRemoteVariables();
 }
 
 void PidDlg::initRemoteVariables(IRemoteVariables* iVar)
@@ -248,10 +263,10 @@ void PidDlg::initRemoteVariables(IRemoteVariables* iVar)
         {
             std::string s = keys.toString();
             int keys_size = keys.size();
-            for (size_t cc = 0; cc < buttons.size(); cc++)
+            for (auto& button : buttons)
             {
-                delete buttons[cc];
-                buttons[cc] = 0;
+                delete button;
+                button = nullptr;
             }
             buttons.clear();
             buttons.resize(keys_size);
@@ -313,12 +328,12 @@ void PidDlg::initStiffness(double curStiffVal, double minStiff, double maxStiff,
 }
 
 
-void PidDlg::initOpenLoop(double openLoopVal, double pwm)
+void PidDlg::initPWM(double PWMVal, double pwm)
 {
-    ui->tableOpenloop->item(0,0)->setText(QString("%1").arg((int)openLoopVal));
-    ui->tableOpenloop->item(0,1)->setText(QString("%1").arg((int)openLoopVal));
+    ui->tablePWM->item(0, 0)->setText(QString("%1").arg((double)PWMVal));
+    ui->tablePWM->item(0, 1)->setText(QString("%1").arg((double)PWMVal));
 
-    ui->tableOpenloop->item(1,0)->setText(QString("%1").arg(pwm));
+    ui->tablePWM->item(1,0)->setText(QString("%1").arg(pwm));
 }
 
 void PidDlg::initCurrent(Pid myPid)
@@ -347,7 +362,7 @@ void PidDlg::initCurrent(Pid myPid)
 
 void PidDlg::onRefresh()
 {
-    refreshPids(jointIndex);
+    emit refreshPids(jointIndex);
 }
 
 void PidDlg::onSend()
@@ -366,7 +381,7 @@ void PidDlg::onSend()
         newPid.max_output = ui->tablePosition->item(POSITION_MAXOUTPUT,1)->text().toDouble();
         newPid.stiction_down_val = ui->tablePosition->item(POSITION_STICTIONDW,1)->text().toDouble();
         newPid.max_int = ui->tablePosition->item(POSITION_MAXINT,1)->text().toDouble();
-        sendPositionPid(jointIndex,newPid);
+        emit sendPositionPid(jointIndex,newPid);
         break;
     case TAB_VELOCITY:
         newPid.kp = ui->tableVelocity->item(VELOCITY_KP, 1)->text().toDouble();
@@ -378,7 +393,7 @@ void PidDlg::onSend()
         newPid.max_output = ui->tableVelocity->item(VELOCITY_MAXOUTPUT, 1)->text().toDouble();
         newPid.stiction_down_val = ui->tableVelocity->item(VELOCITY_STICTIONDW, 1)->text().toDouble();
         newPid.max_int = ui->tableVelocity->item(VELOCITY_MAXINT, 1)->text().toDouble();
-        sendVelocityPid(jointIndex, newPid);
+        emit sendVelocityPid(jointIndex, newPid);
         break;
     case TAB_TORQUE:
         newPid.kp = ui->tableTorque->item(TORQUE_KP,1)->text().toDouble();
@@ -395,18 +410,18 @@ void PidDlg::onSend()
         newPid.max_output = ui->tableTorque->item(TORQUE_MAXOUTPUT,1)->text().toDouble();
         newPid.stiction_down_val = ui->tableTorque->item(TORQUE_STICTIONDW,1)->text().toDouble();
         newPid.max_int = ui->tableTorque->item(TORQUE_MAXINT,1)->text().toDouble();
-        sendTorquePid(jointIndex,newPid,newMotorTorqueParams);
+        emit sendTorquePid(jointIndex,newPid,newMotorTorqueParams);
         break;
     case TAB_STIFF:{
         double desiredStiff = ui->tableStiffness->item(0,3)->text().toDouble();
         double desiredDamp = ui->tableStiffness->item(1,3)->text().toDouble();
         double desiredForce = ui->tableStiffness->item(2,3)->text().toDouble();
-        sendStiffness(jointIndex,desiredStiff,desiredDamp,desiredForce);
+        emit sendStiffness(jointIndex,desiredStiff,desiredDamp,desiredForce);
         break;
     }
-    case TAB_OPENLOOP:{
-        int desiredOpenLoop = ui->tableOpenloop->item(0,1)->text().toDouble();
-        sendOpenLoop(jointIndex,desiredOpenLoop);
+    case TAB_PWM:{
+        int desiredDuty = ui->tablePWM->item(0,1)->text().toDouble();
+        emit sendPWM(jointIndex,desiredDuty);
         break;
     }
     case TAB_CURRENT:{
@@ -417,7 +432,7 @@ void PidDlg::onSend()
         newPid.offset = ui->tableCurrent->item(CURRENT_OFFSET, 1)->text().toDouble();
         newPid.max_output = ui->tableCurrent->item(CURRENT_MAXOUTPUT, 1)->text().toDouble();
         newPid.max_int = ui->tableCurrent->item(CURRENT_MAXINT, 1)->text().toDouble();
-        sendCurrentPid(jointIndex, newPid);
+        emit sendCurrentPid(jointIndex, newPid);
         break;
     }
     case TAB_VARIABLES:{
@@ -428,9 +443,9 @@ void PidDlg::onSend()
             std::string key = ui->tableVariables->item(i, 0)->text().toStdString();
             std::string val = ui->tableVariables->item(i, 1)->text().toStdString();
             yarp::os::Bottle valb(val);
-            sendSingleRemoteVariable(key, valb);
+            emit sendSingleRemoteVariable(key, valb);
         }
-        updateAllRemoteVariables();
+        emit updateAllRemoteVariables();
         break;
     }
     default:
@@ -444,8 +459,3 @@ void PidDlg::onCancel()
 {
     reject();
 }
-
-
-
-
-

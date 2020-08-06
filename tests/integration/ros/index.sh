@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# Copyright: (C) 2013 iCub Facility
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
 # Call without any arguments to get a list of available tests
 # Call with the name of a test to run that test
@@ -330,8 +332,8 @@ if is_test images_yarp_to_ros; then
     node="/test/image/node/pid$$"
     typ="sensor_msgs/Image"
     topic="/test/image/$typ/pid$$"
-    echo ${YARP_BIN}/yarpdev --device test_grabber --name $topic@$node --width 16 --height 8
-    ${YARP_BIN}/yarpdev --device test_grabber --name $topic@$node --width 16 --height 8 &
+    echo ${YARP_BIN}/yarpdev --device fakeFrameGrabber --name $topic@$node --width 16 --height 8
+    ${YARP_BIN}/yarpdev --device fakeFrameGrabber --name $topic@$node --width 16 --height 8 &
     add_helper $!
 
     wait_node_topic $node $topic
@@ -559,7 +561,7 @@ if is_test empty_list; then
     root="/test/empty_list/pid$$"
     rm -f ${BASE}check_empty_list.txt
 
-    cp $YARP_SRC/src/libYARP_dev/src/devices/msgs/jointState.msg sensor_msgs_JointState
+    cp $YARP_SRC/extern/ros/common_msgs/sensor_msgs/msg/JointState.msg sensor_msgs_JointState
 
     ${YARP_BIN}/yarpidl_rosmsg --name /typ@/yarpros --web false &
     add_helper $!

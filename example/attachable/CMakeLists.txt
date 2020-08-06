@@ -1,13 +1,18 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Authors: Lorenzo Natale
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+project(attachable)
 
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
+find_package(YARP COMPONENTS os sig dev REQUIRED)
 
-PROJECT(attachable)
-
-ADD_EXECUTABLE(attachable main.cpp)
-TARGET_LINK_LIBRARIES(attachable ${YARP_LIBRARIES})
+add_executable(attachable)
+target_sources(attachable PRIVATE main.cpp)
+target_link_libraries(attachable PRIVATE YARP::YARP_os
+                                         YARP::YARP_sig
+                                         YARP::YARP_dev
+                                         YARP::YARP_init)

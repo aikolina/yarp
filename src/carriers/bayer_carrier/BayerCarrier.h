@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2012 IITRBCS
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
  */
 
 #ifndef BAYERCARRIER_INC
@@ -14,13 +15,6 @@
 #include <yarp/sig/ImageNetworkHeader.h>
 #include <yarp/os/DummyConnector.h>
 
-namespace yarp {
-    namespace os {
-        class BayerCarrier;
-    }
-}
-
-
 /**
  *
  * Decode bayer images and serve them as regular rgb.
@@ -30,9 +24,11 @@ namespace yarp {
  *   tcp+recv.bayer+size.half+order.bggr
  *
  */
-class yarp::os::BayerCarrier : public yarp::os::ModifyingCarrier,
-                               public yarp::os::ConnectionReader,
-                               public yarp::os::InputStream {
+class BayerCarrier :
+        public yarp::os::ModifyingCarrier,
+        public yarp::os::ConnectionReader,
+        public yarp::os::InputStream
+{
 private:
     yarp::sig::ImageOf<yarp::sig::PixelMono> in;
     yarp::sig::ImageOf<yarp::sig::PixelRgb> out;
@@ -48,7 +44,6 @@ private:
     bool have_result;
     bool happy;
     bool half;
-    bool warned;
     bool bayer_method_set;
 
     int bayer_method;
@@ -65,127 +60,140 @@ public:
     // ModifyingCarrier methods
 
 
-    BayerCarrier() {
-        need_reset = true;
-        have_result = false;
-        image_data_len = 0;
-        half = false;
-        warned = false;
-        goff = 0;
-        roff = 1;
-        bayer_method = -1;
-        bayer_method_set = false;
-        dcformat = -1;
-        local = yarp::os::ConnectionReader::createConnectionReader(*this);
-        happy = (local!=0);
-    }
+    BayerCarrier() :
+        image_data_len(0),
+        consumed(0),
+        local(yarp::os::ConnectionReader::createConnectionReader(*this)),
+        parent(nullptr),
+        need_reset(true),
+        have_result(false),
+        happy(local!=0),
+        half(false),
+        bayer_method_set(false),
+        bayer_method(-1),
+        goff(0),
+        roff(1),
+        dcformat(-1)
+    {}
 
     ~BayerCarrier() {
         if (local) delete local;
     }
 
-    virtual Carrier *create() {
+    Carrier *create() const override {
         return new BayerCarrier();
     }
 
-    virtual ConstString getName() {
+    std::string getName() const override {
         return "bayer";
     }
 
-    virtual ConstString toString() {
+    std::string toString() const override {
         return "bayer_carrier";
     }
 
-    virtual yarp::os::ConnectionReader& modifyIncomingData(yarp::os::ConnectionReader& reader);
+    yarp::os::ConnectionReader& modifyIncomingData(yarp::os::ConnectionReader& reader) override;
 
 
     ////////////////////////////////////////////////////////////////////////
     // ConnectionReader methods
 
-    virtual bool expectBlock(const char *data, size_t len) {
+    bool expectBlock(char *data, size_t len) override {
         return local->expectBlock(data,len);
     }
 
-    virtual ConstString expectText(int terminatingChar = '\n') {
+    std::string expectText(const char terminatingChar = '\n') override {
         return local->expectText(terminatingChar);
     }
 
-    virtual int expectInt() {
-        return local->expectInt();
+    std::int8_t expectInt8() override {
+        return local->expectInt8();
     }
 
-    virtual YARP_INT64 expectInt64() {
+    std::int16_t expectInt16() override {
         return local->expectInt64();
     }
 
-    virtual bool pushInt(int x) {
+    std::int32_t expectInt32() override {
+        return local->expectInt32();
+    }
+
+    std::int64_t expectInt64() override {
+        return local->expectInt64();
+    }
+
+    bool pushInt(int x) override {
         return local->pushInt(x);
     }
 
-    virtual double expectDouble() {
-        return local->expectDouble();
+    yarp::conf::float32_t expectFloat32() override {
+        return local->expectFloat32();
     }
 
-    virtual bool isTextMode() {
+    yarp::conf::float64_t expectFloat64() override {
+        return local->expectFloat64();
+    }
+
+    bool isTextMode() const override {
         return false;
     }
 
-    virtual bool isBareMode() {
+    bool isBareMode() const override {
         return false;
     }
 
-    virtual bool convertTextMode() {
+    bool convertTextMode() override {
         return true;
     }
 
-    virtual size_t getSize() {
+    size_t getSize() const override {
         if (image_data_len) {
             processBuffered();
         }
         return sizeof(header)+image_data_len;
     }
 
-    virtual ConnectionWriter *getWriter() {
+    yarp::os::ConnectionWriter *getWriter() override {
         return parent->getWriter();
     }
 
-    virtual Bytes readEnvelope() { 
+    yarp::os::Bytes readEnvelope() override {
         return parent->readEnvelope();
     }
 
-    virtual Portable *getReference() {
+    yarp::os::Portable* getReference() const override {
         return parent->getReference();
     }
 
-    virtual Contact getRemoteContact() {
+    yarp::os::Contact getRemoteContact() const override {
         return parent->getRemoteContact();
     }
 
-    virtual Contact getLocalContact() {
+    yarp::os::Contact getLocalContact() const override {
         return parent->getLocalContact();
     }
 
-    virtual bool isValid() {
+    bool isValid() const override {
         return true;
     }
 
-    virtual bool isActive() {
+    bool isActive() const override {
         return parent->isActive();
     }
 
-    virtual bool isError() {
+    bool isError() const override {
         return parent->isError()||!happy;
     }
 
-    virtual void requestDrop() {
+    void requestDrop() override {
         parent->requestDrop();
     }
 
-    virtual yarp::os::Searchable& getConnectionModifiers() {
+    const yarp::os::Searchable& getConnectionModifiers() const override {
         return parent->getConnectionModifiers();
     }
 
-    virtual bool setSize(size_t len) {
+    bool setSize(size_t len) override {
         return parent->setSize(len);
     }
 
@@ -193,12 +201,12 @@ public:
     // InputStream methods
 
     using yarp::os::InputStream::read;
-    virtual YARP_SSIZE_T read(const yarp::os::Bytes& b);
+    yarp::conf::ssize_t read(yarp::os::Bytes& b) override;
 
-    virtual void close() {
+    void close() override {
     }
 
-    virtual bool isOk() {
+    bool isOk() const override {
         return happy;
     }
 
@@ -215,9 +223,17 @@ public:
     virtual bool debayerHalf(yarp::sig::ImageOf<yarp::sig::PixelMono>& src,
                              yarp::sig::ImageOf<yarp::sig::PixelRgb>& dest);
 
+    /*
+     * The const version of the processBuffered() method performs a const_cast,
+     * and calls the non-const version. This allows to call it in const methods.
+     * Conceptually this is not completely wrong because it does not modify
+     * the external state of the class, but just some internal representation.
+     */
+    virtual bool processBuffered() const;
+
     virtual bool processBuffered();
 
-    virtual bool processDirect(const yarp::os::Bytes& bytes);
+    virtual bool processDirect(yarp::os::Bytes& bytes);
 
 };
 

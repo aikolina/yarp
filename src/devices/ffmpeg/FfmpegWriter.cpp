@@ -1,11 +1,15 @@
 /*
- * Copyright (C) 2006 RobotCub Consortium
- * Authors: Paul Fitzpatrick
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ * Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+ * Copyright (C) 2006-2010 RobotCub Consortium
+ * All rights reserved.
  *
+ * This software may be modified and distributed under the terms of the
+ * BSD-3-Clause license. See the accompanying LICENSE file for details.
+ */
+
+/*
  * Most of this file is from the output_example.c of ffmpeg -
  * copyright/copypolicy statement follows --
- *
  */
 
 /*
@@ -35,37 +39,34 @@
 
 
 #include "FfmpegWriter.h"
-#include <yarp/os/all.h>
-#include <yarp/sig/all.h>
-
 #include "ffmpeg_api.h"
 
-#include <stdio.h>
+#include <yarp/os/all.h>
+#include <yarp/sig/all.h>
+#include <yarp/os/Log.h>
+#include <yarp/os/LogComponent.h>
+
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.1415926535897931
+#endif
+
+#define STREAM_FRAME_RATE 25 /* 25 images/s */
+#define STREAM_PIX_FMT AV_PIX_FMT_YUV420P /* default pix_fmt */
+#define STREAM_PIX_WORK AV_PIX_FMT_RGB24
 
 using namespace yarp::os;
 using namespace yarp::dev;
 using namespace yarp::sig;
 using namespace yarp::sig::file;
 
-#define DBG if (0)
+namespace {
+YARP_LOG_COMPONENT(FFMPEGWRITER, "yarp.device.ffmpeg_writer")
+}
 
-//#define OMIT_AUDIO
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-
-#ifndef M_PI
-#define M_PI 3.1415926535897931
-#endif
-
-//#include <ffmpeg/avformat.h>
-//#include <ffmpeg/avcodec.h>
-
-#define STREAM_FRAME_RATE 25 /* 25 images/s */
-#define STREAM_PIX_FMT AV_PIX_FMT_YUV420P /* default pix_fmt */
-#define STREAM_PIX_WORK AV_PIX_FMT_RGB24
 
 /**************************************************************/
 /* audio output */
@@ -84,20 +85,19 @@ int audio_input_frame_size;
 /*
  * add an audio output stream
  */
-static AVStream *add_audio_stream(AVFormatContext *oc, CodecID codec_id)
+static AVStream *add_audio_stream(AVFormatContext *oc, AVCodecID codec_id)
 {
     AVCodecContext *c;
     AVStream *st;
 
-    st = av_new_stream(oc, 1);
+    st = avformat_new_stream(oc, NULL);
     if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Could not alloc stream");
     }
 
     c = st->codec;
     c->codec_id = codec_id;
-    c->codec_type = CODEC_TYPE_AUDIO;
+    c->codec_type = AVMEDIA_TYPE_AUDIO;
 
     /* put sample parameters */
     c->bit_rate = 64000;
@@ -108,7 +108,7 @@ static AVStream *add_audio_stream(AVFormatContext *oc, CodecID codec_id)
 
 static void open_audio(AVFormatContext *oc, AVStream *st)
 {
-    printf("Opening audio stream\n");
+    yCInfo(FFMPEGWRITER, "Opening audio stream");
     AVCodecContext *c;
     AVCodec *codec;
 
@@ -117,14 +117,12 @@ static void open_audio(AVFormatContext *oc, AVStream *st)
     /* find the audio encoder */
     codec = avcodec_find_encoder(c->codec_id);
     if (!codec) {
-        fprintf(stderr, "audio codec not found\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Audio codec not found");
     }
 
     /* open it */
-    if (avcodec_open2(c, codec, NULL) < 0) {
-        fprintf(stderr, "could not open codec\n");
-        ::exit(1);
+    if (avcodec_open2(c, codec, nullptr) < 0) {
+        yCFatal(FFMPEGWRITER, "Could not open codec");
     }
 
     /* init signal generator */
@@ -141,10 +139,10 @@ static void open_audio(AVFormatContext *oc, AVStream *st)
     if (c->frame_size <= 1) {
         audio_input_frame_size = audio_outbuf_size / c->channels;
         switch(st->codec->codec_id) {
-        case CODEC_ID_PCM_S16LE:
-        case CODEC_ID_PCM_S16BE:
-        case CODEC_ID_PCM_U16LE:
-        case CODEC_ID_PCM_U16BE:
+        case AV_CODEC_ID_PCM_S16LE:
+        case AV_CODEC_ID_PCM_S16BE:
+        case AV_CODEC_ID_PCM_U16LE:
+        case AV_CODEC_ID_PCM_U16BE:
             audio_input_frame_size >>= 1;
             break;
         default:
@@ -159,10 +157,10 @@ static void open_audio(AVFormatContext *oc, AVStream *st)
     samples = (int16_t*)av_malloc(samples_size*2*samples_channels);
 
 
-    printf("FRAME SIZE is %d / samples size is %d\n",
-           c->frame_size,
-           samples_size);
-    ::exit(1);
+    yCFatal(FFMPEGWRITER,
+            "FRAME SIZE is %d / samples size is %d\n",
+            c->frame_size,
+            samples_size);
 }
 
 /* prepare a 16 bit dummy audio frame of 'frame_size' samples and
@@ -182,39 +180,34 @@ static void get_audio_frame(int16_t *samples, int frame_size, int nb_channels)
     }
 }
 
-#ifdef USE_AUDIO4
 static void make_audio_frame(AVCodecContext *c, AVFrame * &frame,
                              void *&samples) {
     frame = av_frame_alloc();
     if (!frame) {
-        fprintf(stderr, "Could not allocate audio frame\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Could not allocate audio frame");
     }
     frame->nb_samples     = c->frame_size;
     frame->format         = c->sample_fmt;
     frame->channel_layout = c->channel_layout;
-    int buffer_size = av_samples_get_buffer_size(NULL, c->channels,
+    int buffer_size = av_samples_get_buffer_size(nullptr, c->channels,
                                                  c->frame_size,
                                                  c->sample_fmt, 0);
     if (buffer_size < 0) {
-        fprintf(stderr, "Could not get sample buffer size\n");
-        ::exit(1);
+        yCError(FFMPEGWRITER, "Could not get sample buffer size");
     }
     samples = av_malloc(buffer_size);
     if (!samples) {
-        fprintf(stderr, "Could not allocate %d bytes for samples buffer\n",
+        yCFatal(FFMPEGWRITER,
+                "Could not allocate %d bytes for samples buffer",
                 buffer_size);
-        ::exit(1);
     }
     /* setup the data pointers in the AVFrame */
     int ret = avcodec_fill_audio_frame(frame, c->channels, c->sample_fmt,
                                        (const uint8_t*)samples, buffer_size, 0);
     if (ret < 0) {
-        fprintf(stderr, "Could not setup audio frame\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Could not setup audio frame");
     }
 }
-#endif
 
 static void write_audio_frame(AVFormatContext *oc, AVStream *st)
 {
@@ -226,7 +219,6 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st)
 
     get_audio_frame(samples, audio_input_frame_size, c->channels);
 
-#ifdef USE_AUDIO4
     AVFrame *frame;
     void *samples;
     make_audio_frame(c,frame,samples);
@@ -245,33 +237,29 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st)
     }
     av_freep(&samples);
     av_frame_free(&frame);
-#else
-    pkt.size= avcodec_encode_audio(c, audio_outbuf, audio_outbuf_size, samples);
-#endif
 
     pkt.pts= av_rescale_q(c->coded_frame->pts, c->time_base, st->time_base);
-    pkt.flags |= PKT_FLAG_KEY;
+    pkt.flags |= AV_PKT_FLAG_KEY;
     pkt.stream_index= st->index;
     pkt.data= audio_outbuf;
 
     /* write the compressed frame in the media file */
     if (av_write_frame(oc, &pkt) != 0) {
-        fprintf(stderr, "Error while writing audio frame\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Error while writing audio frame");
     } else {
-        printf("Wrote some audio\n");
+        yCInfo(FFMPEGWRITER, "Wrote some audio");
     }
 }
 
 static void write_audio_frame(AVFormatContext *oc, AVStream *st, Sound& snd)
 {
-    printf("Preparing to write audio (%d left over)\n", samples_at);
+    yCInfo(FFMPEGWRITER, "Preparing to write audio (%d left over)", samples_at);
     AVCodecContext *c;
     int key = 1;
 
     c = st->codec;
 
-    int at = 0;
+    size_t at = 0;
     while (at<snd.getSamples()) {
 
         int avail = samples_size - samples_at;
@@ -293,7 +281,6 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st, Sound& snd)
             av_init_packet(&pkt);
 
 
-#ifdef USE_AUDIO4
             AVFrame *frame;
             void *samples;
             make_audio_frame(c,frame,samples);
@@ -312,19 +299,13 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st, Sound& snd)
             }
             av_freep(&samples);
             av_frame_free(&frame);
-#else
-            pkt.size= avcodec_encode_audio(c,
-                                           audio_outbuf,
-                                           audio_outbuf_size,
-                                           samples);
-#endif
 
             pkt.pts= av_rescale_q(c->coded_frame->pts, c->time_base,
                                   st->time_base);
             pkt.dts = pkt.pts;
-            //printf("(%d)", pkt.size);
+            yCTrace(FFMPEGWRITER, "(%d)", pkt.size);
             if (key) {
-                pkt.flags |= PKT_FLAG_KEY;
+                pkt.flags |= AV_PKT_FLAG_KEY;
                 key = 0;
             }
             pkt.stream_index= st->index;
@@ -333,18 +314,13 @@ static void write_audio_frame(AVFormatContext *oc, AVStream *st, Sound& snd)
 
 
             /* write the compressed frame in the media file */
-            printf("+");
-            fflush(stdout);
             if (av_write_frame(oc, &pkt) != 0) {
-                fprintf(stderr, "Error while writing audio frame\n");
-                ::exit(1);
-            } else {
-                printf(".");
+                yCFatal(FFMPEGWRITER, "Error while writing audio frame");
             }
             samples_at = 0;
         }
     }
-    printf(" wrote audio\n");
+    yCInfo(FFMPEGWRITER, " wrote audio\n");
 }
 
 static void close_audio(AVFormatContext *oc, AVStream *st)
@@ -360,23 +336,20 @@ static void close_audio(AVFormatContext *oc, AVStream *st)
 
 
 /* add a video output stream */
-static AVStream *add_video_stream(AVFormatContext *oc, CodecID codec_id,
+static AVStream *add_video_stream(AVFormatContext *oc, AVCodecID codec_id,
                                   int w, int h, int framerate)
 {
-    DBG printf("Video stream %dx%d\n", w, h);
-
     AVCodecContext *c;
     AVStream *st;
 
-    st = av_new_stream(oc, 0);
+    st = avformat_new_stream(oc, NULL);
     if (!st) {
-        fprintf(stderr, "Could not alloc stream\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Could not alloc stream");
     }
 
     c = st->codec;
     c->codec_id = codec_id;
-    c->codec_type = CODEC_TYPE_VIDEO;
+    c->codec_type = AVMEDIA_TYPE_VIDEO;
 
     /* put sample parameters */
     c->bit_rate = 400000;
@@ -391,19 +364,19 @@ static AVStream *add_video_stream(AVFormatContext *oc, CodecID codec_id,
     c->time_base.num = 1;
     c->gop_size = 12; /* emit one intra frame every twelve frames at most */
     c->pix_fmt = STREAM_PIX_FMT;
-    if (c->codec_id == CODEC_ID_MPEG2VIDEO) {
+    if (c->codec_id == AV_CODEC_ID_MPEG2VIDEO) {
         /* just for testing, we also add B frames */
         c->max_b_frames = 2;
     }
-    if (c->codec_id == CODEC_ID_MPEG1VIDEO){
+    if (c->codec_id == AV_CODEC_ID_MPEG1VIDEO){
         /* needed to avoid using macroblocks in which some coeffs overflow
            this doesnt happen with normal video, it just happens here as the
            motion of the chroma plane doesnt match the luma plane */
         c->mb_decision=2;
     }
-    // some formats want stream headers to be seperate
+    // some formats want stream headers to be separate
     if(!strcmp(oc->oformat->name, "mp4") || !strcmp(oc->oformat->name, "mov") || !strcmp(oc->oformat->name, "3gp"))
-        c->flags |= CODEC_FLAG_GLOBAL_HEADER;
+        c->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
 
     return st;
@@ -415,14 +388,14 @@ static AVFrame *alloc_picture(int pix_fmt, int width, int height)
     uint8_t *picture_buf;
     int size;
 
-    picture = YARP_avcodec_alloc_frame();
+    picture = av_frame_alloc();
     if (!picture)
-        return NULL;
+        return nullptr;
     size = avpicture_get_size((AVPixelFormat)pix_fmt, width, height);
     picture_buf = (uint8_t*)av_malloc(size);
     if (!picture_buf) {
         av_free(picture);
-        return NULL;
+        return nullptr;
     }
     avpicture_fill((AVPicture *)picture, picture_buf,
                    (AVPixelFormat)pix_fmt, width, height);
@@ -431,7 +404,7 @@ static AVFrame *alloc_picture(int pix_fmt, int width, int height)
 
 void FfmpegWriter::open_video(AVFormatContext *oc, AVStream *st)
 {
-    printf("Opening video stream\n");
+    yCInfo(FFMPEGWRITER, "Opening video stream");
     AVCodec *codec;
     AVCodecContext *c;
 
@@ -440,51 +413,40 @@ void FfmpegWriter::open_video(AVFormatContext *oc, AVStream *st)
     /* find the video encoder */
     codec = avcodec_find_encoder(c->codec_id);
     if (!codec) {
-        fprintf(stderr, "video codec not found\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Video codec not found");
     }
 
     /* open the codec */
-    if (avcodec_open2(c, codec, NULL) < 0) {
-        fprintf(stderr, "could not open codec\n");
-        ::exit(1);
+    if (avcodec_open2(c, codec, nullptr) < 0) {
+        yCFatal(FFMPEGWRITER, "Could not open codec");
     }
 
-    video_outbuf = NULL;
-    if (!(oc->oformat->flags & AVFMT_RAWPICTURE)) {
-        /* allocate output buffer */
-        /* XXX: API change will be done */
-        /* buffers passed into lav* can be allocated any way you prefer,
-           as long as they're aligned enough for the architecture, and
-           they're freed appropriately (such as using av_free for buffers
-           allocated with av_malloc) */
-        video_outbuf_size = 200000;
-        video_outbuf = (uint8_t*)av_malloc(video_outbuf_size);
-    }
+    video_outbuf = nullptr;
+    /* allocate output buffer */
+    /* XXX: API change will be done */
+    /* buffers passed into lav* can be allocated any way you prefer,
+       as long as they're aligned enough for the architecture, and
+       they're freed appropriately (such as using av_free for buffers
+       allocated with av_malloc) */
+    video_outbuf_size = 200000;
+    video_outbuf = (uint8_t*)av_malloc(video_outbuf_size);
 
     /* allocate the encoded raw picture */
     picture = alloc_picture(c->pix_fmt, c->width, c->height);
     if (!picture) {
-        fprintf(stderr, "Could not allocate picture\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Could not allocate picture");
     }
 
     /* if the output format is not YUV420P, then a temporary YUV420P
        picture is needed too. It is then converted to the required
        output format */
-    tmp_picture = NULL;
+    tmp_picture = nullptr;
     if (c->pix_fmt != AV_PIX_FMT_RGB24) {
         tmp_picture = alloc_picture(AV_PIX_FMT_RGB24, c->width, c->height);
         if (!tmp_picture) {
-            fprintf(stderr, "Could not allocate temporary picture\n");
-            ::exit(1);
-        } else {
-            DBG printf("Allocated AV_PIX_FMT_RGB24 image of dimensions %dx%d\n",
-                       c->width, c->height);
+            yCFatal(FFMPEGWRITER, "Could not allocate temporary picture");
         }
     }
-
-    DBG printf("Video stream opened\n");
 }
 
 static void fill_rgb_image(AVFrame *pict, int frame_index, int width,
@@ -506,90 +468,67 @@ static void fill_rgb_image(AVFrame *pict, int frame_index, int width,
 void FfmpegWriter::write_video_frame(AVFormatContext *oc, AVStream *st,
                                      ImageOf<PixelRgb>& img)
 {
-    DBG printf("Writing video stream\n");
-
     int out_size, ret;
     AVCodecContext *c;
 
     c = st->codec;
 
     if (c->pix_fmt != AV_PIX_FMT_RGB24) {
-        DBG printf("Converting to AV_PIX_FMT_RGB24\n");
         fill_rgb_image(tmp_picture, frame_count, c->width, c->height, img);
-        DBG printf("Converting to AV_PIX_FMT_RGB24 (stable_img_convert)\n");
         stable_img_convert((AVPicture *)picture, c->pix_fmt,
                            (AVPicture *)tmp_picture, AV_PIX_FMT_RGB24,
                            c->width, c->height);
-        DBG printf("Converted to AV_PIX_FMT_RGB24\n");
     } else {
         fill_rgb_image(picture, frame_count, c->width, c->height, img);
     }
 
-
-    if (oc->oformat->flags & AVFMT_RAWPICTURE) {
-        /* raw video case. The API will change slightly in the near
-           futur for that */
+    /* encode the image */
+    AVPacket tmp;
+    int got_packet = 0;
+    av_init_packet(&tmp);
+    tmp.data = video_outbuf;
+    tmp.size = video_outbuf_size;
+    out_size = avcodec_encode_video2(c, &tmp, picture, &got_packet);
+    if (tmp.side_data_elems > 0) {
+        for (int i = 0; i < tmp.side_data_elems; i++) {
+                av_free(tmp.side_data[i].data);
+        }
+        av_freep(&tmp.side_data);
+        tmp.side_data_elems = 0;
+    }
+    /* if zero size, it means the image was buffered */
+    if (out_size > 0) {
         AVPacket pkt;
         av_init_packet(&pkt);
 
-        pkt.flags |= PKT_FLAG_KEY;
+        pkt.pts= av_rescale_q(c->coded_frame->pts, c->time_base, st->time_base);
+        if(c->coded_frame->key_frame)
+            pkt.flags |= AV_PKT_FLAG_KEY;
         pkt.stream_index= st->index;
-        pkt.data= (uint8_t *)picture;
-        pkt.size= sizeof(AVPicture);
+        pkt.data= video_outbuf;
+        pkt.size= out_size;
 
+        /*
+        static int x = 0;
+        yCInfo(FFMPEGWRITER,
+               "%ld / %ld  :  %ld / %ld  --> %d\n",
+               (long int) c->time_base.num,
+               (long int) c->time_base.den,
+               (long int) st->time_base.num,
+               (long int) st->time_base.den,
+               x);
+        pkt.pts = x;
+        x++;
+        */
+
+        /* write the compressed frame in the media file */
         ret = av_write_frame(oc, &pkt);
     } else {
-        /* encode the image */
-#ifdef USE_AUDIO4
-        AVPacket tmp;
-        int got_packet = 0;
-        av_init_packet(&tmp);
-        tmp.data = video_outbuf;
-        tmp.size = video_outbuf_size;
-        out_size = avcodec_encode_video2(c, &tmp, picture, &got_packet);
-        if (tmp.side_data_elems > 0) {
-            for (int i = 0; i < tmp.side_data_elems; i++) {
-                  av_free(tmp.side_data[i].data);
-            }
-            av_freep(&tmp.side_data);
-            tmp.side_data_elems = 0;
-        }
-#else
-        out_size = avcodec_encode_video(c, video_outbuf, video_outbuf_size, picture);
-#endif
-        /* if zero size, it means the image was buffered */
-        if (out_size > 0) {
-            AVPacket pkt;
-            av_init_packet(&pkt);
-
-            pkt.pts= av_rescale_q(c->coded_frame->pts, c->time_base, st->time_base);
-            if(c->coded_frame->key_frame)
-                pkt.flags |= PKT_FLAG_KEY;
-            pkt.stream_index= st->index;
-            pkt.data= video_outbuf;
-            pkt.size= out_size;
-
-            /*
-            static int x = 0;
-            printf("%ld / %ld  :  %ld / %ld  --> %d\n",
-                   (long int) c->time_base.num,
-                   (long int) c->time_base.den,
-                   (long int) st->time_base.num,
-                   (long int) st->time_base.den,
-                   x);
-            pkt.pts = x;
-            x++;
-            */
-
-            /* write the compressed frame in the media file */
-            ret = av_write_frame(oc, &pkt);
-        } else {
-            ret = 0;
-        }
+        ret = 0;
     }
+
     if (ret != 0) {
-        fprintf(stderr, "Error while writing video frame\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Error while writing video frame");
     }
     frame_count++;
 }
@@ -613,9 +552,11 @@ void FfmpegWriter::close_video(AVFormatContext *oc, AVStream *st)
 /* YARP adaptation */
 
 bool FfmpegWriter::open(yarp::os::Searchable & config) {
-//     printf("ffmpeg libavcodec version number %d.%d.%d\n", LIBAVCODEC_VERSION_MAJOR,
-//                                                           LIBAVCODEC_VERSION_MINOR,
-//                                                           LIBAVCODEC_VERSION_MICRO);
+    yCTrace(FFMPEGWRITER,
+            "ffmpeg libavcodec version number %d.%d.%d",
+            LIBAVCODEC_VERSION_MAJOR,
+            LIBAVCODEC_VERSION_MINOR,
+            LIBAVCODEC_VERSION_MICRO);
 
     ready = false;
     savedConfig.fromString(config.toString());
@@ -626,23 +567,23 @@ bool FfmpegWriter::open(yarp::os::Searchable & config) {
 
 
 bool FfmpegWriter::delayedOpen(yarp::os::Searchable & config) {
-    //printf("DELAYED OPEN %s\n", config.toString().c_str());
+    yCTrace(FFMPEGWRITER, "DELAYED OPEN %s", config.toString().c_str());
 
     int w = config.check("width",Value(0),
-                         "width of image (must be even)").asInt();
+                         "width of image (must be even)").asInt32();
     int h = config.check("height",Value(0),
-                         "height of image (must be even)").asInt();
+                         "height of image (must be even)").asInt32();
     int framerate = config.check("framerate",Value(30),
-                                 "baseline images per second").asInt();
+                                 "baseline images per second").asInt32();
 
     int sample_rate = 0;
     int channels = 0;
     bool audio = config.check("audio","should audio be included");
     if (audio) {
         sample_rate = config.check("sample_rate",Value(44100),
-                                   "audio samples per second").asInt();
+                                   "audio samples per second").asInt32();
         channels = config.check("channels",Value(1),
-                                "audio samples per second").asInt();
+                                "audio samples per second").asInt32();
     }
 
     filename = config.check("out",Value("movie.avi"),
@@ -660,63 +601,50 @@ bool FfmpegWriter::delayedOpen(yarp::os::Searchable & config) {
 
     /* auto detect the output format from the name. default is
        mpeg. */
-    fmt = guess_format(NULL, filename.c_str(), NULL);
+    fmt = av_guess_format(nullptr, filename.c_str(), nullptr);
     if (!fmt) {
-        printf("Could not deduce output format from file extension: using MPEG.\n");
-        fmt = guess_format("mpeg", NULL, NULL);
+        yCInfo(FFMPEGWRITER, "Could not deduce output format from file extension: using MPEG.");
+        fmt = av_guess_format("mpeg", nullptr, nullptr);
     }
     if (!fmt) {
-        fprintf(stderr, "Could not find suitable output format\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Could not find suitable output format");
     }
 
     /* allocate the output media context */
-    oc = av_alloc_format_context();
+    oc = avformat_alloc_context();
     if (!oc) {
-        fprintf(stderr, "Memory error\n");
-        ::exit(1);
+        yCFatal(FFMPEGWRITER, "Memory error");
     }
     oc->oformat = fmt;
     snprintf(oc->filename, sizeof(oc->filename), "%s", filename.c_str());
 
     /* add the audio and video streams using the default format codecs
        and initialize the codecs */
-    video_st = NULL;
-    audio_st = NULL;
-    if (fmt->video_codec != CODEC_ID_NONE) {
+    video_st = nullptr;
+    audio_st = nullptr;
+    if (fmt->video_codec != AV_CODEC_ID_NONE) {
         video_st = add_video_stream(oc, fmt->video_codec, w, h, framerate);
     }
 
-#ifndef OMIT_AUDIO
     if (audio) {
-        printf("Adding audio %dx%d\n", sample_rate, channels);
-        if (fmt->audio_codec != CODEC_ID_NONE) {
+        yCInfo(FFMPEGWRITER, "Adding audio %dx%d", sample_rate, channels);
+        if (fmt->audio_codec != AV_CODEC_ID_NONE) {
             audio_st = add_audio_stream(oc, fmt->audio_codec);
-            if (audio_st!=NULL) {
+            if (audio_st!=nullptr) {
                 AVCodecContext *c = audio_st->codec;
                 c->sample_rate = sample_rate;
                 c->channels = channels;
             } else {
-                printf("Failed to add audio\n");
+                yCError(FFMPEGWRITER, "Failed to add audio");
             }
         } else {
-            printf("No audio codec available\n");
+            yCWarning(FFMPEGWRITER, "No audio codec available");
         }
     } else {
-        printf("Skipping audio\n");
+        yCInfo(FFMPEGWRITER, "Skipping audio");
     }
-#endif
 
-    /* set the output parameters (must be done even if no
-       parameters). */
-#ifndef AV_NO_SET_PARAMETERS
-    if (av_set_parameters(oc, NULL) < 0) {
-        fprintf(stderr, "Invalid output format parameters\n");
-        ::exit(1);
-    }
-#endif
-
-    YARP_dump_format(oc, 0, filename.c_str(), 1);
+    av_dump_format(oc, 0, filename.c_str(), 1);
 
     /* now that all the parameters are set, we can open the audio and
        video codecs and allocate the necessary encode buffers */
@@ -729,14 +657,13 @@ bool FfmpegWriter::delayedOpen(yarp::os::Searchable & config) {
 
     /* open the output file, if needed */
     if (!(fmt->flags & AVFMT_NOFILE)) {
-        if (url_fopen(&oc->pb, filename.c_str(), URL_WRONLY) < 0) {
-            fprintf(stderr, "Could not open '%s'\n", filename.c_str());
-            ::exit(1);
+        if (avio_open(&oc->pb, filename.c_str(), AVIO_FLAG_WRITE) < 0) {
+            yCFatal(FFMPEGWRITER, "Could not open '%s'", filename.c_str());
         }
     }
 
     /* write the stream header, if any */
-    av_write_header(oc);
+    avformat_write_header(oc, NULL);
 
     return true;
 }
@@ -761,32 +688,32 @@ bool FfmpegWriter::close() {
 
     if (!(fmt->flags & AVFMT_NOFILE)) {
         /* close the output file */
-        url_fclose(oc->pb);
+        avio_close(oc->pb);
     }
 
     /* free the stream */
     av_free(oc);
 
-    printf("Closed media file %s\n", filename.c_str());
+    yCInfo(FFMPEGWRITER, "Closed media file %s", filename.c_str());
 
     return true;
 }
 
 bool FfmpegWriter::putImage(yarp::sig::ImageOf<yarp::sig::PixelRgb> & image) {
     if (delayed) {
-        savedConfig.put("width",Value(image.width()));
-        savedConfig.put("height",Value(image.height()));
+        savedConfig.put("width",Value((int)image.width()));
+        savedConfig.put("height",Value((int)image.height()));
     }
     if (!isOk()) { return false; }
 
     /* compute current audio and video time */
     if (audio_st)
-        audio_pts = (double)audio_st->pts.val * audio_st->time_base.num / audio_st->time_base.den;
+        audio_pts = (double)av_stream_get_end_pts(audio_st) * audio_st->time_base.num / audio_st->time_base.den;
     else
         audio_pts = 0.0;
 
     if (video_st)
-        video_pts = (double)video_st->pts.val * video_st->time_base.num / video_st->time_base.den;
+        video_pts = (double)av_stream_get_end_pts(video_st) * video_st->time_base.num / video_st->time_base.den;
     else
         video_pts = 0.0;
 
@@ -808,10 +735,10 @@ bool FfmpegWriter::putImage(yarp::sig::ImageOf<yarp::sig::PixelRgb> & image) {
 bool FfmpegWriter::putAudioVisual(yarp::sig::ImageOf<yarp::sig::PixelRgb>& image,
                                   yarp::sig::Sound& sound) {
     if (delayed) {
-        savedConfig.put("width",Value(image.width()));
-        savedConfig.put("height",Value(image.height()));
-        savedConfig.put("sample_rate",Value(sound.getFrequency()));
-        savedConfig.put("channels",Value(sound.getChannels()));
+        savedConfig.put("width",Value((int)image.width()));
+        savedConfig.put("height",Value((int)image.height()));
+        savedConfig.put("sample_rate",Value((int)sound.getFrequency()));
+        savedConfig.put("channels",Value((int)sound.getChannels()));
         savedConfig.put("audio",Value(1));
     }
     if (!isOk()) { return false; }

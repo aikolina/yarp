@@ -1,22 +1,23 @@
-# Copyright: (C) 2009 RobotCub Consortium
-# Author: Paul Fitzpatrick
-# CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+# Copyright (C) 2006-2020 Istituto Italiano di Tecnologia (IIT)
+# Copyright (C) 2006-2010 RobotCub Consortium
+# All rights reserved.
+#
+# This software may be modified and distributed under the terms of the
+# BSD-3-Clause license. See the accompanying LICENSE file for details.
 
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.12)
+project(minimal_client)
 
-FIND_PACKAGE(YARP REQUIRED)
-INCLUDE_DIRECTORIES(${YARP_INCLUDE_DIRS})
-LINK_LIBRARIES(${YARP_LIBRARIES})
+find_package(YARP COMPONENTS os REQUIRED)
 
-IF (WIN32 AND NOT CYGWIN)
-  ADD_DEFINITIONS(-DWIN32 -D_WINDOWS)
-ENDIF (WIN32 AND NOT CYGWIN)
+if(WIN32 AND NOT CYGWIN)
+  add_definitions(-DWIN32 -D_WINDOWS)
+endif(WIN32 AND NOT CYGWIN)
 
-IF(WIN32 AND CYGWIN)
-  ADD_DEFINITIONS(-DCYGWIN)
-ENDIF(WIN32 AND CYGWIN)
+if(WIN32 AND CYGWIN)
+  add_definitions(-DCYGWIN)
+endif(WIN32 AND CYGWIN)
 
-PROJECT(minimal_client)
-
-ADD_EXECUTABLE(minimal_client main.cpp)
-
+add_executable(minimal_client)
+target_sources(minimal_client PRIVATE main.cpp)
+target_link_libraries(minimal_client PRIVATE ${YARP_LIBRARIES})

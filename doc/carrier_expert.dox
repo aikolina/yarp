@@ -1,13 +1,7 @@
-/*
- * Copyright (C) 2010 RobotCub Consortium
- * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
- *
- */
-
 /**
- * @page carrier_expert Creating carriers for new kinds of connections
+\page carrier_expert Creating carriers for new kinds of connections
 
-\author Paul Fitzpatrick
+\tableofcontents
 
 In YARP, ports talk to each other via connections.  Connection data is
 carried by TCP by default, but this can be switched very easily to other
@@ -83,8 +77,6 @@ You'll be able to include them in your code as follows:
 #include <yarp/os/InputStream.h>
 #include <yarp/os/OutputStream.h>
 #include <yarp/os/Contact.h>
-using namespace yarp::os;
-using namespace yarp::os::impl;
 \endcode
 
 \section carrier_expert_basics The basics
@@ -153,10 +145,11 @@ the companion.  Here is the companion's source code in its entirety:
 
 \code
 #include <yarp/os/Network.h>
-using namespace yarp::os;
-int main(int argc, char *argv[]) {
+using yarp::os::Network;
+int main(int argc, char* argv[])
+{
     Network yarp;
-    return Network::main(argc,argv);
+    return Network::main(argc, argv);
 }
 \endcode
 
@@ -164,7 +157,7 @@ So there isn't much to it to just insert a call to
 Carriers::addCarrierPrototype in there.  Otherwise, to put
 the new carrier in the YARP library proper, do a little pattern-matching
 in the constructor for the yarp::os::Carriers class
-at src/libYARP_OS/src/Carriers.cpp.
+at `src/libYARP_os/src/yarp/os/Carriers.cpp`.
 
 
 \section carrier_expert_custom Customizing behavior
@@ -527,25 +520,25 @@ typing it on another (see example/carrier/carrier_human.cpp).
       edge [fontname=Helvetica, fontsize=10, arrowhead="open", style="solid"];
 
       subgraph cluster_carrier_expert_figure1_app1 {
-		label = "Test Server";
-		color = "blue"; style = "dashed";
+        label = "Test Server";
+        color = "blue"; style = "dashed";
 
-		port1 [ label="Server Port", shape=ellipse ];
-	}
+        port1 [ label="Server Port", shape=ellipse ];
+    }
 
       subgraph cluster_carrier_expert_figure1_app2 {
-		label = "Test Client";
-		color = "blue"; style = "dashed";
+        label = "Test Client";
+        color = "blue"; style = "dashed";
 
-		port2 [ label="Client Port", shape=ellipse ];
-	}
+        port2 [ label="Client Port", shape=ellipse ];
+    }
 
       port1 -> port2 [label = "Human Carrier"];
 
       fontname=Helvetica;
       fontsize=10;
       label = "Human-carrier connection";
-		color = "blue"; style = "dashed";
+        color = "blue"; style = "dashed";
   }
   \enddot
 
@@ -594,6 +587,4 @@ instructions to the console for a human to follow.  If we follow
 those instructions exactly, and in order, the program will
 successfully complete just as for any other carrier.
 
-
 */
-
